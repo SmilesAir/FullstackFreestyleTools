@@ -1,0 +1,7 @@
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+
+# node_modules/.env/.next are already covered by web/.gitignore and
+# backend/.gitignore, kept per-package deliberately.
