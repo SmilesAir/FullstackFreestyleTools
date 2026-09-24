@@ -1,6 +1,40 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
+-- Renames (idempotent): results -> divisions, result_teams -> teams,
+-- result_team_players -> team_players, plus their FK columns. Runs BEFORE the
+-- CREATE TABLE IF NOT EXISTS statements below so an already-deployed database
+-- is renamed in place (rows, PKs and FKs carry over) instead of getting a
+-- second, empty table created under the new name. Constraint names keep their
+-- old prefixes; that is cosmetic.
+DO $$
+BEGIN
+  IF to_regclass('public.results') IS NOT NULL AND to_regclass('public.divisions') IS NULL THEN
+    ALTER TABLE results RENAME TO divisions;
+  END IF;
+  IF to_regclass('public.result_teams') IS NOT NULL AND to_regclass('public.teams') IS NULL THEN
+    ALTER TABLE result_teams RENAME TO teams;
+  END IF;
+  IF to_regclass('public.result_team_players') IS NOT NULL AND to_regclass('public.team_players') IS NULL THEN
+    ALTER TABLE result_team_players RENAME TO team_players;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'teams' AND column_name = 'result_id') THEN
+    ALTER TABLE teams RENAME COLUMN result_id TO division_id;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'team_players' AND column_name = 'result_team_id') THEN
+    ALTER TABLE team_players RENAME COLUMN result_team_id TO team_id;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ranking_points' AND column_name = 'results_id') THEN
+    ALTER TABLE ranking_points RENAME COLUMN results_id TO division_id;
+  END IF;
+END
+$$;
+ALTER INDEX IF EXISTS idx_results_event_id RENAME TO idx_divisions_event_id;
+ALTER INDEX IF EXISTS idx_result_teams_result_id RENAME TO idx_teams_division_id;
+ALTER INDEX IF EXISTS idx_rtp_result_team_id RENAME TO idx_team_players_team_id;
+ALTER INDEX IF EXISTS idx_rtp_player_id RENAME TO idx_team_players_player_id;
+ALTER INDEX IF EXISTS idx_ranking_points_results_id RENAME TO idx_ranking_points_division_id;
+
 CREATE TABLE IF NOT EXISTS players (
   id             uuid PRIMARY KEY,
   first_name     text NOT NULL,
@@ -35,7 +69,7 @@ CREATE TABLE IF NOT EXISTS events (
   post_name   text
 );
 
-CREATE TABLE IF NOT EXISTS results (
+CREATE TABLE IF NOT EXISTS divisions (
   id            uuid PRIMARY KEY,
   event_id      uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   division_name text NOT NULL,
@@ -43,25 +77,39 @@ CREATE TABLE IF NOT EXISTS results (
   is_hidden     boolean,
   created_at    timestamptz NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_results_event_id ON results(event_id);
+CREATE INDEX IF NOT EXISTS idx_divisions_event_id ON divisions(event_id);
 
-CREATE TABLE IF NOT EXISTS result_teams (
+CREATE TABLE IF NOT EXISTS teams (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  result_id    uuid NOT NULL REFERENCES results(id) ON DELETE CASCADE,
+  division_id  uuid NOT NULL REFERENCES divisions(id) ON DELETE CASCADE,
   round_number integer NOT NULL,
   pool_id      text NOT NULL,
   place        integer,
-  points       numeric
+  points       numeric,
+  play_order   integer
 );
-CREATE INDEX IF NOT EXISTS idx_result_teams_result_id ON result_teams(result_id);
+CREATE INDEX IF NOT EXISTS idx_teams_division_id ON teams(division_id);
 
-CREATE TABLE IF NOT EXISTS result_team_players (
+CREATE TABLE IF NOT EXISTS team_players (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  result_team_id  uuid NOT NULL REFERENCES result_teams(id) ON DELETE CASCADE,
+  team_id         uuid NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
   player_id       uuid NOT NULL REFERENCES players(id) ON DELETE RESTRICT
 );
-CREATE INDEX IF NOT EXISTS idx_rtp_result_team_id ON result_team_players(result_team_id);
-CREATE INDEX IF NOT EXISTS idx_rtp_player_id ON result_team_players(player_id);
+CREATE INDEX IF NOT EXISTS idx_team_players_team_id ON team_players(team_id);
+CREATE INDEX IF NOT EXISTS idx_team_players_player_id ON team_players(player_id);
+
+-- A player judging one pool of a round. Tied to the pool by (division, round,
+-- pool letter), not to team rows, so re-seeding or rearranging never loses them.
+CREATE TABLE IF NOT EXISTS pool_judges (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  division_id   uuid NOT NULL REFERENCES divisions(id) ON DELETE CASCADE,
+  round_number  integer NOT NULL,
+  pool_id       text NOT NULL,
+  player_id     uuid NOT NULL REFERENCES players(id) ON DELETE RESTRICT,
+  category_type text NOT NULL,
+  UNIQUE (division_id, round_number, pool_id, player_id)
+);
+CREATE INDEX IF NOT EXISTS idx_pool_judges_player_id ON pool_judges(player_id);
 
 CREATE TABLE IF NOT EXISTS rankings (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -77,11 +125,11 @@ CREATE INDEX IF NOT EXISTS idx_rankings_category ON rankings(category);
 CREATE TABLE IF NOT EXISTS ranking_points (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   ranking_id  uuid NOT NULL REFERENCES rankings(id) ON DELETE CASCADE,
-  results_id  uuid REFERENCES results(id) ON DELETE SET NULL,
+  division_id uuid REFERENCES divisions(id) ON DELETE SET NULL,
   points      numeric NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ranking_points_ranking_id ON ranking_points(ranking_id);
-CREATE INDEX IF NOT EXISTS idx_ranking_points_results_id ON ranking_points(results_id);
+CREATE INDEX IF NOT EXISTS idx_ranking_points_division_id ON ranking_points(division_id);
 
 -- Login accounts for the web app (web/). Not part of the JSON migration —
 -- never truncated by migrate.js's reload.
@@ -153,3 +201,20 @@ CREATE TABLE IF NOT EXISTS backups (
   kind       text NOT NULL CHECK (kind IN ('manual', 'automatic', 'uploaded', 'pre_restore')),
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Event Creator: a `divisions` row is one division of one event. These columns
+-- hold the division's setup; teams live in `teams` (round_number = 0,
+-- pool_id = 'roster' is the unseeded roster; 1 = Finals, 2 = Semifinals,
+-- 3 = Quarterfinals, 4 = Preliminaries).
+-- pool_config JSONB holds per-round length and per-pool judge assignments,
+-- which have no natural per-row home in teams.
+ALTER TABLE divisions ADD COLUMN IF NOT EXISTS rules_id text NOT NULL DEFAULT 'Fpa2020';
+ALTER TABLE divisions ADD COLUMN IF NOT EXISTS head_judge_player_id uuid REFERENCES players(id) ON DELETE SET NULL;
+ALTER TABLE divisions ADD COLUMN IF NOT EXISTS director_player_ids uuid[] NOT NULL DEFAULT '{}';
+ALTER TABLE divisions ADD COLUMN IF NOT EXISTS pool_config jsonb NOT NULL DEFAULT '{}';
+-- Routine length for the whole division (UI offers 3/4/5 minutes; Open Co-op defaults to 4).
+ALTER TABLE divisions ADD COLUMN IF NOT EXISTS routine_seconds integer NOT NULL DEFAULT 180;
+
+-- Order a team plays within its pool (1 = first); NULL until someone arranges the pool.
+-- Separate from place, which is the result after the pool has played.
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS play_order integer;

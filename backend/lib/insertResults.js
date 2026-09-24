@@ -29,7 +29,7 @@ export async function insertResults(client, { data, eventIds }, warnings) {
   }
 
   const columns = ['id', 'event_id', 'division_name', 'raw_text', 'is_hidden', 'created_at'];
-  const inserted = await batchInsert(client, 'results', columns, rows);
+  const inserted = await batchInsert(client, 'divisions', columns, rows);
 
   return { inserted, skipped: entries.length - rows.length, insertedIds };
 }

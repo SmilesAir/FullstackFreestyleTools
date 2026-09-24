@@ -38,7 +38,7 @@ export async function insertResultTeams(client, { data, insertedResultIds, playe
               playerRows.push([crypto.randomUUID(), teamId, playerIdMap.get(playerKey)]);
             } else {
               warnings.push(
-                `result_team_players: team ${teamId} (result ${resultId}) references unresolved player "${playerKey}", skipped`
+                `team_players: team ${teamId} (division ${resultId}) references unresolved player "${playerKey}", skipped`
               );
             }
           }
@@ -47,11 +47,11 @@ export async function insertResultTeams(client, { data, insertedResultIds, playe
     }
   }
 
-  const teamColumns = ['id', 'result_id', 'round_number', 'pool_id', 'place', 'points'];
-  const teamsInserted = await batchInsert(client, 'result_teams', teamColumns, teamRows);
+  const teamColumns = ['id', 'division_id', 'round_number', 'pool_id', 'place', 'points'];
+  const teamsInserted = await batchInsert(client, 'teams', teamColumns, teamRows);
 
-  const playerColumns = ['id', 'result_team_id', 'player_id'];
-  const playersInserted = await batchInsert(client, 'result_team_players', playerColumns, playerRows);
+  const playerColumns = ['id', 'team_id', 'player_id'];
+  const playersInserted = await batchInsert(client, 'team_players', playerColumns, playerRows);
 
   return { teamsInserted, playersInserted };
 }

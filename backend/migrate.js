@@ -7,7 +7,7 @@ import { insertResults } from './lib/insertResults.js';
 import { insertResultTeams } from './lib/insertResultTeams.js';
 import { insertRankings } from './lib/insertRankings.js';
 
-const TABLES = ['players', 'events', 'results', 'result_teams', 'result_team_players', 'rankings', 'ranking_points'];
+const TABLES = ['players', 'events', 'divisions', 'teams', 'team_players', 'rankings', 'ranking_points'];
 
 async function main() {
   if (!process.env.DATABASE_URL) {
@@ -36,9 +36,9 @@ async function main() {
     const eventsResult = await insertEvents(client, { data }, warnings);
     summary.events = { inserted: eventsResult.inserted, skipped: eventsResult.skipped };
 
-    console.log('Inserting results...');
+    console.log('Inserting divisions...');
     const resultsResult = await insertResults(client, { data, eventIds }, warnings);
-    summary.results = { inserted: resultsResult.inserted, skipped: resultsResult.skipped };
+    summary.divisions = { inserted: resultsResult.inserted, skipped: resultsResult.skipped };
 
     console.log('Inserting result teams and team players...');
     const teamsResult = await insertResultTeams(
@@ -46,8 +46,8 @@ async function main() {
       { data, insertedResultIds: resultsResult.insertedIds, playerIdMap: playersResult.idMap },
       warnings
     );
-    summary.result_teams = { inserted: teamsResult.teamsInserted };
-    summary.result_team_players = { inserted: teamsResult.playersInserted };
+    summary.teams = { inserted: teamsResult.teamsInserted };
+    summary.team_players = { inserted: teamsResult.playersInserted };
 
     console.log('Inserting rankings and ranking points...');
     const rankingsResult = await insertRankings(

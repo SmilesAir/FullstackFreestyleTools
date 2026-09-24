@@ -42,9 +42,10 @@ export async function listPlayers(q: string, page: number) {
 
 export async function getPlayer(id: string): Promise<PlayerWithAliasName | null> {
   const result = await pool.query<PlayerWithAliasName>(
-    `SELECT p.*, a.first_name AS alias_first_name, a.last_name AS alias_last_name
+    `SELECT p.*, a.first_name AS alias_first_name, a.last_name AS alias_last_name, u.email AS linked_user_email
      FROM players p
      LEFT JOIN players a ON a.id = p.alias_id
+     LEFT JOIN users u ON u.player_id = p.id
      WHERE p.id = $1`,
     [id]
   );

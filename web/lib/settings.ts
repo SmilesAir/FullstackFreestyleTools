@@ -19,6 +19,13 @@ export const SETTINGS: SettingDef[] = [
     type: 'password',
   },
   {
+    key: 'anthropic_api_key',
+    label: 'Anthropic API key',
+    description:
+      'Used by the Event Creator to parse pasted teams with Claude. Create one at console.anthropic.com → API keys. Usage is billed to that account.',
+    type: 'password',
+  },
+  {
     key: 'api_rate_limit_requests',
     label: 'Public API rate limit (requests)',
     description: 'Max requests a single IP can make to the public API per window, before getting a 429.',

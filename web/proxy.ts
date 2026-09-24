@@ -8,6 +8,8 @@ export const proxy = auth;
 export const config = {
   matcher: [
     '/players/:path*',
+    '/events/:path*',
+    '/backups/:path*',
     '/permissions/:path*',
     '/control-panel/:path*',
     '/profile/:path*',

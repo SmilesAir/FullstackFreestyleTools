@@ -15,6 +15,7 @@ export type Player = {
 export type PlayerWithAliasName = Player & {
   alias_first_name: string | null;
   alias_last_name: string | null;
+  linked_user_email: string | null;
 };
 
 export function normalizeGender(raw: FormDataEntryValue | null): string | null {

@@ -7,9 +7,10 @@
 export const BACKUP_TABLES = [
   'players',
   'events',
-  'results',
-  'result_teams',
-  'result_team_players',
+  'divisions',
+  'teams',
+  'team_players',
+  'pool_judges',
   'rankings',
   'ranking_points',
   'users',
@@ -20,3 +21,8 @@ export const BACKUP_TABLES = [
 ] as const;
 
 export type BackupTableName = (typeof BACKUP_TABLES)[number];
+
+// Tables added after backups already existed. A backup made before the table
+// existed is still restorable: it is read as having no rows, so restoring it
+// clears the table, which is what the database held at that point in time.
+export const TABLES_ADDED_LATER: readonly BackupTableName[] = ['pool_judges'];

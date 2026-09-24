@@ -10,6 +10,12 @@ const TOOL_INFO: Record<PermissionKey, ToolInfo> = {
       'Search, create, and edit player records; hide/unhide instead of deleting; link duplicate entries via an alias picker.',
     href: '/players',
   },
+  event_creator: {
+    label: 'Event creator',
+    description:
+      'Create events, set up divisions/rounds/pools, paste in teams (parsed by Claude), and seed rounds from rankings.',
+    href: '/events',
+  },
 };
 
 export const FLAGGED_TOOLS = PERMISSIONS.map((p) => ({ key: p.key, ...TOOL_INFO[p.key] }));

@@ -36,7 +36,7 @@ export async function uploadBackupAction(_prevState: ActionState, formData: Form
 
   const filename = file.name.endsWith('.json.gz') ? file.name : `${file.name}.json.gz`;
   const blob = await put(filename, buffer, {
-    access: 'public',
+    access: 'private',
     addRandomSuffix: true,
     contentType: 'application/gzip',
   });

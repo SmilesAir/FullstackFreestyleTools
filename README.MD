@@ -31,7 +31,7 @@
 | fpa_id      | text, nullable | ID of the event on the FPA website                 |
 | post_name   | text, nullable | URL slug for the event's FPA website post          |
 
-**Results division table**
+**Divisions table** (one row per division of an event; formerly `results`)
 
 | Field         | Type            | Description                                    |
 | ------------- | --------------- | ------------------------------------------------ |
@@ -42,25 +42,37 @@
 | is_hidden     | boolean, nullable         | Whether the result is hidden from public view      |
 | created_at    | timestamp       | When the record was created                        |
 
-Each result is broken into rounds/pools/teams, so results also need child tables to normalize that nesting:
+Each division is broken into rounds/pools/teams, so divisions also need child tables to normalize that nesting (`round_number = 0`, `pool_id = 'roster'` is the unseeded roster; 1 = Finals, 2 = Semifinals, 3 = Quarterfinals, 4 = Preliminaries):
 
-**Result teams table**
+**Teams table** (formerly `result_teams`)
 
 | Field        | Type      | Description                          |
 | ------------ | --------- | --------------------------------------- |
 | id           | uuid      | Random GUID, primary key                 |
-| division_result_id    | uuid      | Foreign key to results                            |
+| division_id    | uuid      | Foreign key to divisions                          |
 | round_number | integer   | Round number                             |
 | pool_id      | text      | Pool label (e.g. "A")                    |
-| place        | integer   | Placement within the pool                |
+| place        | integer   | Result: placement within the pool once it has played |
 | points       | integer   | Points earned                            |
+| play_order   | integer   | Order the team plays within its pool (1 = first), nullable |
 
-**Result team players table**
+**Pool judges table**
+
+| Field         | Type | Description                                                   |
+| ------------- | ---- | ------------------------------------------------------------- |
+| id            | uuid | Random GUID, primary key                                      |
+| division_id   | uuid | Foreign key to divisions                                      |
+| round_number  | integer | Round number (same numbering as teams)                     |
+| pool_id       | text | Pool label (same as teams, e.g. "poolA")                      |
+| player_id     | uuid | Foreign key to players: the judge                             |
+| category_type | text | What they judge (e.g. Diff, Variety, ExAi); unique per player per pool |
+
+**Team players table** (formerly `result_team_players`)
 
 | Field           | Type | Description               |
 | --------------- | ---- | ---------------------------- |
 | id              | uuid | Random GUID, primary key      |
-| result_team_id  | uuid | Foreign key to result_teams             |
+| team_id  | uuid | Foreign key to teams             |
 | player_id       | uuid | Foreign key to players                  |
 
 **Rankings table**

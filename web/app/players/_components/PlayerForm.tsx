@@ -141,6 +141,16 @@ export function PlayerForm({
         >
           {pending ? 'Saving…' : submitLabel}
         </button>
+
+        {player && (
+          <p className="mt-2 text-xs text-gray-500">
+            {player.linked_user_email ? (
+              <>Linked account: {player.linked_user_email}</>
+            ) : (
+              'No user account linked to this player.'
+            )}
+          </p>
+        )}
       </fieldset>
     </form>
   );

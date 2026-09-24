@@ -43,7 +43,7 @@ export async function insertRankings(client, { data, insertedResultIds, playerId
   const rankingColumns = ['id', 'player_id', 'category', 'rank', 'points', 'results_count'];
   const rankingsInserted = await batchInsert(client, 'rankings', rankingColumns, rankingRows);
 
-  const pointsColumns = ['id', 'ranking_id', 'results_id', 'points'];
+  const pointsColumns = ['id', 'ranking_id', 'division_id', 'points'];
   const pointsInserted = await batchInsert(client, 'ranking_points', pointsColumns, pointsRows);
 
   return { rankingsInserted, pointsInserted, ratingSkipped };

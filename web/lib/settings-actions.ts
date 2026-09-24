@@ -1,6 +1,7 @@
 'use server';
 
 import { pool } from './db';
+import Anthropic from '@anthropic-ai/sdk';
 import { requireAdmin } from './authz';
 
 export type ActionState = { error: string | null };
@@ -24,6 +25,17 @@ export async function saveSetting(key: string, _prevState: ActionState, formData
     });
     if (!res.ok) {
       return { error: "That doesn't look like a valid bot token — Discord rejected it." };
+    }
+  }
+
+  if (key === 'anthropic_api_key') {
+    try {
+      await new Anthropic({ apiKey: value }).models.list({ limit: 1 });
+    } catch (err) {
+      if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) {
+        return { error: "That doesn't look like a valid Anthropic API key — Anthropic rejected it." };
+      }
+      return { error: 'Could not reach Anthropic to verify the key. Try again in a moment.' };
     }
   }
 

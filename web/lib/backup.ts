@@ -1,8 +1,8 @@
 import 'server-only';
 import { gzipSync, gunzipSync } from 'node:zlib';
-import { put, del } from '@vercel/blob';
+import { put, del, get } from '@vercel/blob';
 import { pool } from './db';
-import { BACKUP_TABLES, type BackupTableName } from './backup-tables';
+import { BACKUP_TABLES, TABLES_ADDED_LATER, type BackupTableName } from './backup-tables';
 
 type BackupDocument = {
   version: 1;
@@ -43,9 +43,12 @@ function parseBackupBuffer(buf: Buffer): BackupDocument {
 
   const tables = (doc as BackupDocument).tables;
   for (const table of BACKUP_TABLES) {
-    if (!Array.isArray(tables[table])) {
-      throw new Error(`Backup is missing the "${table}" table — refusing to restore a partial backup.`);
+    if (Array.isArray(tables[table])) continue;
+    if (TABLES_ADDED_LATER.includes(table) && tables[table] === undefined) {
+      tables[table] = [];
+      continue;
     }
+    throw new Error(`Backup is missing the "${table}" table — refusing to restore a partial backup.`);
   }
 
   return doc as BackupDocument;
@@ -56,7 +59,7 @@ export async function createBackup(kind: BackupKind): Promise<void> {
   const filename = `backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json.gz`;
 
   const blob = await put(filename, buffer, {
-    access: 'public',
+    access: 'private',
     addRandomSuffix: true,
     contentType: 'application/gzip',
   });
@@ -114,9 +117,9 @@ export async function restoreFromBuffer(buf: Buffer): Promise<void> {
 }
 
 export async function fetchBackupBuffer(blobUrl: string): Promise<Buffer> {
-  const res = await fetch(blobUrl);
-  if (!res.ok) throw new Error('Failed to fetch backup from storage.');
-  return Buffer.from(await res.arrayBuffer());
+  const result = await get(blobUrl, { access: 'private' });
+  if (!result) throw new Error('Failed to fetch backup from storage.');
+  return Buffer.from(await new Response(result.stream).arrayBuffer());
 }
 
 export function validateBackupBuffer(buf: Buffer): void {
