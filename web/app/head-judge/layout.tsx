@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { requirePermission } from '@/lib/authz';
 
-export default async function EventsLayout({ children }: { children: React.ReactNode }) {
-  await requirePermission('event_creator');
+export default async function HeadJudgeLayout({ children }: { children: React.ReactNode }) {
+  await requirePermission('head_judge');
 
   return (
     <div className="relative px-4 py-10">

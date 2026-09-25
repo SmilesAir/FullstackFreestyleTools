@@ -15,11 +15,12 @@ import {
   ROUNDS,
   poolId,
   getRoundConfig,
+  type JudgeCandidate,
   type PoolConfig,
   type PoolJudge,
   type RulesId,
 } from './event-creator';
-import { getTeams } from './event-creator-queries';
+import { getJudgeCandidates, getTeams } from './event-creator-queries';
 import { seedRound } from './event-creator-seeding';
 import { teamKey } from './event-creator-layout';
 
@@ -186,6 +187,22 @@ export async function setPoolJudges(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // Nobody judges a pool they're competing in.
+    if (judges.length > 0) {
+      const clash = await client.query<{ first_name: string; last_name: string }>(
+        `SELECT DISTINCT p.first_name, p.last_name
+         FROM teams t
+         JOIN team_players tp ON tp.team_id = t.id
+         JOIN players p ON p.id = tp.player_id
+         WHERE t.division_id = $1 AND t.round_number = $2 AND t.pool_id = $3 AND tp.player_id = ANY($4::uuid[])`,
+        [divisionId, roundNumber, poolId(poolLetter), judges.map((j) => j.playerId)]
+      );
+      if (clash.rows.length > 0) {
+        await client.query('ROLLBACK');
+        const names = clash.rows.map((r) => `${r.first_name} ${r.last_name}`).join(', ');
+        return { error: `${names} ${clash.rows.length > 1 ? 'are' : 'is'} competing in this pool and can't judge it` };
+      }
+    }
     await client.query('DELETE FROM pool_judges WHERE division_id = $1 AND round_number = $2 AND pool_id = $3', [
       divisionId,
       roundNumber,
@@ -210,6 +227,18 @@ export async function setPoolJudges(
   } finally {
     client.release();
   }
+}
+
+// The players who could judge a pool, for the Set Judges panel.
+export async function loadJudgeCandidates(
+  divisionId: string,
+  roundNumber: number,
+  poolLetter: string
+): Promise<{ error: string | null; candidates: JudgeCandidate[] }> {
+  await guard();
+  if (!(POOL_LETTERS as readonly string[]).includes(poolLetter)) return { error: 'Unknown pool', candidates: [] };
+  if (!Number.isInteger(roundNumber) || roundNumber < 1) return { error: 'Unknown round', candidates: [] };
+  return { error: null, candidates: await getJudgeCandidates(divisionId, roundNumber, poolLetter) };
 }
 
 async function insertTeam(

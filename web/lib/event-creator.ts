@@ -29,14 +29,46 @@ export function defaultRoutineSeconds(divisionName: string): number {
 }
 
 export const JUDGE_CATEGORIES: Record<RulesId, readonly string[]> = {
-  Fpa2020: ['Diff', 'Variety', 'ExAi'],
+  Fpa2020: ['Diff', 'AI', 'Ex'],
   SimpleRanking: [],
   Goe: ['GoeDiff', 'GoeTech', 'GoeSub'],
 };
 
+// Column headings for the stored category values.
+export const JUDGE_CATEGORY_LABELS: Record<string, string> = {
+  Diff: 'Diff',
+  AI: 'AI',
+  Ex: 'Ex',
+  GoeDiff: 'Diff',
+  GoeTech: 'Tech',
+  GoeSub: 'Sub',
+};
+
 // A player judging one pool (stored in pool_judges).
 export type PoolJudge = { playerId: string; categoryType: string };
-export type PoolJudgeView = PoolJudge & { name: string };
+
+// How much a player has judged: pools in this event (any category), and pools
+// per category across every event. Counts come from pool_judges, so they cover
+// judging assigned in this tool.
+export type JudgeStats = { eventCount: number; counts: Record<string, number> };
+
+export type PoolJudgeView = PoolJudge & JudgeStats & { name: string };
+
+export type JudgeCandidate = JudgeStats & {
+  id: string;
+  name: string;
+  country: string | null;
+  // Open ranking points.
+  points: number;
+  // Pool letter they compete in for this round, when it isn't the pool being set.
+  playingIn: string | null;
+};
+
+// "event-cat1-cat2-cat3", e.g. 3-12-4-9: pools judged in this event, then the
+// lifetime count for each of the rules' categories.
+export function formatJudgeCount(stats: JudgeStats, categories: readonly string[]): string {
+  return [stats.eventCount, ...categories.map((c) => stats.counts[c] ?? 0)].join('-');
+}
 export type RoundConfig = { poolCount: number };
 export type PoolConfig = { rounds?: Record<string, RoundConfig> };
 

@@ -2,6 +2,7 @@ import { getDivision, getPoolJudges, getTeams } from '@/lib/event-creator-querie
 import { syncRosterFromRounds } from '@/lib/event-creator-sync';
 import {
   DIVISION_NAMES,
+  JUDGE_CATEGORIES,
   ROSTER_ROUND,
   ROUNDS,
   getRoundConfig,
@@ -61,6 +62,8 @@ export async function DivisionView({
       playerId: j.player_id,
       categoryType: j.category_type,
       name: j.name,
+      eventCount: j.eventCount,
+      counts: j.counts,
     });
   }
 
@@ -74,7 +77,11 @@ export async function DivisionView({
 
   return (
     // The workspace lays these out side by side on wide screens (stacked on narrow ones).
-    <DivisionWorkspace roundKeys={roundKeys}>
+    <DivisionWorkspace
+      divisionId={divisionId}
+      judgeCategories={JUDGE_CATEGORIES[division.rules_id as RulesId] ?? []}
+      roundKeys={roundKeys}
+    >
       <div className="flex min-w-0 flex-1 flex-col gap-6">
         <Collapsible title="Division settings">
           <DivisionSettings

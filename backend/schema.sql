@@ -111,6 +111,19 @@ CREATE TABLE IF NOT EXISTS pool_judges (
 );
 CREATE INDEX IF NOT EXISTS idx_pool_judges_player_id ON pool_judges(player_id);
 
+-- The Head Judge tool's live state for an event: which pool and team are
+-- playing and when the routine's first throw was clicked (NULL = not started).
+-- One row per event.
+CREATE TABLE IF NOT EXISTS event_play_state (
+  event_id           uuid PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+  division_id        uuid REFERENCES divisions(id) ON DELETE SET NULL,
+  round_number       integer,
+  pool_id            text,
+  team_id            uuid REFERENCES teams(id) ON DELETE SET NULL,
+  routine_started_at timestamptz,
+  updated_at         timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS rankings (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   player_id     uuid NOT NULL REFERENCES players(id) ON DELETE RESTRICT,

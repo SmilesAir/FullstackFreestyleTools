@@ -1,8 +1,20 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { ROUNDS } from '@/lib/event-creator';
+import { ROUNDS, type JudgeStats } from '@/lib/event-creator';
 import type { TeamRow } from '@/lib/event-creator-queries';
+import { JudgePanel } from './JudgePanel';
+
+// The pool the Set Judges panel is open for.
+export type JudgePanelTarget = { roundNumber: number; roundName: string; letter: string };
+
+// A player being dragged to a judging column: from the panel's list, or a chip
+// already in a pool (which can only be moved within that pool).
+export type JudgeDrag = JudgeStats & {
+  playerId: string;
+  name: string;
+  source: 'panel' | { roundNumber: number; letter: string };
+};
 
 type DivisionUi = {
   // The round the user is looking at, judged from the scroll position.
@@ -14,6 +26,15 @@ type DivisionUi = {
   setRosterDrag: (team: TeamRow | null) => void;
   // Each round's element, so scrolling can tell which one is in view.
   registerRound: (roundNumber: number, el: HTMLElement | null) => void;
+  // The Set Judges panel: which pool it's open for, and the player being dragged from it.
+  judgePanel: JudgePanelTarget | null;
+  openJudgePanel: (target: JudgePanelTarget) => void;
+  closeJudgePanel: () => void;
+  judgeDrag: JudgeDrag | null;
+  setJudgeDrag: (drag: JudgeDrag | null) => void;
+  // Bumped after judges are saved so the panel reloads its counts.
+  judgeRefresh: number;
+  judgesChanged: () => void;
 };
 
 const Ctx = createContext<DivisionUi | null>(null);
@@ -27,14 +48,24 @@ export function useDivisionUi(): DivisionUi {
 // Shares state between the team list sidebar and the rounds: which round is
 // in view, and which team is being dragged from the list into a pool.
 export function DivisionWorkspace({
+  divisionId,
+  judgeCategories,
   roundKeys,
   children,
 }: {
+  divisionId: string;
+  // The judging categories of the division's rules (none for Simple Ranking).
+  judgeCategories: readonly string[];
   roundKeys: Record<number, string[]>;
   children: React.ReactNode;
 }) {
   const [activeNumber, setActiveNumber] = useState<number | null>(null);
   const [rosterDrag, setRosterDrag] = useState<TeamRow | null>(null);
+  const [judgePanel, setJudgePanel] = useState<JudgePanelTarget | null>(null);
+  const [judgeDrag, setJudgeDrag] = useState<JudgeDrag | null>(null);
+  const [judgeRefresh, setJudgeRefresh] = useState(0);
+  const closeJudgePanel = useCallback(() => setJudgePanel(null), []);
+  const judgesChanged = useCallback(() => setJudgeRefresh((n) => n + 1), []);
   const elements = useRef(new Map<number, HTMLElement>());
 
   const registerRound = useCallback((roundNumber: number, el: HTMLElement | null) => {
@@ -90,13 +121,41 @@ export function DivisionWorkspace({
   }, [activeNumber]);
 
   const value = useMemo(
-    () => ({ activeRound, roundKeys: keySets, rosterDrag, setRosterDrag, registerRound }),
-    [activeRound, keySets, rosterDrag, registerRound]
+    () => ({
+      activeRound,
+      roundKeys: keySets,
+      rosterDrag,
+      setRosterDrag,
+      registerRound,
+      judgePanel,
+      openJudgePanel: setJudgePanel,
+      closeJudgePanel,
+      judgeDrag,
+      setJudgeDrag,
+      judgeRefresh,
+      judgesChanged,
+    }),
+    [activeRound, keySets, rosterDrag, registerRound, judgePanel, closeJudgePanel, judgeDrag, judgeRefresh, judgesChanged]
   );
 
   return (
     <Ctx.Provider value={value}>
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">{children}</div>
+      {judgePanel && (
+        <>
+          {/* Room to scroll the pools clear of the fixed panel. */}
+          <div aria-hidden className="h-[38vh]" />
+          <JudgePanel
+            divisionId={divisionId}
+            categories={judgeCategories}
+            target={judgePanel}
+            refreshKey={judgeRefresh}
+            onClose={closeJudgePanel}
+            onDragStart={setJudgeDrag}
+            onDragEnd={() => setJudgeDrag(null)}
+          />
+        </>
+      )}
     </Ctx.Provider>
   );
 }

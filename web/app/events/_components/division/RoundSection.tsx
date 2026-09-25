@@ -7,7 +7,6 @@ import {
   clearRound,
   removeTeamFromRound,
   seedRoundFromRankings,
-  setPoolJudges,
   setRoundConfig,
   setRoundLayout,
 } from '@/lib/event-creator-actions';
@@ -15,7 +14,6 @@ import {
   JUDGE_CATEGORIES,
   POOL_LETTERS,
   poolId,
-  type PoolJudge,
   type PoolJudgeView,
   type RoundConfig,
   type RulesId,
@@ -32,8 +30,11 @@ import {
 } from '@/lib/event-creator-layout';
 import type { TeamRow } from '@/lib/event-creator-queries';
 import { Collapsible } from '../Collapsible';
-import { PlayerPicker } from '../PlayerPicker';
 import { useDivisionUi } from './DivisionWorkspace';
+import { PoolJudgeColumns } from './PoolJudgeColumns';
+
+// One shared empty list, so a pool with no judges keeps a stable identity.
+const NO_JUDGES: PoolJudgeView[] = [];
 
 export function RoundSection({
   divisionId,
@@ -113,10 +114,6 @@ export function RoundSection({
       );
       if (!result.error) router.refresh();
     });
-  }
-
-  function saveJudges(letter: string, judges: PoolJudge[]) {
-    run(() => setPoolJudges(divisionId, roundNumber, letter, judges));
   }
 
   function endDrag() {
@@ -290,66 +287,18 @@ export function RoundSection({
             </ol>
 
             {categories.length > 0 && (
-              <PoolJudges
-                judges={judges[letter] ?? []}
+              <PoolJudgeColumns
+                divisionId={divisionId}
+                roundNumber={roundNumber}
+                roundName={roundName}
+                letter={letter}
                 categories={categories}
-                disabled={pending}
-                onChange={(next) => saveJudges(letter, next)}
+                judges={judges[letter] ?? NO_JUDGES}
               />
             )}
           </div>
         ))}
       </div>
     </Collapsible>
-  );
-}
-
-function PoolJudges({
-  judges,
-  categories,
-  disabled,
-  onChange,
-}: {
-  judges: PoolJudgeView[];
-  categories: readonly string[];
-  disabled: boolean;
-  onChange: (next: PoolJudge[]) => void;
-}) {
-  const [category, setCategory] = useState(categories[0]);
-  // The list saved in the DB, without the names the page needs for display.
-  const saved: PoolJudge[] = judges.map((j) => ({ playerId: j.playerId, categoryType: j.categoryType }));
-
-  return (
-    <div className="flex flex-col gap-1 border-t border-gray-200 pt-2 text-xs">
-      <div className="font-medium text-gray-600">Judges</div>
-      {judges.map((j) => (
-        <div key={j.playerId} className="flex items-center gap-2">
-          <span>
-            {j.name} <span className="text-gray-500">({j.categoryType})</span>
-          </span>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange(saved.filter((x) => x.playerId !== j.playerId))}
-            className="text-red-600 underline"
-          >
-            remove
-          </button>
-        </div>
-      ))}
-      <div className="flex items-center gap-1">
-        <select value={category} onChange={(e) => setCategory(e.target.value)} className="rounded border border-gray-300 px-1 py-1">
-          {categories.map((c) => (
-            <option key={c}>{c}</option>
-          ))}
-        </select>
-        <div className="flex-1">
-          <PlayerPicker
-            placeholder="Add judge…"
-            onPick={(p) => onChange([...saved.filter((x) => x.playerId !== p.id), { playerId: p.id, categoryType: category }])}
-          />
-        </div>
-      </div>
-    </div>
   );
 }

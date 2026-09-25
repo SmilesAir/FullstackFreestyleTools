@@ -9,6 +9,7 @@ export const config = {
   matcher: [
     '/players/:path*',
     '/events/:path*',
+    '/head-judge/:path*',
     '/backups/:path*',
     '/permissions/:path*',
     '/control-panel/:path*',

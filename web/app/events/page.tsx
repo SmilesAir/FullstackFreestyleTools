@@ -3,7 +3,7 @@ import { getEvent, getEventPlayers, listDivisions, listEvents } from '@/lib/even
 import { DIVISION_NAMES } from '@/lib/event-creator';
 import { NewEventForm } from './_components/NewEventForm';
 import { NewDivisionForm } from './_components/NewDivisionForm';
-import { EventTabs, type EventTab } from './_components/EventTabs';
+import { Tabs, type Tab } from '../_components/Tabs';
 import { DivisionView } from './_components/division/DivisionView';
 
 export default async function EventsPage({
@@ -76,7 +76,7 @@ export default async function EventsPage({
           >
             <div className="font-medium text-blue-600">{e.event_name}</div>
             <div className="text-xs text-gray-500">
-              {e.start_date} → {e.end_date} · {e.division_count} division(s)
+              {e.start_date} → {e.end_date} · {e.division_count} division(s) · {e.player_count} player(s)
             </div>
           </Link>
         ))}
@@ -84,7 +84,7 @@ export default async function EventsPage({
     </div>
   );
 
-  const tabs: EventTab[] = [{ id: 'events', label: 'Events', href: eventsHref, content: eventsContent }];
+  const tabs: Tab[] = [{ id: 'events', label: 'Events', href: eventsHref, content: eventsContent }];
   if (selected) {
     for (const d of divisions) {
       tabs.push({
@@ -110,7 +110,7 @@ export default async function EventsPage({
   return (
     <main className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Event creator</h1>
+        <h1 className="text-xl font-semibold">Event Creator</h1>
         {selected && (
           <div className="mt-1 text-xs text-gray-500">
             Event: <span className="font-medium text-gray-700">{selected.event_name}</span>
@@ -119,7 +119,7 @@ export default async function EventsPage({
       </div>
 
       <div>
-        <EventTabs tabs={tabs} initialActive={initialActive} />
+        <Tabs tabs={tabs} initialActive={initialActive} />
       </div>
     </main>
   );

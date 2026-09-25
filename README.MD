@@ -65,7 +65,19 @@ Each division is broken into rounds/pools/teams, so divisions also need child ta
 | round_number  | integer | Round number (same numbering as teams)                     |
 | pool_id       | text | Pool label (same as teams, e.g. "poolA")                      |
 | player_id     | uuid | Foreign key to players: the judge                             |
-| category_type | text | What they judge (e.g. Diff, Variety, ExAi); unique per player per pool |
+| category_type | text | What they judge: Diff, AI or Ex (Goe rules: GoeDiff, GoeTech, GoeSub); one per player per pool |
+
+**Event play state table** (the Head Judge tool's live state; one row per event)
+
+| Field              | Type        | Description                                              |
+| ------------------ | ----------- | -------------------------------------------------------- |
+| event_id           | uuid        | Primary key, foreign key to events                       |
+| division_id        | uuid        | The playing pool's division (foreign key to divisions)   |
+| round_number       | integer     | The playing pool's round                                 |
+| pool_id            | text        | The playing pool (e.g. "poolA")                          |
+| team_id            | uuid        | The team that is up (foreign key to teams)               |
+| routine_started_at | timestamptz | When the first throw was clicked; null = not started     |
+| updated_at         | timestamptz | Last change                                              |
 
 **Team players table** (formerly `result_team_players`)
 
@@ -103,17 +115,17 @@ One row per player per rankings
 # Frontend
 
 - **Judging tools**
-  - Head judge
-  - Judge interfaces
-  - Event creator
-  - Simple rank version
+  - Head Judge
+  - Judge Interfaces
+  - Event Creator
+  - Simple Rank Version
 - **Data tools**
-  - **Player editor** — search, create, and edit player records; hide/unhide instead of deleting; link duplicate entries via an alias picker (login required)
+  - **Player Editor** — search, create, and edit player records; hide/unhide instead of deleting; link duplicate entries via an alias picker (login required)
   - Events
   - Ranking
 - **Public tools**
-  - Results viewer
-  - Rankings viewer
+  - Results Viewer
+  - Rankings Viewer
 
 # Ideas
 

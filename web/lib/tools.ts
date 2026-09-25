@@ -5,26 +5,31 @@ type ToolInfo = { label: string; description: string; href: string };
 // TypeScript enforces an entry here for every key in PERMISSIONS.
 const TOOL_INFO: Record<PermissionKey, ToolInfo> = {
   player_editor: {
-    label: 'Player editor',
+    label: 'Player Editor',
     description:
       'Search, create, and edit player records; hide/unhide instead of deleting; link duplicate entries via an alias picker.',
     href: '/players',
   },
   event_creator: {
-    label: 'Event creator',
+    label: 'Event Creator',
     description:
       'Create events, set up divisions/rounds/pools, paste in teams (parsed by Claude), and seed rounds from rankings.',
     href: '/events',
+  },
+  head_judge: {
+    label: 'Head Judge',
+    description: 'Run an event day: see every pool with its teams and judges, choose the playing pool, and follow results.',
+    href: '/head-judge',
   },
 };
 
 export const FLAGGED_TOOLS = PERMISSIONS.map((p) => ({ key: p.key, ...TOOL_INFO[p.key] }));
 
-// Not permission-flag-gated (the Permissions editor is intentionally
+// Not permission-flag-gated (the Permissions Editor is intentionally
 // admin-only, not assignable via a group) — shown only when access.isAdmin.
 export const ADMIN_ONLY_TOOLS: ToolInfo[] = [
   {
-    label: 'Permissions editor',
+    label: 'Permissions Editor',
     description: 'Create user accounts, toggle admin access, and manage permission groups.',
     href: '/permissions',
   },
