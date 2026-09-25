@@ -10,11 +10,13 @@ export type EventListItem = {
   division_count: string;
   // Distinct people on a team in any division (aliases count as their main player).
   player_count: string;
+  // Being judged now: its judges are listed on the public landing page.
+  is_playing: boolean;
 };
 
 export async function listEvents(): Promise<EventListItem[]> {
   const result = await pool.query<EventListItem>(
-    `SELECT e.id, e.event_name, e.start_date::text, e.end_date::text,
+    `SELECT e.id, e.event_name, e.start_date::text, e.end_date::text, e.is_playing,
             (SELECT count(*) FROM divisions d WHERE d.event_id = e.id) AS division_count,
             (SELECT count(DISTINCT COALESCE(p.alias_id, p.id))
              FROM divisions d

@@ -124,6 +124,23 @@ CREATE TABLE IF NOT EXISTS event_play_state (
   updated_at         timestamptz NOT NULL DEFAULT now()
 );
 
+-- What a judge pressed during a routine (Execution: large_error, medium_error,
+-- minor_error, average_completion, clean_completion). Only the note type is
+-- stored; point values for graphs live in code. `id` is made by the judge's
+-- screen so a resent note is stored once. routine_started_at is the first-throw
+-- time and identifies the routine; noted_at is the press, on the server's clock.
+CREATE TABLE IF NOT EXISTS judge_notes (
+  id                 uuid PRIMARY KEY,
+  event_id           uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  team_id            uuid NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  player_id          uuid NOT NULL REFERENCES players(id) ON DELETE RESTRICT,
+  category_type      text NOT NULL,
+  note_type          text NOT NULL,
+  routine_started_at timestamptz NOT NULL,
+  noted_at           timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_judge_notes_judge ON judge_notes(event_id, player_id, category_type, routine_started_at);
+
 CREATE TABLE IF NOT EXISTS rankings (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   player_id     uuid NOT NULL REFERENCES players(id) ON DELETE RESTRICT,
@@ -231,3 +248,7 @@ ALTER TABLE divisions ADD COLUMN IF NOT EXISTS routine_seconds integer NOT NULL 
 -- Order a team plays within its pool (1 = first); NULL until someone arranges the pool.
 -- Separate from place, which is the result after the pool has played.
 ALTER TABLE teams ADD COLUMN IF NOT EXISTS play_order integer;
+
+-- Whether the event is being judged right now. Only playing events list their
+-- judges on the public landing page; toggled in the Event Creator's Events tab.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS is_playing boolean NOT NULL DEFAULT false;

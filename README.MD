@@ -30,6 +30,7 @@
 | created_at  | timestamp      | When the record was created                        |
 | fpa_id      | text, nullable | ID of the event on the FPA website                 |
 | post_name   | text, nullable | URL slug for the event's FPA website post          |
+| is_playing  | boolean        | Whether the event is being judged now (default false); playing events list their pool's judges on the public landing page |
 
 **Divisions table** (one row per division of an event; formerly `results`)
 
@@ -78,6 +79,19 @@ Each division is broken into rounds/pools/teams, so divisions also need child ta
 | team_id            | uuid        | The team that is up (foreign key to teams)               |
 | routine_started_at | timestamptz | When the first throw was clicked; null = not started     |
 | updated_at         | timestamptz | Last change                                              |
+
+**Judge notes table** (what a judge pressed during a routine on the public judge screens)
+
+| Field              | Type        | Description                                              |
+| ------------------ | ----------- | -------------------------------------------------------- |
+| id                 | uuid        | Primary key, made by the judge's screen (a resend is stored once) |
+| event_id           | uuid        | Foreign key to events                                    |
+| team_id            | uuid        | The team that was playing (foreign key to teams)         |
+| player_id          | uuid        | Foreign key to players: the judge                        |
+| category_type      | text        | Diff, AI or Ex                                           |
+| note_type          | text        | Execution: large_error, medium_error, minor_error, average_completion, clean_completion |
+| routine_started_at | timestamptz | The routine's first-throw time; identifies the routine   |
+| noted_at           | timestamptz | When the judge pressed, on the server's clock            |
 
 **Team players table** (formerly `result_team_players`)
 

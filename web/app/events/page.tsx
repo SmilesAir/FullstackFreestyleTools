@@ -3,6 +3,7 @@ import { getEvent, getEventPlayers, listDivisions, listEvents } from '@/lib/even
 import { DIVISION_NAMES } from '@/lib/event-creator';
 import { NewEventForm } from './_components/NewEventForm';
 import { NewDivisionForm } from './_components/NewDivisionForm';
+import { EventPlayingToggle } from './_components/EventPlayingToggle';
 import { Tabs, type Tab } from '../_components/Tabs';
 import { DivisionView } from './_components/division/DivisionView';
 
@@ -69,16 +70,20 @@ export default async function EventsPage({
         <h2 className="text-lg font-semibold">Recent events</h2>
         {events.length === 0 && <p className="text-sm text-gray-500">No events yet.</p>}
         {events.map((e) => (
-          <Link
+          <div
             key={e.id}
-            href={`/events?event=${e.id}`}
-            className={`rounded border p-3 hover:bg-gray-50 ${e.id === selected?.id ? 'border-black bg-gray-50' : 'border-gray-300'}`}
+            className={`flex items-center gap-3 rounded border hover:bg-gray-50 ${e.id === selected?.id ? 'border-black bg-gray-50' : 'border-gray-300'}`}
           >
-            <div className="font-medium text-blue-600">{e.event_name}</div>
-            <div className="text-xs text-gray-500">
-              {e.start_date} → {e.end_date} · {e.division_count} division(s) · {e.player_count} player(s)
+            <Link href={`/events?event=${e.id}`} className="min-w-0 flex-1 p-3">
+              <div className="font-medium text-blue-600">{e.event_name}</div>
+              <div className="text-xs text-gray-500">
+                {e.start_date} → {e.end_date} · {e.division_count} division(s) · {e.player_count} player(s)
+              </div>
+            </Link>
+            <div className="pr-3">
+              <EventPlayingToggle eventId={e.id} playing={e.is_playing} />
             </div>
-          </Link>
+          </div>
         ))}
       </section>
     </div>

@@ -134,6 +134,16 @@ export async function setPublished(divisionId: string, published: boolean): Prom
   return { error: null };
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Turns the event's judges on or off on the public landing page.
+export async function setEventPlaying(eventId: string, playing: boolean): Promise<ActionState> {
+  await guard();
+  if (!UUID.test(eventId)) return { error: 'Unknown event' };
+  const result = await pool.query('UPDATE events SET is_playing = $2 WHERE id = $1', [eventId, playing]);
+  return result.rowCount === 0 ? { error: 'Unknown event' } : { error: null };
+}
+
 async function updatePoolConfig(divisionId: string, mutate: (config: PoolConfig) => void) {
   const row = await pool.query<{ pool_config: PoolConfig }>('SELECT pool_config FROM divisions WHERE id = $1', [
     divisionId,
