@@ -3,6 +3,7 @@
 import { requirePermission } from './authz';
 import { pool } from './db';
 import { POOL_LETTERS, poolId } from './event-creator';
+import { cancelRoutineRow, finishRoutineRow, restoreRoutineRow, startRoutineRow } from './head-judge-routines';
 
 const guard = () => requirePermission('head_judge');
 
@@ -14,9 +15,6 @@ const RUNNING_ERROR = (what: 'pool' | 'team') => `A routine is running. Cancel i
 
 export type PlayActionResult = { error: string | null };
 
-// The routine can't have started before this long ago: a routine is at most
-// 5 minutes, so an older click time is a bad clock, not a real click.
-const MAX_CLICK_AGE = '10 minutes';
 
 // Makes a pool the playing pool; the team starts over. Refused while a routine is running.
 export async function setPlayingPool(
@@ -86,35 +84,31 @@ export async function startRoutine(
   if (!UUID.test(eventId)) return BAD_ID;
   if (!Number.isFinite(clickedAt)) return { error: 'Bad click time' };
 
-  const updated = await pool.query<{ started_ms: number }>(
-    `UPDATE event_play_state s
-     SET routine_started_at = CASE WHEN c.ts > now() OR c.ts < now() - interval '${MAX_CLICK_AGE}' THEN now() ELSE c.ts END,
-         updated_at = now()
-     FROM (SELECT to_timestamp($2::float8 / 1000.0) AS ts) c
-     WHERE s.event_id = $1 AND s.team_id IS NOT NULL AND s.routine_started_at IS NULL
-     RETURNING extract(epoch FROM s.routine_started_at)::float8 * 1000 AS started_ms`,
-    [eventId, clickedAt]
-  );
-  if (updated.rows[0]) return { error: null, startedAt: Math.round(updated.rows[0].started_ms) };
+  return startRoutineRow(eventId, clickedAt);
+}
 
-  const current = await pool.query<{ team_id: string | null; started_ms: number | null }>(
-    `SELECT team_id, extract(epoch FROM routine_started_at)::float8 * 1000 AS started_ms
-     FROM event_play_state WHERE event_id = $1`,
-    [eventId]
-  );
-  const row = current.rows[0];
-  if (row?.started_ms != null) return { error: null, startedAt: Math.round(row.started_ms) };
-  return { error: 'Choose the playing team first' };
+// Ends the running routine as played (not cancelled) and puts the next team up.
+// `nextTeamId` is null after the last team; a team that isn't in the playing
+// pool is ignored. Safe to repeat.
+export async function finishRoutine(eventId: string, nextTeamId: string | null): Promise<PlayActionResult> {
+  await guard();
+  if (!UUID.test(eventId) || (nextTeamId !== null && !UUID.test(nextTeamId))) return BAD_ID;
+  await finishRoutineRow(eventId, nextTeamId);
+  return { error: null };
 }
 
 // Cancels the running routine. Safe to repeat.
 export async function cancelRoutine(eventId: string): Promise<PlayActionResult> {
   await guard();
   if (!UUID.test(eventId)) return BAD_ID;
-  await pool.query(
-    `UPDATE event_play_state SET routine_started_at = NULL, updated_at = now()
-     WHERE event_id = $1 AND routine_started_at IS NOT NULL`,
-    [eventId]
-  );
+  await cancelRoutineRow(eventId);
   return { error: null };
+}
+
+// Brings back the playing team's cancelled routine (its notes and scores count
+// again). Safe to repeat.
+export async function restoreRoutine(eventId: string, routineId: string): Promise<PlayActionResult> {
+  await guard();
+  if (!UUID.test(eventId) || !UUID.test(routineId)) return BAD_ID;
+  return restoreRoutineRow(eventId, routineId);
 }

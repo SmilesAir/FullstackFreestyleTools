@@ -35,7 +35,17 @@ type DivisionUi = {
   // Bumped after judges are saved so the panel reloads its counts.
   judgeRefresh: number;
   judgesChanged: () => void;
+  // A player just placed as a judge in a pool ("round:letter") leaves the panel's
+  // list at once, without waiting for the save and the reload of the list.
+  placedJudges: readonly string[];
+  placeJudge: (poolKey: string, playerId: string) => void;
+  // Puts every placed player back (a save failed, so the reload will say).
+  clearPlacedJudges: () => void;
 };
+
+// The key a placed judge is remembered by.
+export const placedKey = (roundNumber: number, letter: string, playerId: string) =>
+  `${roundNumber}:${letter}:${playerId}`;
 
 const Ctx = createContext<DivisionUi | null>(null);
 
@@ -66,6 +76,21 @@ export function DivisionWorkspace({
   const [judgeRefresh, setJudgeRefresh] = useState(0);
   const closeJudgePanel = useCallback(() => setJudgePanel(null), []);
   const judgesChanged = useCallback(() => setJudgeRefresh((n) => n + 1), []);
+  const [placedJudges, setPlacedJudges] = useState<readonly string[]>([]);
+  const placeJudge = useCallback(
+    (poolKey: string, playerId: string) => setPlacedJudges((current) => [...current, `${poolKey}:${playerId}`]),
+    []
+  );
+  const clearPlacedJudges = useCallback(() => setPlacedJudges([]), []);
+  // Once the panel has loaded a list, the players it no longer has are really
+  // placed, so they needn't be remembered. Those still in it aren't saved yet.
+  const keepStillListed = useCallback(
+    (poolKey: string, listed: ReadonlySet<string>) =>
+      setPlacedJudges((current) =>
+        current.filter((key) => !key.startsWith(`${poolKey}:`) || listed.has(key.slice(poolKey.length + 1)))
+      ),
+    []
+  );
   const elements = useRef(new Map<number, HTMLElement>());
 
   const registerRound = useCallback((roundNumber: number, el: HTMLElement | null) => {
@@ -134,8 +159,24 @@ export function DivisionWorkspace({
       setJudgeDrag,
       judgeRefresh,
       judgesChanged,
+      placedJudges,
+      placeJudge,
+      clearPlacedJudges,
     }),
-    [activeRound, keySets, rosterDrag, registerRound, judgePanel, closeJudgePanel, judgeDrag, judgeRefresh, judgesChanged]
+    [
+      activeRound,
+      keySets,
+      rosterDrag,
+      registerRound,
+      judgePanel,
+      closeJudgePanel,
+      judgeDrag,
+      judgeRefresh,
+      judgesChanged,
+      placedJudges,
+      placeJudge,
+      clearPlacedJudges,
+    ]
   );
 
   return (
@@ -150,6 +191,8 @@ export function DivisionWorkspace({
             categories={judgeCategories}
             target={judgePanel}
             refreshKey={judgeRefresh}
+            placed={placedJudges}
+            onListed={keepStillListed}
             onClose={closeJudgePanel}
             onDragStart={setJudgeDrag}
             onDragEnd={() => setJudgeDrag(null)}

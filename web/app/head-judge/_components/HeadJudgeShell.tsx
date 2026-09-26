@@ -18,12 +18,14 @@ export function HeadJudgeShell({
   divisions,
   initialPlay,
   eventsContent,
+  settingsContent,
 }: {
   eventId: string | null;
   initialTab: string;
   divisions: HeadJudgeDivision[];
   initialPlay: PlayResponse;
   eventsContent: React.ReactNode;
+  settingsContent: React.ReactNode;
 }) {
   const [tab, setTab] = useState(initialTab);
   const [resultsKey, setResultsKey] = useState<string | null>(null);
@@ -44,6 +46,8 @@ export function HeadJudgeShell({
     const pool = pools.find((p) => p.key === key);
     if (!pool) return;
     play.setPool(pool.divisionId, pool.roundNumber, pool.letter);
+    // The first team in play order is up to start with.
+    if (pool.teams[0]) play.setTeam(pool.teams[0].id);
     setTab('play');
   }
 
@@ -73,14 +77,22 @@ export function HeadJudgeShell({
       href: href('play'),
       content: eventId ? (
         <PlayTab
+          eventId={eventId}
+          active={tab === 'play'}
           pool={playing}
           playingTeamId={play.state.teamId}
           routineStartedAt={play.state.routineStartedAt}
+          finishedJudges={play.state.finishedJudges}
           clockOffset={play.clockOffset}
           saveStatus={play.status}
+          presence={play.presence}
+          mode={play.mode}
           onSelectTeam={play.setTeam}
           onStart={play.start}
           onCancel={play.cancel}
+          onNextTeam={play.nextTeam}
+          restorableRoutineId={play.state.restorableRoutineId}
+          onRestore={play.restore}
         />
       ) : (
         noEvent
@@ -90,7 +102,19 @@ export function HeadJudgeShell({
       id: 'results',
       label: 'Results',
       href: href('results'),
-      content: eventId ? <ResultsTab divisions={divisions} selectedKey={resultsKey} onSelect={setResultsKey} /> : noEvent,
+      content: eventId ? <ResultsTab
+          eventId={eventId}
+          active={tab === 'results'}
+          divisions={divisions}
+          selectedKey={resultsKey}
+          onSelect={setResultsKey}
+        /> : noEvent,
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      href: href('settings'),
+      content: eventId ? settingsContent : noEvent,
     },
   ];
 

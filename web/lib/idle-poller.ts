@@ -1,4 +1,5 @@
-// Calls `poll` every `pollMs` while the page is visible, and stops calling it
+// Calls `poll` every `pollMs` (a number, or a function giving the interval to
+// wait next, so it can change while running) while the page is visible, and stops calling it
 // after `idleMs` without the user touching the page. Any touch (or coming back
 // to a hidden tab) starts it again with an immediate poll. Reading only:
 // nothing here affects saving.
@@ -15,7 +16,7 @@ export function startIdlePoller({
   doc = document,
 }: {
   poll: () => void;
-  pollMs: number;
+  pollMs: number | (() => number);
   idleMs: number;
   onPausedChange: (paused: boolean) => void;
   doc?: PollerDocument;
@@ -35,21 +36,24 @@ export function startIdlePoller({
     if (doc.visibilityState === 'visible') touched();
   };
 
-  const timer = setInterval(() => {
-    if (doc.visibilityState !== 'visible' || paused) return;
-    if (Date.now() - lastActivity >= idleMs) {
-      paused = true;
-      onPausedChange(true);
-      return;
+  const tick = () => {
+    if (doc.visibilityState === 'visible' && !paused) {
+      if (Date.now() - lastActivity >= idleMs) {
+        paused = true;
+        onPausedChange(true);
+      } else {
+        poll();
+      }
     }
-    poll();
-  }, pollMs);
+    timer = setTimeout(tick, typeof pollMs === 'number' ? pollMs : pollMs());
+  };
+  let timer = setTimeout(tick, typeof pollMs === 'number' ? pollMs : pollMs());
 
   TOUCH_EVENTS.forEach((name) => doc.addEventListener(name, touched, { passive: true, capture: true }));
   doc.addEventListener('visibilitychange', onVisible);
 
   return () => {
-    clearInterval(timer);
+    clearTimeout(timer);
     TOUCH_EVENTS.forEach((name) => doc.removeEventListener(name, touched, { capture: true }));
     doc.removeEventListener('visibilitychange', onVisible);
   };

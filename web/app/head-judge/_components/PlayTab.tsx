@@ -1,34 +1,144 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { JUDGE_CATEGORY_LABELS } from '@/lib/event-creator';
 import { teamName, type HeadJudgePool } from '@/lib/head-judge';
 import { elapsedMs, formatElapsed } from '@/lib/head-judge-state';
+import { CONNECTED_INTERVALS, JUDGE_POLL_MS, WEAK_SECONDS, type PollMode } from '@/lib/poll-intervals';
 import { PoolResults } from './PoolResults';
 import type { SaveStatus } from './usePlayState';
+
+const HOLD_MS = 1000;
+
+// Whether a judge's screen is reaching the server: how long ago it last asked
+// for news (undefined = never), against how often it asks.
+function connectionOf(secondsAgo: number | undefined, mode: PollMode) {
+  if (secondsAgo === undefined || secondsAgo > WEAK_SECONDS) {
+    return { dot: 'bg-gray-400', text: 'Not connected', tone: 'text-gray-500' };
+  }
+  if (secondsAgo <= (CONNECTED_INTERVALS * JUDGE_POLL_MS[mode]) / 1000) {
+    return { dot: 'bg-green-500', text: 'Connected', tone: 'text-gray-600' };
+  }
+  return { dot: 'bg-amber-500', text: `Weak: ${secondsAgo} s ago`, tone: 'text-amber-700' };
+}
+
+// A button that only acts once it has been held down for HOLD_MS (mouse, touch,
+// or Enter/Space), so a stray tap can't set it off. A darker fill sweeps across
+// while it's held; letting go early does nothing.
+const HOLD_COLORS = {
+  red: { button: 'bg-red-600 hover:bg-red-700', fill: 'bg-red-900' },
+  blue: { button: 'bg-blue-600 hover:bg-blue-700', fill: 'bg-blue-900' },
+};
+
+function HoldButton({
+  onConfirm,
+  color,
+  children,
+}: {
+  onConfirm: () => void;
+  color: keyof typeof HOLD_COLORS;
+  children: ReactNode;
+}) {
+  const [holding, setHolding] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const start = () => {
+    if (timer.current) return;
+    setHolding(true);
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      setHolding(false);
+      onConfirm();
+    }, HOLD_MS);
+  };
+  const stop = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    setHolding(false);
+  };
+  useEffect(() => stop, []);
+
+  return (
+    <button
+      type="button"
+      onPointerDown={(e) => {
+        if (e.button === 0) start();
+      }}
+      onPointerUp={stop}
+      onPointerLeave={stop}
+      onPointerCancel={stop}
+      onKeyDown={(e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
+          e.preventDefault();
+          start();
+        }
+      }}
+      onKeyUp={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') stop();
+      }}
+      onBlur={stop}
+      // A long press on a phone would otherwise open the text menu.
+      onContextMenu={(e) => e.preventDefault()}
+      className={`relative flex min-h-48 cursor-pointer touch-manipulation select-none flex-col items-center justify-center gap-3 overflow-hidden rounded-lg p-6 text-white [-webkit-touch-callout:none] ${HOLD_COLORS[color].button}`}
+    >
+      <span
+        aria-hidden
+        className={`absolute inset-0 origin-left ${HOLD_COLORS[color].fill}`}
+        style={{
+          transform: holding ? 'scaleX(1)' : 'scaleX(0)',
+          transition: `transform ${holding ? HOLD_MS : 150}ms linear`,
+        }}
+      />
+      <span className="relative flex flex-col items-center gap-3">{children}</span>
+    </button>
+  );
+}
 
 // The pool being played: where it is, the routine timer and controls, who is
 // on, and how it's going.
 export function PlayTab({
+  eventId,
+  active,
   pool,
   playingTeamId,
   routineStartedAt,
+  finishedJudges,
   clockOffset,
   saveStatus,
+  presence,
+  mode,
   onSelectTeam,
   onStart,
   onCancel,
+  onNextTeam,
+  restorableRoutineId,
+  onRestore,
 }: {
+  eventId: string;
+  // This tab is showing, so the results are read live.
+  active: boolean;
   pool: HeadJudgePool | null;
   playingTeamId: string | null;
   // When the first throw was clicked (server clock, ms); null = no routine running.
   routineStartedAt: number | null;
+  // Judges (player ids) who have submitted their score for the running routine.
+  finishedJudges: string[];
   // Server time minus this device's time, ms.
   clockOffset: number;
   saveStatus: SaveStatus;
+  // Seconds since each judge's screen (player id) last asked the server for news.
+  presence: Record<string, number>;
+  // Which database answers, which sets how often the judges' screens ask.
+  mode: PollMode;
   onSelectTeam: (teamId: string) => void;
   onStart: () => void;
   onCancel: () => void;
+  // Ends the routine as played and puts the given team up (null = the pool is done).
+  onNextTeam: (nextTeamId: string | null) => void;
+  // The playing team's cancelled routine that still has judges' notes or
+  // scores, when no routine is running (null = nothing to restore).
+  restorableRoutineId: string | null;
+  onRestore: (routineId: string) => void;
 }) {
   const running = routineStartedAt !== null;
 
@@ -47,6 +157,11 @@ export function PlayTab({
   const elapsed = running && now !== null ? formatElapsed(elapsedMs(routineStartedAt, now, clockOffset)) : '0:00';
 
   if (!pool) return <p className="text-sm text-gray-500">Choose a playing pool on the Pools tab.</p>;
+
+  // Every judge in the pool has submitted their score: time for the next team.
+  const allFinished = running && pool.judges.every((j) => finishedJudges.includes(j.playerId));
+  const playingIndex = pool.teams.findIndex((t) => t.id === playingTeamId);
+  const nextTeam = playingIndex === -1 ? null : (pool.teams[playingIndex + 1] ?? null);
 
   // Group judges by category, in the order the columns use.
   const judgesSorted = [...pool.judges].sort(
@@ -76,7 +191,17 @@ export function PlayTab({
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        {running ? (
+        {running && allFinished ? (
+          // All the judges are done: on to the next team.
+          <button
+            type="button"
+            onClick={() => onNextTeam(nextTeam?.id ?? null)}
+            className="flex min-h-48 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg bg-blue-600 p-6 text-3xl font-bold text-white hover:bg-blue-700"
+          >
+            {nextTeam ? 'Click to move to the next team' : 'Click to finish the last team'}
+            {nextTeam && <span className="text-base font-normal">{teamName(nextTeam)}</span>}
+          </button>
+        ) : running ? (
           // The routine is under way; this button is for the next team once the judges are done.
           <button
             type="button"
@@ -96,14 +221,21 @@ export function PlayTab({
             {playingTeamId === null && <span className="text-base font-normal">Choose the playing team first</span>}
           </button>
         )}
-        <button
-          type="button"
-          onClick={onCancel}
-          className="flex min-h-48 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg bg-red-600 p-6 text-white hover:bg-red-700"
-        >
-          <span className="text-3xl font-bold">Cancel Routine</span>
-          <span className="text-base">Only press if need to restart or something went wrong.</span>
-        </button>
+        {!running && restorableRoutineId ? (
+          // The team's last routine was cancelled but the judges' notes or
+          // scores are still there: offer to bring them back.
+          <HoldButton key="restore" color="blue" onConfirm={() => onRestore(restorableRoutineId)}>
+            <span className="text-3xl font-bold">Restore Cancelled Routine Scores</span>
+            <span className="text-base">This team&apos;s last routine was cancelled. Its judges&apos; scores are hidden.</span>
+            <span className="text-sm font-semibold uppercase tracking-wide opacity-90">Hold for 1 second</span>
+          </HoldButton>
+        ) : (
+          <HoldButton key="cancel" color="red" onConfirm={onCancel}>
+            <span className="text-3xl font-bold">Cancel Routine</span>
+            <span className="text-base">Only press if need to restart or something went wrong.</span>
+            <span className="text-sm font-semibold uppercase tracking-wide opacity-90">Hold for 1 second</span>
+          </HoldButton>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -145,17 +277,34 @@ export function PlayTab({
             <p className="text-sm text-gray-500">No judges set for this pool.</p>
           ) : (
             <ul className="flex flex-col gap-1">
-              {judgesSorted.map((judge) => (
-                <li
-                  key={judge.playerId}
-                  className="flex items-center justify-between gap-3 rounded border border-gray-200 px-3 py-2.5 text-base"
-                >
-                  <span>{judge.name}</span>
-                  <span className="text-[11.2px] text-gray-500">
-                    {JUDGE_CATEGORY_LABELS[judge.categoryType] ?? judge.categoryType}
-                  </span>
-                </li>
-              ))}
+              {judgesSorted.map((judge) => {
+                // Light green once this judge has submitted their score for the running routine.
+                const finished = running && finishedJudges.includes(judge.playerId);
+                const link = connectionOf(presence[judge.playerId], mode);
+                return (
+                  <li
+                    key={judge.playerId}
+                    className={`flex items-center justify-between gap-3 rounded border px-3 py-2.5 text-base ${
+                      finished ? 'border-green-500 bg-green-100 text-black' : 'border-gray-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span
+                        aria-hidden
+                        className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${link.dot}`}
+                      />
+                      {judge.name}
+                      <span className={`text-xs ${link.tone}`}>{link.text}</span>
+                    </span>
+                    <span className="flex items-center gap-3">
+                      {finished && <span className="text-sm font-semibold text-green-800">Finished</span>}
+                      <span className={`text-[11.2px] ${finished ? 'text-green-900' : 'text-gray-500'}`}>
+                        {JUDGE_CATEGORY_LABELS[judge.categoryType] ?? judge.categoryType}
+                      </span>
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
@@ -163,7 +312,13 @@ export function PlayTab({
 
       <section className="flex flex-col gap-2">
         <h3 className="text-lg font-semibold">Results</h3>
-        <PoolResults pool={pool} />
+        <PoolResults
+          key={pool.key}
+          eventId={eventId}
+          pool={pool}
+          active={active}
+          refreshKey={`${routineStartedAt}:${finishedJudges.join()}`}
+        />
       </section>
     </div>
   );

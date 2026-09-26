@@ -3,8 +3,14 @@
 export const DIVISION_NAMES = ['Open Pairs', 'Mixed Pairs', 'Open Co-op', 'Women Pairs'] as const;
 export type DivisionName = (typeof DIVISION_NAMES)[number];
 
-export const RULES_IDS = ['Fpa2020', 'SimpleRanking', 'Goe'] as const;
+// Every judging system a division can be on (older divisions may still use
+// ones that are no longer offered).
+export const RULES_IDS = ['Fpa2027', 'SimpleRanking', 'Fpa2020', 'Goe'] as const;
 export type RulesId = (typeof RULES_IDS)[number];
+// The ones the Rules dropdown offers, in its order.
+export const OFFERED_RULES_IDS: readonly RulesId[] = ['Fpa2027', 'SimpleRanking'];
+// The rules a new division starts with.
+export const DEFAULT_NEW_RULES_ID: RulesId = 'Fpa2027';
 
 // round_number 0 / pool 'roster' = entered but not yet seeded into a round.
 export const ROSTER_ROUND = 0;
@@ -30,6 +36,7 @@ export function defaultRoutineSeconds(divisionName: string): number {
 
 export const JUDGE_CATEGORIES: Record<RulesId, readonly string[]> = {
   Fpa2020: ['Diff', 'AI', 'Ex'],
+  Fpa2027: ['Diff', 'AI', 'Ex'],
   SimpleRanking: [],
   Goe: ['GoeDiff', 'GoeTech', 'GoeSub'],
 };

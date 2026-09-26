@@ -47,6 +47,8 @@ export function PoolJudgeColumns({
         next.map((j) => ({ playerId: j.playerId, categoryType: j.categoryType }))
       );
       setMessage(result.error);
+      // A save that failed puts the players it had hidden back in the panel.
+      if (result.error) ui.clearPlacedJudges();
       ui.judgesChanged();
       // On an error the refresh also puts the saved judges back.
       router.refresh();
@@ -77,6 +79,9 @@ export function PoolJudgeColumns({
     if (existing) counts[existing.categoryType] = Math.max(0, (counts[existing.categoryType] ?? 0) - 1);
     else eventCount += 1;
     counts[category] = (counts[category] ?? 0) + 1;
+
+    // A player from the panel leaves its list right now.
+    if (drag.source === 'panel') ui.placeJudge(`${roundNumber}:${letter}`, drag.playerId);
 
     save([
       ...list.filter((j) => j.playerId !== drag.playerId),

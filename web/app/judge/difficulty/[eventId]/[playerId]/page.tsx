@@ -1,7 +1,7 @@
-import { categoryBySlug } from '@/lib/judging';
-import { getJudgeAssignment } from '@/lib/judging-queries';
-import { ComingNext } from '@/app/judge/_components/ComingNext';
+import { categoryBySlug, judgePath } from '@/lib/judging';
+import { getJudgeAssignment, getJudgeState } from '@/lib/judging-queries';
 import { JudgeShell, NotJudging } from '@/app/judge/_components/JudgeShell';
+import { NotesJudge } from '@/app/judge/_components/NotesJudge';
 
 const CATEGORY = categoryBySlug('difficulty')!;
 
@@ -16,9 +16,19 @@ export default async function DifficultyJudgePage({
   const { tab } = await searchParams;
   const judge = await getJudgeAssignment(eventId, playerId, CATEGORY);
   if (!judge) return <NotJudging />;
+
+  const initial = await getJudgeState(eventId, playerId, CATEGORY.type);
   return (
-    <JudgeShell category={CATEGORY} name={judge.name}>
-      <ComingNext category={CATEGORY} eventId={eventId} playerId={playerId} tab={tab} />
+    <JudgeShell>
+      <NotesJudge
+        category="Diff"
+        eventId={eventId}
+        playerId={playerId}
+        judgeName={judge.name}
+        basePath={judgePath(CATEGORY, eventId, playerId)}
+        initialTab={tab === 'review' ? 'review' : 'play'}
+        initial={initial}
+      />
     </JudgeShell>
   );
 }

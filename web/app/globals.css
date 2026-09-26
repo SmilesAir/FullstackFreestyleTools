@@ -19,6 +19,30 @@
   }
 }
 
+/* A button whose colour pulses and that sends out a ring, to draw the eye.
+   Nothing is scaled, so the text stays still. */
+@keyframes attention-pulse {
+  0%,
+  100% {
+    background-color: rgb(29 78 216);
+    box-shadow: 0 0 0 0 rgb(37 99 235 / 0.65);
+  }
+  50% {
+    background-color: rgb(59 130 246);
+    box-shadow: 0 0 0 16px rgb(37 99 235 / 0);
+  }
+}
+
+.attention-pulse {
+  animation: attention-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attention-pulse {
+    animation: none;
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateDivisionSettings, setPublished, deleteDivision } from '@/lib/event-creator-actions';
-import { RULES_IDS, ROUTINE_MINUTES, defaultRoutineSeconds } from '@/lib/event-creator';
+import { OFFERED_RULES_IDS, ROUTINE_MINUTES, defaultRoutineSeconds } from '@/lib/event-creator';
 import type { PlayerRef } from '@/lib/event-creator-queries';
 import { PlayerPicker } from '../PlayerPicker';
 
@@ -32,6 +32,10 @@ export function DivisionSettings({
   const [name, setName] = useState(initialName);
   const [routineMinutes, setRoutineMinutes] = useState(Math.round(initialRoutine / 60));
   const [rules, setRules] = useState(initialRules);
+  // A division already on rules that are no longer offered keeps them listed,
+  // so saving other settings doesn't quietly switch its rules.
+  const offered: readonly string[] = OFFERED_RULES_IDS;
+  const rulesOptions = offered.includes(initialRules) ? offered : [...offered, initialRules];
 
   // Switching type moves the routine time to the new type's default, but only
   // if it was still on the old type's default (don't clobber a deliberate choice).
@@ -120,7 +124,7 @@ export function DivisionSettings({
           onChange={(e) => setRules(e.target.value)}
           className="w-48 rounded border border-gray-300 px-2 py-1"
         >
-          {RULES_IDS.map((r) => (
+          {rulesOptions.map((r) => (
             <option key={r} value={r}>
               {r}
             </option>

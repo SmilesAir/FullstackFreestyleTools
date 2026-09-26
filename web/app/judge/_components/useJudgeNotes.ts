@@ -1,19 +1,20 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { addNote, deleteNote } from '@/lib/judging-actions';
+import { addNote, deleteNote, editNote, submitBackupScore, submitScore } from '@/lib/judging-actions';
 import { startIdlePoller } from '@/lib/idle-poller';
 import type { JudgeNote, JudgeState } from '@/lib/judging';
+import { JUDGE_POLL_MS, type PollMode } from '@/lib/poll-intervals';
 
 export type SaveStatus = 'saved' | 'saving' | 'retrying';
 
-export const POLL_MS = 5000;
 export const IDLE_MS = 10 * 60 * 1000;
 
 // What the judge did on this screen that the server may not have heard about
 // yet. Kept in order and sent one at a time.
 type Op =
-  | { type: 'add'; id: string; noteType: string; clickedAt: number; routineStartedAt: number }
+  | { type: 'add'; id: string; noteType: string; clickedAt: number; routineId: string; position?: number }
+  | { type: 'edit'; id: string; noteType: string; position: number }
   | { type: 'delete'; id: string };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -27,14 +28,39 @@ function newId(): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
+// A Difficulty note as the screen shows it before the server has made it: the
+// numberline score and multiplier from the settings the screen has (the server
+// works out its own, the same unless the settings just changed).
+function difficultyPart(server: JudgeState, rating: string, position: number) {
+  return server.line
+    ? {
+        linePosition: position,
+        lineValue: Math.round(position * server.line.max * 10000) / 10000,
+        multiplier: server.noteWeights[rating] ?? 0,
+      }
+    : {};
+}
+
 // The server's notes with what is still waiting to be sent laid on top.
 function withPending(server: JudgeState, ops: Op[]): JudgeNote[] {
   let notes = server.notes;
   for (const op of ops) {
     if (op.type === 'add') {
-      if (server.routineStartedAt === op.routineStartedAt && !notes.some((n) => n.id === op.id)) {
-        notes = [...notes, { id: op.id, noteType: op.noteType, notedAt: op.clickedAt }];
+      if (server.routineId === op.routineId && !notes.some((n) => n.id === op.id)) {
+        notes = [
+          ...notes,
+          {
+            id: op.id,
+            noteType: op.noteType,
+            notedAt: op.clickedAt,
+            ...(op.position === undefined ? {} : difficultyPart(server, op.noteType, op.position)),
+          },
+        ];
       }
+    } else if (op.type === 'edit') {
+      notes = notes.map((n) =>
+        n.id === op.id ? { id: n.id, notedAt: n.notedAt, noteType: op.noteType, ...difficultyPart(server, op.noteType, op.position) } : n
+      );
     } else {
       notes = notes.filter((n) => n.id !== op.id);
     }
@@ -45,16 +71,25 @@ function withPending(server: JudgeState, ops: Op[]): JudgeNote[] {
 // A judge's live notes. A press shows on screen at once and is saved in the
 // background: one at a time, in order, retried until it lands, and kept in the
 // browser meanwhile so a reload can't lose it. The server's state (routine,
-// team, saved notes) comes in by polling every POLL_MS, which stops after
+// team, saved notes) comes in by polling (every 5 s, every second from the
+// local server: see JUDGE_POLL_MS), which stops after
 // IDLE_MS without a touch and starts again on the next one. Saving never stops.
 export function useJudgeNotes(eventId: string, playerId: string, categoryType: string, initial: JudgeState) {
   const [server, setServer] = useState<JudgeState>(initial);
   const [ops, setOps] = useState<Op[]>([]);
+  // Saved, but not yet in a read of the server's state: still shown, so a note
+  // doesn't vanish between being saved and the next read.
+  const [settled, setSettled] = useState<Op[]>([]);
   const [clockOffset, setClockOffset] = useState(() => initial.serverNow - Date.now());
   const [status, setStatus] = useState<SaveStatus>('saved');
   const [connection, setConnection] = useState<'ok' | 'lost'>('ok');
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  // Which database answers: the local server is asked every second.
+  const [mode, setMode] = useState<PollMode>(initial.mode);
+  const modeRef = useRef<PollMode>(initial.mode);
+  const reading = useRef(false);
 
   const queue = useRef<Op[]>([]);
   const draining = useRef(false);
@@ -84,7 +119,13 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
       offset.current = data.serverNow - (sentAt + Date.now()) / 2;
       setClockOffset(offset.current);
       setConnection('ok');
-      if (sentAt >= lastSavedAt.current) setServer(data);
+      modeRef.current = data.mode ?? 'remote';
+      setMode(modeRef.current);
+      if (sentAt >= lastSavedAt.current) {
+        // This read started after everything saved so far, so it includes it.
+        setServer(data);
+        setSettled([]);
+      }
     } catch {
       setConnection('lost');
     }
@@ -100,14 +141,17 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
       try {
         const result =
           op.type === 'add'
-            ? await addNote(eventId, playerId, categoryType, op.id, op.noteType, op.clickedAt, op.routineStartedAt)
-            : await deleteNote(eventId, playerId, categoryType, op.id);
+            ? await addNote(eventId, playerId, categoryType, op.id, op.noteType, op.clickedAt, op.routineId, op.position)
+            : op.type === 'edit'
+              ? await editNote(eventId, playerId, op.id, op.noteType, op.position)
+              : await deleteNote(eventId, playerId, categoryType, op.id);
         queue.current.shift();
         lastSavedAt.current = Date.now();
         sync();
         wait = 500;
         // A refusal can't be fixed by retrying; the next read puts the screen right.
         if (result.error) setError(result.error);
+        else setSettled((current) => [...current, op]);
       } catch {
         // No answer (connection or server trouble): keep the note and try again.
         setStatus('retrying');
@@ -148,8 +192,15 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
     }, 0);
 
     const stopPolling = startIdlePoller({
-      poll: () => void poll(),
-      pollMs: POLL_MS,
+      // A read still under way is left to finish rather than stacking another.
+      poll: () => {
+        if (reading.current) return;
+        reading.current = true;
+        void poll().finally(() => {
+          reading.current = false;
+        });
+      },
+      pollMs: () => JUDGE_POLL_MS[modeRef.current],
       idleMs: IDLE_MS,
       onPausedChange: setPaused,
     });
@@ -159,35 +210,119 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
     };
   }, [storageKey, drain, poll]);
 
-  const notes = useMemo(() => withPending(server, ops), [server, ops]);
+  const notes = useMemo(() => withPending(server, [...settled, ...ops]), [server, settled, ops]);
   const state = useMemo(() => ({ ...server, notes }), [server, notes]);
 
-  const canNote = server.judging && server.routineStartedAt !== null;
+  // Notes are locked once the judge has submitted their score for the routine.
+  const submittedHere = server.submitted !== null && server.notesRoutine?.id === server.routineId;
+  const canNote = server.judging && server.routineId !== null && !submittedHere;
+
+  // Submits the judge's score for the running routine (or, given `routineId`, an
+  // earlier one whose score is being changed): the server works out the baseline
+  // from the saved notes and applies the change in percent. Notes still being
+  // sent are saved first so they count. Returns whether it was saved.
+  const submit = async (adjustPercent: number, routineId: string | null = server.routineId): Promise<boolean> => {
+    if (routineId === null || submitting) return false;
+    setError(null);
+    setSubmitting(true);
+    try {
+      for (let waited = 0; queue.current.length > 0 || draining.current; waited += 200) {
+        if (waited >= 15000) {
+          setError('Your notes are still saving. Try again in a moment.');
+          return false;
+        }
+        await sleep(200);
+      }
+      const result = await submitScore(eventId, playerId, categoryType, routineId, adjustPercent);
+      if (result.error) {
+        setError(result.error);
+        return false;
+      }
+      await poll();
+      return true;
+    } catch {
+      setError('Could not submit. Check the connection and try again.');
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // The backup for a team of the pool that has no routine: the server makes one
+  // (or uses the one another judge made) and saves the score. Returns whether
+  // it was saved.
+  const submitBackup = async (adjustPercent: number, teamId: string): Promise<boolean> => {
+    if (submitting) return false;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const result = await submitBackupScore(eventId, playerId, categoryType, teamId, adjustPercent);
+      if (result.error) {
+        setError(result.error);
+        return false;
+      }
+      await poll();
+      return true;
+    } catch {
+      setError('Could not submit. Check the connection and try again.');
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return {
     state,
     clockOffset,
     status,
     connection,
+    mode,
     paused,
     error,
     dismissError: () => setError(null),
     canNote,
-    // Saves a note as of this moment on the server's clock.
-    note: (noteType: string) => {
-      if (!canNote || server.routineStartedAt === null) return;
+    submit,
+    submitBackup,
+    submitting,
+    // Saves a note as of this moment on the server's clock. A Difficulty note is
+    // the rating (`noteType`) of a move placed at `position` on the numberline,
+    // and is as of the tap that placed it (`tappedAt`, on this device's clock).
+    note: (noteType: string, position?: number, tappedAt: number = Date.now()) => {
+      if (!canNote || server.routineId === null) return;
       enqueue({
         type: 'add',
         id: newId(),
         noteType,
-        clickedAt: Math.round(Date.now() + offset.current),
-        routineStartedAt: server.routineStartedAt,
+        clickedAt: Math.round(tappedAt + offset.current),
+        routineId: server.routineId,
+        position,
       });
     },
-    // Removes the newest note.
-    undoLast: () => {
-      const last = notes[notes.length - 1];
-      if (last) enqueue({ type: 'delete', id: last.id });
+    // Saves a note as of `atSeconds` into the running routine (editing a
+    // routine after the fact). The server keeps it between the start and now.
+    insertNote: (noteType: string, atSeconds: number, position?: number) => {
+      if (!canNote || server.routineId === null || server.routineStartedAt === null) return;
+      enqueue({
+        type: 'add',
+        id: newId(),
+        noteType,
+        clickedAt: Math.round(server.routineStartedAt + atSeconds * 1000),
+        routineId: server.routineId,
+        position,
+      });
+    },
+    // Changes a Difficulty note's rating and where it sits on the numberline.
+    editNote: (noteId: string, rating: string, position: number) => {
+      if (canNote) enqueue({ type: 'edit', id: noteId, noteType: rating, position });
+    },
+    // Removes one particular note (picked on the score graph).
+    removeNote: (noteId: string) => {
+      if (canNote) enqueue({ type: 'delete', id: noteId });
+    },
+    // Removes the newest note of one type (the decrement button).
+    removeLast: (noteType: string) => {
+      const target = [...notes].reverse().find((n) => n.noteType === noteType);
+      if (target) enqueue({ type: 'delete', id: target.id });
     },
   };
 }

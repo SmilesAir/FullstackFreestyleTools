@@ -111,6 +111,33 @@ CREATE TABLE IF NOT EXISTS pool_judges (
 );
 CREATE INDEX IF NOT EXISTS idx_pool_judges_player_id ON pool_judges(player_id);
 
+-- One row per performance: a team playing once in a pool. Created when the Head
+-- Judge starts the routine (started_at is the timer starting) and marked
+-- cancelled if it is cancelled; finished is set when the head judge moves on.
+-- Judge notes and scores hang off it. team_id can go away (teams are edited);
+-- routine_players keeps who competed.
+CREATE TABLE IF NOT EXISTS routines (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id     uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  division_id  uuid REFERENCES divisions(id) ON DELETE SET NULL,
+  round_number integer NOT NULL,
+  pool_id      text NOT NULL,
+  team_id      uuid REFERENCES teams(id) ON DELETE SET NULL,
+  started_at   timestamptz NOT NULL,
+  ended_at     timestamptz,
+  status       text NOT NULL DEFAULT 'running' CHECK (status IN ('running', 'cancelled', 'finished')),
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_routines_event ON routines(event_id, status);
+
+-- Who competed in a routine, fixed when it starts (aliases resolved to the main player).
+CREATE TABLE IF NOT EXISTS routine_players (
+  routine_id uuid NOT NULL REFERENCES routines(id) ON DELETE CASCADE,
+  player_id  uuid NOT NULL REFERENCES players(id) ON DELETE RESTRICT,
+  PRIMARY KEY (routine_id, player_id)
+);
+CREATE INDEX IF NOT EXISTS idx_routine_players_player ON routine_players(player_id);
+
 -- The Head Judge tool's live state for an event: which pool and team are
 -- playing and when the routine's first throw was clicked (NULL = not started).
 -- One row per event.
@@ -123,23 +150,69 @@ CREATE TABLE IF NOT EXISTS event_play_state (
   routine_started_at timestamptz,
   updated_at         timestamptz NOT NULL DEFAULT now()
 );
+-- The running routine (NULL when none is running).
+ALTER TABLE event_play_state ADD COLUMN IF NOT EXISTS routine_id uuid REFERENCES routines(id) ON DELETE SET NULL;
 
--- What a judge pressed during a routine (Execution: large_error, medium_error,
--- minor_error, average_completion, clean_completion). Only the note type is
--- stored; point values for graphs live in code. `id` is made by the judge's
--- screen so a resent note is stored once. routine_started_at is the first-throw
--- time and identifies the routine; noted_at is the press, on the server's clock.
-CREATE TABLE IF NOT EXISTS judge_notes (
-  id                 uuid PRIMARY KEY,
-  event_id           uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  team_id            uuid NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-  player_id          uuid NOT NULL REFERENCES players(id) ON DELETE RESTRICT,
-  category_type      text NOT NULL,
-  note_type          text NOT NULL,
-  routine_started_at timestamptz NOT NULL,
-  noted_at           timestamptz NOT NULL
+-- What a judge pressed during a routine under the Fpa2027 judging system
+-- (Execution: large_error, medium_error, minor_error, average_completion,
+-- clean_completion; Artistic Impression: teamwork_*, music_*, form_*; Difficulty:
+-- bad, average, good). For Execution and Artistic Impression only the note type
+-- is stored; point values live in the event's judging settings. A Difficulty
+-- note also keeps where the judge tapped on the numberline (line_position, 0 to
+-- 1), the numberline score that was (position x the line's range then:
+-- line_value) and the rating's multiplier then, separately; its points are
+-- line_value x multiplier. `id` is made by the judge's screen so a resent note
+-- is stored once; noted_at is the press, on the server's clock. player_id is
+-- the judge.
+CREATE TABLE IF NOT EXISTS fpa2027_judge_notes (
+  id            uuid PRIMARY KEY,
+  routine_id    uuid NOT NULL REFERENCES routines(id) ON DELETE CASCADE,
+  event_id      uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  player_id     uuid NOT NULL REFERENCES players(id) ON DELETE RESTRICT,
+  category_type text NOT NULL,
+  note_type     text NOT NULL,
+  noted_at      timestamptz NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_judge_notes_judge ON judge_notes(event_id, player_id, category_type, routine_started_at);
+ALTER TABLE fpa2027_judge_notes ADD COLUMN IF NOT EXISTS line_position numeric CHECK (line_position BETWEEN 0 AND 1);
+ALTER TABLE fpa2027_judge_notes ADD COLUMN IF NOT EXISTS line_value numeric;
+ALTER TABLE fpa2027_judge_notes ADD COLUMN IF NOT EXISTS multiplier numeric;
+CREATE INDEX IF NOT EXISTS idx_fpa2027_notes_routine ON fpa2027_judge_notes(routine_id, category_type, note_type);
+CREATE INDEX IF NOT EXISTS idx_fpa2027_notes_judge ON fpa2027_judge_notes(player_id);
+
+-- The score a judge submits for a routine: one per routine, judge and category.
+-- Keeps what cannot be recreated (the baseline the computer made, the judge's
+-- change, the settings used); note counts are read from fpa2027_judge_notes,
+-- which are locked once a score is submitted.
+CREATE TABLE IF NOT EXISTS fpa2027_judge_scores (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  routine_id        uuid NOT NULL REFERENCES routines(id) ON DELETE CASCADE,
+  judge_player_id   uuid NOT NULL REFERENCES players(id) ON DELETE RESTRICT,
+  category_type     text NOT NULL,
+  baseline_estimate numeric NOT NULL,
+  adjust_percent    numeric NOT NULL DEFAULT 0,
+  score             numeric NOT NULL,
+  settings          jsonb NOT NULL,
+  submitted_at      timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (routine_id, judge_player_id, category_type)
+);
+CREATE INDEX IF NOT EXISTS idx_fpa2027_scores_judge ON fpa2027_judge_scores(judge_player_id);
+
+-- Counts of each note type per routine, judge and category, straight from the notes.
+CREATE OR REPLACE VIEW fpa2027_judge_note_counts AS
+  SELECT routine_id, player_id AS judge_player_id, category_type, note_type, count(*) AS n,
+         COALESCE(sum(line_value * multiplier), 0) AS points
+  FROM fpa2027_judge_notes
+  GROUP BY routine_id, player_id, category_type, note_type;
+
+-- When each judge's screen last asked the server for news (its poll), so the
+-- Head Judge can see who is connected. Ephemeral: written by the judge's poll,
+-- never synced between the local server and Neon, and not part of backups.
+CREATE TABLE IF NOT EXISTS judge_presence (
+  event_id  uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  player_id uuid NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  seen_at   timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (event_id, player_id)
+);
 
 CREATE TABLE IF NOT EXISTS rankings (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -252,3 +325,20 @@ ALTER TABLE teams ADD COLUMN IF NOT EXISTS play_order integer;
 -- Whether the event is being judged right now. Only playing events list their
 -- judges on the public landing page; toggled in the Event Creator's Events tab.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS is_playing boolean NOT NULL DEFAULT false;
+
+-- The head judge's tunables for the event, keyed by judging system (rules id)
+-- and then category, e.g. {"Fpa2027": {"Ex": {"noteWeights": {"large_error": -3}}}}.
+-- Anything missing falls back to the defaults in code.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS judging_settings jsonb NOT NULL DEFAULT '{}';
+
+-- Named copies of one judging system's settings, shared across events. Loading
+-- a preset copies its values into an event, so later edits never reach back.
+CREATE TABLE IF NOT EXISTS judging_presets (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  rules_id   text NOT NULL,
+  name       text NOT NULL,
+  settings   jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_judging_presets_name ON judging_presets(rules_id, lower(name));

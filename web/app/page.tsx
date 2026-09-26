@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { auth, signOut } from '@/auth';
-import { judgePath } from '@/lib/judging';
+import { seatPath } from '@/lib/judging';
 import { getJudgingEvents } from '@/lib/judging-queries';
 
 export default async function Home() {
@@ -42,7 +42,9 @@ export default async function Home() {
                 {event.judges.map((judge) => (
                   <Link
                     key={`${judge.playerId}-${judge.category.type}`}
-                    href={judgePath(judge.category, event.eventId, judge.playerId)}
+                    // The seat, not the person: a device that opens it keeps
+                    // following this place when the pool changes.
+                    href={seatPath(judge.category, event.eventId, judge.seat)}
                     className="flex min-h-16 flex-col items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-center hover:bg-gray-50"
                   >
                     <span className="text-lg font-semibold">{judge.name}</span>

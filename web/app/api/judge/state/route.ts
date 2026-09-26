@@ -1,3 +1,5 @@
+import { after } from 'next/server';
+import { recordJudgeSeen } from '@/lib/judge-presence';
 import { noteTypesFor } from '@/lib/judging';
 import { getJudgeState } from '@/lib/judging-queries';
 
@@ -14,6 +16,9 @@ export async function GET(request: Request) {
   if (!UUID.test(eventId) || !UUID.test(playerId) || !noteTypesFor(category)) {
     return Response.json({ error: 'Missing or invalid event, player or category' }, { status: 400 });
   }
+
+  // Note that this judge's screen is reaching the server, after the answer has gone.
+  after(() => recordJudgeSeen(eventId, playerId));
 
   try {
     return Response.json(await getJudgeState(eventId, playerId, category), { headers: { 'Cache-Control': 'no-store' } });

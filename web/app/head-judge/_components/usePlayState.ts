@@ -1,8 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { cancelRoutine, setPlayingPool, setPlayingTeam, startRoutine } from '@/lib/head-judge-actions';
+import { useRouter } from 'next/navigation';
+import {
+  cancelRoutine,
+  finishRoutine,
+  restoreRoutine,
+  setPlayingPool,
+  setPlayingTeam,
+  startRoutine,
+} from '@/lib/head-judge-actions';
 import { samePlayState, type PlayResponse, type PlayState } from '@/lib/head-judge-state';
+import { HEAD_JUDGE_POLL_MS, type PollMode } from '@/lib/poll-intervals';
 
 // What the head judge did on this screen that the server may not have heard
 // about yet. Kept in order and sent one at a time.
@@ -10,11 +19,12 @@ type Op =
   | { type: 'pool'; divisionId: string; roundNumber: number; letter: string }
   | { type: 'team'; teamId: string }
   | { type: 'start'; clickedAt: number }
-  | { type: 'cancel' };
+  | { type: 'cancel' }
+  | { type: 'next'; nextTeamId: string | null }
+  | { type: 'restore'; routineId: string };
 
 export type SaveStatus = 'saved' | 'saving' | 'retrying';
 
-const POLL_MS = 2000;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // The change an operation makes to what's on screen.
@@ -28,13 +38,21 @@ function applyOp(state: PlayState, op: Op): PlayState {
         poolLetter: op.letter,
         teamId: null,
         routineStartedAt: null,
+        finishedJudges: [],
+        restorableRoutineId: null,
       };
+    // Whether there is a routine to restore is only known once the server is read.
     case 'team':
-      return { ...state, teamId: op.teamId, routineStartedAt: null };
+      return { ...state, teamId: op.teamId, routineStartedAt: null, finishedJudges: [], restorableRoutineId: null };
     case 'start':
-      return { ...state, routineStartedAt: op.clickedAt };
+      return { ...state, routineStartedAt: op.clickedAt, finishedJudges: [], restorableRoutineId: null };
     case 'cancel':
-      return { ...state, routineStartedAt: null };
+      return { ...state, routineStartedAt: null, finishedJudges: [] };
+    // The routine is over as played; the next team (if any) is up.
+    case 'next':
+      return { ...state, teamId: op.nextTeamId, routineStartedAt: null, finishedJudges: [], restorableRoutineId: null };
+    case 'restore':
+      return { ...state, restorableRoutineId: null };
   }
 }
 
@@ -42,7 +60,8 @@ function applyOp(state: PlayState, op: Op): PlayState {
 // routine timer starts the instant the button is pressed) and is saved in the
 // background: one at a time, in order, retried until it lands, and kept in the
 // browser meanwhile so a reload can't lose it. Other screens' changes come in
-// by polling.
+// by polling, which also tells when the event's pools, teams or judges were
+// changed elsewhere (the Event Creator): the page's data is then read again.
 export function usePlayState(eventId: string, initial: PlayResponse) {
   const [state, setState] = useState<PlayState>(initial.state);
   // Server time minus this device's time, for the timer.
@@ -50,7 +69,16 @@ export function usePlayState(eventId: string, initial: PlayResponse) {
   const [status, setStatus] = useState<SaveStatus>('saved');
   const [connection, setConnection] = useState<'ok' | 'lost'>('ok');
   const [error, setError] = useState<string | null>(null);
+  // Which judges' screens have been heard from lately (seconds ago, by player id).
+  const [presence, setPresence] = useState<Record<string, number>>(initial.presence);
+  // Which database answers: the local one is asked every second, Neon less often.
+  const [mode, setMode] = useState<PollMode>(initial.mode);
+  const modeRef = useRef<PollMode>(initial.mode);
+  const polling = useRef(false);
 
+  const router = useRouter();
+  // The fingerprint of the event's structure the page on screen was drawn with.
+  const structureKey = useRef(initial.structureKey);
   const queue = useRef<Op[]>([]);
   const draining = useRef(false);
   const offset = useRef(clockOffset);
@@ -68,6 +96,9 @@ export function usePlayState(eventId: string, initial: PlayResponse) {
   // Reads the server's state. It is only shown when nothing of ours is waiting
   // to be saved, so it can't undo what was just pressed.
   const poll = useCallback(async () => {
+    // A slow answer never has a second request stacked on it.
+    if (polling.current) return;
+    polling.current = true;
     const sentAt = Date.now();
     try {
       const response = await fetch(`/api/head-judge/state?event=${encodeURIComponent(eventId)}`, { cache: 'no-store' });
@@ -77,13 +108,23 @@ export function usePlayState(eventId: string, initial: PlayResponse) {
       offset.current = data.serverNow - (sentAt + Date.now()) / 2;
       setClockOffset(offset.current);
       setConnection('ok');
+      modeRef.current = data.mode ?? 'remote';
+      setMode(modeRef.current);
+      setPresence(data.presence ?? {});
+      // Changed elsewhere: read the page's data again (once per change).
+      if (data.structureKey && data.structureKey !== structureKey.current) {
+        structureKey.current = data.structureKey;
+        router.refresh();
+      }
       if (queue.current.length === 0 && !draining.current) {
         setState((current) => (samePlayState(current, data.state) ? current : data.state));
       }
     } catch {
       setConnection('lost');
+    } finally {
+      polling.current = false;
     }
-  }, [eventId]);
+  }, [eventId, router]);
 
   const drain = useCallback(async () => {
     if (draining.current) return;
@@ -100,7 +141,11 @@ export function usePlayState(eventId: string, initial: PlayResponse) {
               ? await setPlayingTeam(eventId, op.teamId)
               : op.type === 'start'
                 ? await startRoutine(eventId, op.clickedAt)
-                : await cancelRoutine(eventId);
+                : op.type === 'restore'
+                  ? await restoreRoutine(eventId, op.routineId)
+                  : op.type === 'next'
+                    ? await finishRoutine(eventId, op.nextTeamId)
+                    : await cancelRoutine(eventId);
         queue.current.shift();
         persist();
         wait = 500;
@@ -160,16 +205,23 @@ export function usePlayState(eventId: string, initial: PlayResponse) {
       void poll();
     }, 0);
 
-    const timer = setInterval(() => {
-      if (document.visibilityState === 'visible') void poll();
-    }, POLL_MS);
+    // Ask again a poll interval after the last answer arrived (the interval
+    // follows the database that answered).
+    let timer: ReturnType<typeof setTimeout>;
+    let stopped = false;
+    const loop = async () => {
+      if (document.visibilityState === 'visible') await poll();
+      if (!stopped) timer = setTimeout(loop, HEAD_JUDGE_POLL_MS[modeRef.current]);
+    };
+    timer = setTimeout(loop, HEAD_JUDGE_POLL_MS[modeRef.current]);
     const onVisible = () => {
       if (document.visibilityState === 'visible') void poll();
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
+      stopped = true;
       clearTimeout(restore);
-      clearInterval(timer);
+      clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [storageKey, drain, poll]);
@@ -179,6 +231,8 @@ export function usePlayState(eventId: string, initial: PlayResponse) {
     clockOffset,
     status,
     connection,
+    presence,
+    mode,
     error,
     dismissError: () => setError(null),
     setPool: (divisionId: string, roundNumber: number, letter: string) =>
@@ -187,5 +241,8 @@ export function usePlayState(eventId: string, initial: PlayResponse) {
     // The click's time on the server's clock, so it counts from the press itself.
     start: () => enqueue({ type: 'start', clickedAt: Date.now() + offset.current }),
     cancel: () => enqueue({ type: 'cancel' }),
+    // Ends the running routine as played and puts the next team up (null = none).
+    nextTeam: (nextTeamId: string | null) => enqueue({ type: 'next', nextTeamId }),
+    restore: (routineId: string) => enqueue({ type: 'restore', routineId }),
   };
 }

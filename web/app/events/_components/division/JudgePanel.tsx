@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { loadJudgeCandidates } from '@/lib/event-creator-actions';
 import { JUDGE_CATEGORY_LABELS, formatJudgeCount, type JudgeCandidate } from '@/lib/event-creator';
 import type { JudgeDrag, JudgePanelTarget } from './DivisionWorkspace';
+import { placedKey } from './DivisionWorkspace';
 
 // Most rows drawn at once; searching narrows the rest.
 const MAX_ROWS = 200;
@@ -16,6 +17,8 @@ export function JudgePanel({
   categories,
   target,
   refreshKey,
+  placed,
+  onListed,
   onClose,
   onDragStart,
   onDragEnd,
@@ -25,6 +28,10 @@ export function JudgePanel({
   target: JudgePanelTarget;
   // Changes when judges are saved, so the counts are reloaded.
   refreshKey: number;
+  // Players just placed as judges in some pool, not yet gone from a reloaded list.
+  placed: readonly string[];
+  // Tells the workspace which players the latest list still has for a pool.
+  onListed: (poolKey: string, listed: ReadonlySet<string>) => void;
   onClose: () => void;
   onDragStart: (drag: JudgeDrag) => void;
   onDragEnd: () => void;
@@ -37,7 +44,9 @@ export function JudgePanel({
     let cancelled = false;
     loadJudgeCandidates(divisionId, target.roundNumber, target.letter)
       .then((result) => {
-        if (!cancelled) setLoaded({ key, candidates: result.candidates, error: result.error });
+        if (cancelled) return;
+        setLoaded({ key, candidates: result.candidates, error: result.error });
+        onListed(`${target.roundNumber}:${target.letter}`, new Set(result.candidates.map((c) => c.id)));
       })
       .catch(() => {
         if (!cancelled) setLoaded({ key, candidates: [], error: 'Could not load players' });
@@ -45,7 +54,7 @@ export function JudgePanel({
     return () => {
       cancelled = true;
     };
-  }, [divisionId, target.roundNumber, target.letter, key]);
+  }, [divisionId, target.roundNumber, target.letter, key, onListed]);
 
   // Keep showing the previous list while a newer one loads, but not another pool's.
   const candidates = loaded?.candidates ?? NO_CANDIDATES;
@@ -53,9 +62,12 @@ export function JudgePanel({
 
   const shown = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    const matches = needle ? candidates.filter((c) => c.name.toLowerCase().includes(needle)) : candidates;
+    // Players just placed in this pool are already gone from the list.
+    const gone = new Set(placed);
+    const available = candidates.filter((c) => !gone.has(placedKey(target.roundNumber, target.letter, c.id)));
+    const matches = needle ? available.filter((c) => c.name.toLowerCase().includes(needle)) : available;
     return { rows: matches.slice(0, MAX_ROWS), total: matches.length };
-  }, [candidates, search]);
+  }, [candidates, search, placed, target.roundNumber, target.letter]);
 
   const legend = ['event', ...categories.map((c) => JUDGE_CATEGORY_LABELS[c] ?? c)].join('-');
 

@@ -8,10 +8,15 @@ import { PoolResults } from './PoolResults';
 // across divisions; a round's pools are buttons side by side in its cell.
 // Clicking a pool shows its results underneath.
 export function ResultsTab({
+  eventId,
+  active,
   divisions,
   selectedKey,
   onSelect,
 }: {
+  eventId: string;
+  // This tab is showing, so the results are read live.
+  active: boolean;
   divisions: HeadJudgeDivision[];
   selectedKey: string | null;
   onSelect: (key: string) => void;
@@ -78,7 +83,7 @@ export function ResultsTab({
       {selected ? (
         <section className="flex flex-col gap-2">
           <h2 className="text-lg font-semibold">{poolTitle(selected)}</h2>
-          <PoolResults pool={selected} />
+          <PoolResults key={selected.key} eventId={eventId} pool={selected} active={active} />
         </section>
       ) : (
         <p className="text-sm text-gray-500">Choose a pool to see its results.</p>

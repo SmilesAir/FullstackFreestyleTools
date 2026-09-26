@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export type Tab = {
   id: string;
@@ -9,6 +9,9 @@ export type Tab = {
   // URL to reflect in the address bar while this tab is active (deep links / refresh).
   href: string;
   content: React.ReactNode;
+  // Stretch this tab's content to the rest of the screen's height. Needs the
+  // bar's parent to be a flex column that is at least as tall as the screen.
+  fill?: boolean;
 };
 
 // Every tab's content is rendered by the server up front and kept mounted
@@ -22,11 +25,17 @@ export function Tabs({
   initialActive,
   active: controlledActive,
   onChange,
+  trailing,
+  large = false,
 }: {
   tabs: Tab[];
   initialActive: string;
   active?: string;
   onChange?: (id: string) => void;
+  // Shown at the right end of the tab bar.
+  trailing?: React.ReactNode;
+  // Twice the usual size, for screens used by touch.
+  large?: boolean;
 }) {
   const [ownActive, setOwnActive] = useState(initialActive);
 
@@ -41,11 +50,17 @@ export function Tabs({
   const active = controlledActive ?? ownActive;
   const current = tabs.some((t) => t.id === active) ? active : tabs[0].id;
 
-  // When the parent switches tabs itself, keep the address bar in step.
+  // When the parent switches tabs itself, keep the address bar in step. Only
+  // when the tab changes: the tabs are new objects on every render, and touching
+  // the history each time would cancel a refresh of the page's data in flight.
+  const shownHref = useRef<string | null>(null);
   useEffect(() => {
     if (controlledActive === undefined) return;
     const tab = tabs.find((t) => t.id === controlledActive);
-    if (tab) window.history.replaceState(null, '', tab.href);
+    if (tab && shownHref.current !== tab.href) {
+      shownHref.current = tab.href;
+      window.history.replaceState(null, '', tab.href);
+    }
   }, [controlledActive, tabs]);
 
   return (
@@ -66,7 +81,7 @@ export function Tabs({
               onChange?.(t.id);
               window.history.replaceState(null, '', t.href);
             }}
-            className={`whitespace-nowrap border-b-2 px-4 py-2 text-sm ${
+            className={`whitespace-nowrap border-b-2 ${large ? 'px-8 py-4 text-[28px] leading-tight' : 'px-4 py-2 text-sm'} ${
               t.id === current ? 'border-black font-semibold text-black' : 'border-transparent text-gray-600 hover:text-black'
             }`}
           >
@@ -79,10 +94,17 @@ export function Tabs({
             )}
           </a>
         ))}
+        {trailing && (
+          <div
+            className={`ml-auto min-w-0 self-center truncate font-semibold ${large ? 'py-4 pl-8 text-[28px] leading-tight' : 'py-2 pl-4 text-sm'}`}
+          >
+            {trailing}
+          </div>
+        )}
       </nav>
 
       {tabs.map((t) => (
-        <div key={t.id} hidden={t.id !== current} className="mt-6">
+        <div key={t.id} hidden={t.id !== current} className={t.fill ? 'mt-3 flex flex-1 flex-col' : 'mt-6'}>
           {t.content}
         </div>
       ))}

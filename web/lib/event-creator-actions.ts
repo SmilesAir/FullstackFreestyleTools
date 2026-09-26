@@ -6,6 +6,7 @@ import { pool } from './db';
 import {
   DIVISION_NAMES,
   RULES_IDS,
+  DEFAULT_NEW_RULES_ID,
   JUDGE_CATEGORIES,
   ROUTINE_MINUTES,
   defaultRoutineSeconds,
@@ -52,9 +53,9 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
     const ids: string[] = [];
     for (const divisionName of DIVISION_NAMES) {
       const d = await client.query<{ id: string }>(
-        `INSERT INTO divisions (id, event_id, division_name, raw_text, is_hidden, created_at, routine_seconds)
-         VALUES (gen_random_uuid(), $1, $2, '', true, now(), $3) RETURNING id`,
-        [eventId, divisionName, defaultRoutineSeconds(divisionName)]
+        `INSERT INTO divisions (id, event_id, division_name, raw_text, is_hidden, created_at, routine_seconds, rules_id)
+         VALUES (gen_random_uuid(), $1, $2, '', true, now(), $3, $4) RETURNING id`,
+        [eventId, divisionName, defaultRoutineSeconds(divisionName), DEFAULT_NEW_RULES_ID]
       );
       ids.push(d.rows[0].id);
     }
@@ -80,9 +81,9 @@ export async function addDivision(eventId: string, divisionName: string): Promis
 
   // Starts hidden (a draft) with no scraped text; publish flips is_hidden.
   const inserted = await pool.query<{ id: string }>(
-    `INSERT INTO divisions (id, event_id, division_name, raw_text, is_hidden, created_at, routine_seconds)
-     VALUES (gen_random_uuid(), $1, $2, '', true, now(), $3) RETURNING id`,
-    [eventId, divisionName, defaultRoutineSeconds(divisionName)]
+    `INSERT INTO divisions (id, event_id, division_name, raw_text, is_hidden, created_at, routine_seconds, rules_id)
+     VALUES (gen_random_uuid(), $1, $2, '', true, now(), $3, $4) RETURNING id`,
+    [eventId, divisionName, defaultRoutineSeconds(divisionName), DEFAULT_NEW_RULES_ID]
   );
   return { error: null, id: inserted.rows[0].id };
 }

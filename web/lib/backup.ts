@@ -1,6 +1,7 @@
 import 'server-only';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { put, del, get } from '@vercel/blob';
+import type { Pool } from 'pg';
 import { pool } from './db';
 import { BACKUP_TABLES, TABLES_ADDED_LATER, type BackupTableName } from './backup-tables';
 
@@ -12,11 +13,13 @@ type BackupDocument = {
 
 export type BackupKind = 'manual' | 'automatic' | 'uploaded' | 'pre_restore';
 
-async function dumpDatabase(): Promise<Buffer> {
+// Every backed-up table as one gzipped JSON document. Reads the given database
+// (default: the active one).
+export async function dumpDatabase(source: Pool = pool): Promise<Buffer> {
   const tables = {} as BackupDocument['tables'];
 
   for (const table of BACKUP_TABLES) {
-    const result = await pool.query(`SELECT * FROM ${table}`);
+    const result = await source.query(`SELECT * FROM ${table}`);
     tables[table] = result.rows;
   }
 
@@ -93,10 +96,10 @@ async function insertRows(client: import('pg').PoolClient, table: string, rows: 
   }
 }
 
-export async function restoreFromBuffer(buf: Buffer): Promise<void> {
+export async function restoreFromBuffer(buf: Buffer, target: Pool = pool): Promise<void> {
   const doc = parseBackupBuffer(buf);
 
-  const client = await pool.connect();
+  const client = await target.connect();
   try {
     await client.query('BEGIN');
 
