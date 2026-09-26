@@ -23,9 +23,18 @@ if (!wanted) {
   process.exit(0);
 }
 
-const url = process.env.LOCAL_DATABASE_URL;
+// The address set on the Head Judge page is kept in .local/db-mode.json.
+function savedLocalUrl() {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(here, '..', '.local', 'db-mode.json'), 'utf8')).localUrl || null;
+  } catch {
+    return null;
+  }
+}
+
+const url = savedLocalUrl() || process.env.LOCAL_DATABASE_URL;
 if (!url) {
-  console.error('LOCAL_DATABASE_URL is not set in web/.env.local.');
+  console.error('No local database address (set it on the Head Judge page or in web/.env.local).');
   process.exit(1);
 }
 

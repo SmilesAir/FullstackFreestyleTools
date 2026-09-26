@@ -16,8 +16,12 @@ if (!fs.existsSync(path.join(root, '.next', 'BUILD_ID'))) {
   console.error('There is no build yet. Run: npm run build');
   process.exit(1);
 }
-if (!process.env.LOCAL_DATABASE_URL) {
-  console.warn('Note: LOCAL_DATABASE_URL is not set, so only Neon can be used (see the README).');
+let saved = null;
+try {
+  saved = JSON.parse(fs.readFileSync(path.join(root, '.local', 'db-mode.json'), 'utf8')).localUrl;
+} catch {}
+if (!saved && !process.env.LOCAL_DATABASE_URL) {
+  console.warn('Note: no local database address yet. Set it on the Head Judge page (or LOCAL_DATABASE_URL in .env.local); see the README.');
 }
 
 const port = process.env.PORT || '3000';

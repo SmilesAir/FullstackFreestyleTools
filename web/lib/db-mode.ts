@@ -20,6 +20,9 @@ export type SyncResult = {
 
 export type ModeState = {
   mode: DbMode;
+  // The local database's connection string as set on the Head Judge page. It
+  // wins over LOCAL_DATABASE_URL, and lives only in this computer's .local folder.
+  localUrl: string | null;
   // The event kept in step with Neon (the "local event").
   localEventId: string | null;
   // The structure fingerprint of the setup last pulled from Neon.
@@ -31,6 +34,7 @@ export type ModeState = {
 
 const DEFAULT_STATE: ModeState = {
   mode: 'remote',
+  localUrl: null,
   localEventId: null,
   pulledStructureKey: '',
   lastFullAt: null,
@@ -42,7 +46,15 @@ const globalForMode = globalThis as unknown as { dbModeState?: ModeState };
 export const localDir = () => path.join(process.cwd(), '.local');
 const stateFile = () => path.join(localDir(), 'db-mode.json');
 
-export const localConfigured = () => Boolean(process.env.LOCAL_DATABASE_URL);
+// The local database's connection string, and where it came from (null = none).
+export function getLocalUrl(): string | null {
+  return getModeState().localUrl || process.env.LOCAL_DATABASE_URL || null;
+}
+
+export const localUrlSource = (): 'settings' | 'env' | null =>
+  getModeState().localUrl ? 'settings' : process.env.LOCAL_DATABASE_URL ? 'env' : null;
+
+export const localConfigured = () => getLocalUrl() !== null;
 
 function load(): ModeState {
   try {

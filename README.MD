@@ -202,18 +202,43 @@ At an event the devices share a hotspot with only a weak link to the internet. T
 
 **One-time setup on the laptop**
 
-1. Install Postgres, create an empty database (e.g. `freestyle_local`).
-2. In `web/.env.local` add `LOCAL_DATABASE_URL=postgresql://postgres:password@localhost:5432/freestyle_local` and `AUTH_TRUST_HOST=true`. Keep the same `AUTH_SECRET` as Neon so a Head Judge login stays valid.
-3. `cd web && npm install && npm run local:setup` (creates the tables in the local database; safe to repeat).
-4. `npm run build`, then `npm run start:local`. It prints the addresses judges open, and the Head Judge page shows them with a QR code.
+1. **Install Postgres** ([download](https://www.postgresql.org/download/); on Windows use the EDB installer). Keep the default port 5432 and remember the `postgres` password you choose. You don't need to create a database: the app does that.
+2. **Create the local database from the page.** Sign in **on the laptop itself** (`http://localhost:3000`, not its network address), open Head Judge, click the database pill, and in **Local database** open **Create the database and a login for me**. Enter the Postgres admin password and click **Create database and login**. In one step it:
+   - makes a login just for this app (default `freestyle`, no admin rights) and a database it owns (default `freestyle_local`),
+   - creates the tables (from `backend/schema.sql`),
+   - saves the address, which uses that login and a generated password, so the saved address never holds the admin password.
+
+   The admin password is used once, in memory, and never stored. Running it again is safe (it resets the login's password and saves the new address). *Advanced* lets you change the admin user, host and port.
+
+Run the app on the laptop as usual. `npm run start:local` (after `npm run build`) also prints the addresses judges open and makes sure the app is reachable from the hotspot; the Head Judge page shows those addresses too, with a QR code.
+
+**Already have a database, or prefer the terminal?** In **Local database** enter its address (e.g. `postgresql://user:password@localhost:5432/freestyle_local`), then **Test connection**, **Save** and **Set up tables**. Or put `LOCAL_DATABASE_URL=...` in `web/.env.local` and run `npm run local:setup`. An address saved on the page wins over the environment variable. The address must be on this computer or its local network.
+
+**Where things are kept on the laptop**
+
+| What | Where |
+|---|---|
+| The local database and its login | In Postgres (database `freestyle_local`, login `freestyle` unless you chose other names) |
+| The saved address (with the login's generated password), which database is in use, the event downloaded, the last sync | `web/.local/db-mode.json` (only on this computer, ignored by git) |
+| Safety backups of the local database, taken before anything in it is replaced (newest 20 kept) | `web/.local/backups/` |
+| What was last sent to Neon (so each sync only sends what changed) | A small `local_sync_state` table inside the local database |
 
 **At the event**
 
 - Sign in on the laptop, open Head Judge, and click the database pill next to *Control Panel*. Choose the event, **Take event offline** (downloads it), then switch to **Local server**. Switch between routines: every screen changes at once.
 - Judges scan the QR code (or open `http://<laptop address>:3000`) and pick their seat as usual. Their Play tab dots show who is connected. While on Local the Head Judge and judge screens poll every second.
 - Event setup (pools, teams, judges, players) is edited on Neon only and is pulled down when it changes. What judging creates (routines, notes, scores, play state, judging settings, presets) is made locally and pushed to Neon every 30 s (`LOCAL_SYNC_INTERVAL_SECONDS`). **Sync now** in the pill does it at once, and switching back to Postgres sends everything first.
-- The local database is backed up to `web/.local/backups` before anything in it is replaced (`npm run local:restore` lists them, `npm run local:restore -- <file>` restores one; stop the server first).
+- `npm run local:restore` lists the safety backups and `npm run local:restore -- <file name>` restores one (stop the server first).
 - Google/Discord sign-in needs the internet: on the laptop use the email and password login (the account is copied down with the event).
+
+**Starting over (back to a fresh laptop)**
+
+1. Switch to **Postgres (Neon)** in the pill, then stop the server.
+2. Drop the database and login in Postgres, e.g. in `psql -U postgres`: `DROP DATABASE freestyle_local WITH (FORCE); DROP ROLE freestyle;`
+3. Delete the `web/.local` folder (this forgets the saved address, the downloaded event and the backups).
+4. Start the server and repeat step 2 above.
+
+Nothing on Neon is touched by any of this. Unsent local changes are lost if you drop the database first, so check the pill says nothing is waiting to send.
 
 **If a phone can't reach the laptop:** allow the app through Windows Firewall for the hotspot network (it may be classed Public); make sure the hotspot has client/AP isolation off; use the address shown in the pill (the `.local` name is a backup for when the IP changes).
 

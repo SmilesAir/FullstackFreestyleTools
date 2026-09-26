@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   const denied = await headJudgeGuard();
   if (denied) return denied;
   if (!localConfigured()) {
-    return Response.json({ ok: false, message: 'This server has no local database (LOCAL_DATABASE_URL is not set).' }, { status: 400 });
+    return Response.json({ ok: false, message: 'This server has no local database address yet: set it in the database panel.' }, { status: 400 });
   }
 
   const body = (await request.json().catch(() => null)) as { action?: unknown; eventId?: unknown } | null;

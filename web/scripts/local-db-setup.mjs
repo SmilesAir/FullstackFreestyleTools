@@ -1,6 +1,7 @@
-// Applies backend/schema.sql to the local Postgres (LOCAL_DATABASE_URL in
-// .env.local), creating every table the app needs. Safe to run again: the
-// schema is idempotent. Run with: npm run local:setup
+// Applies backend/schema.sql to the local Postgres (the address set on the Head
+// Judge page, else LOCAL_DATABASE_URL in .env.local), creating every table the
+// app needs. Safe to run again: the schema is idempotent.
+// Run with: npm run local:setup
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,9 +11,18 @@ import pg from 'pg';
 const here = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(here, '..', '.env.local'), quiet: true });
 
-const url = process.env.LOCAL_DATABASE_URL;
+// The address set on the Head Judge page is kept in .local/db-mode.json.
+function savedLocalUrl() {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(here, '..', '.local', 'db-mode.json'), 'utf8')).localUrl || null;
+  } catch {
+    return null;
+  }
+}
+
+const url = savedLocalUrl() || process.env.LOCAL_DATABASE_URL;
 if (!url) {
-  console.error('LOCAL_DATABASE_URL is not set. Put it in web/.env.local, e.g.');
+  console.error('No local database address. Set it on the Head Judge page, or put it in web/.env.local, e.g.');
   console.error('  LOCAL_DATABASE_URL=postgresql://postgres:password@localhost:5432/freestyle_local');
   process.exit(1);
 }

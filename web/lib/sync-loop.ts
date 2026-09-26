@@ -7,10 +7,11 @@ import { syncCycle } from './local-sync';
 const globalForLoop = globalThis as unknown as { syncLoop?: ReturnType<typeof setInterval> };
 
 export function startSyncLoop() {
-  if (!localConfigured() || globalForLoop.syncLoop) return;
+  if (globalForLoop.syncLoop) return;
   const seconds = Math.max(5, Number(process.env.LOCAL_SYNC_INTERVAL_SECONDS) || 30);
   globalForLoop.syncLoop = setInterval(() => {
-    if (getMode() !== 'local') return;
+    // The local address may be set later on the Head Judge page: nothing to do until then.
+    if (!localConfigured() || getMode() !== 'local') return;
     syncCycle().catch(() => {
       // Already running, or recorded as the last sync's result.
     });

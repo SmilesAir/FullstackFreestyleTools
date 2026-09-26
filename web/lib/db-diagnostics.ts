@@ -1,7 +1,8 @@
 import 'server-only';
 import os from 'node:os';
 import { getPool, pool } from './db';
-import { getMode, getModeState, localConfigured, type DbMode, type SyncResult } from './db-mode';
+import { getLocalUrl, getMode, getModeState, localConfigured, localUrlSource, type DbMode, type SyncResult } from './db-mode';
+import { maskLocalUrl } from './local-url';
 import { isSyncing, pendingChanges } from './local-sync';
 import { listLocalBackups, type LocalBackup } from './local-backup';
 import { CONNECTED_INTERVALS, JUDGE_POLL_MS } from './poll-intervals';
@@ -55,6 +56,12 @@ export function lanUrls(port: string): JudgeUrl[] {
 export type DbStatus = {
   mode: DbMode;
   configured: boolean;
+  // The local database's address with its password hidden, and where it is set
+  // (on this page, or in LOCAL_DATABASE_URL). `hosted`: the hosted site, where
+  // there is no local database to set.
+  localUrl: string | null;
+  localUrlSource: 'settings' | 'env' | null;
+  hosted: boolean;
   syncing: boolean;
   remote: Ping;
   local: Ping | null;
@@ -104,6 +111,9 @@ export async function getDbStatus({ eventId, port }: { eventId: string | null; p
   return {
     mode: getMode(),
     configured,
+    localUrl: maskLocalUrl(getLocalUrl()),
+    localUrlSource: localUrlSource(),
+    hosted: Boolean(process.env.VERCEL),
     syncing: isSyncing(),
     remote,
     local,

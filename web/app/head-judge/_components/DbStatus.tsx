@@ -12,6 +12,9 @@ type Lite = { mode: 'local' | 'remote'; configured: boolean; syncing: boolean; a
 
 const SLOW_MS = 400;
 
+// The README's local server section.
+const SETUP_DOCS = 'https://github.com/SmilesAir/FullstackFreestyleTools/blob/master/README.MD#running-a-local-server-at-an-event';
+
 const dotOf = (ping: Ping | null | undefined) =>
   !ping || !ping.ok ? 'bg-red-500' : ping.ms !== null && ping.ms > SLOW_MS ? 'bg-amber-500' : 'bg-green-500';
 
@@ -57,6 +60,20 @@ export function DbStatus() {
   const [chosen, setChosen] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [copied, setCopied] = useState<string | null>(null);
+  // The local database's address being typed, and how the last try at it went.
+  const [editing, setEditing] = useState(false);
+  const [urlDraft, setUrlDraft] = useState('');
+  const [urlNotice, setUrlNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  // Making the database from the Postgres admin login (the password is only ever held
+  // here while typing, and is cleared the moment it is sent).
+  const [create, setCreate] = useState({
+    adminPassword: '',
+    database: 'freestyle_local',
+    appUser: 'freestyle',
+    adminUser: 'postgres',
+    host: 'localhost',
+    port: '5432',
+  });
   const modeRef = useRef<'local' | 'remote'>('remote');
   const box = useRef<HTMLDivElement>(null);
 
@@ -146,6 +163,28 @@ export function DbStatus() {
     await read();
   };
 
+  const configAction = async (action: 'test' | 'save' | 'clear' | 'setup', label: string) => {
+    const result = await post('/api/db/local-config', { action, url: urlDraft.trim() || undefined }, label);
+    setUrlNotice({ ok: Boolean(result.ok), text: result.message ?? '' });
+    if (result.ok && (action === 'save' || action === 'clear')) {
+      setEditing(false);
+      setUrlDraft('');
+    }
+    await read();
+  };
+
+  const createDatabase = async () => {
+    const body = { action: 'create', ...create };
+    setCreate((c) => ({ ...c, adminPassword: '' }));
+    const result = await post('/api/db/local-config', body, 'Creating the database…');
+    setUrlNotice({ ok: Boolean(result.ok), text: result.message ?? '' });
+    if (result.ok) {
+      setEditing(false);
+      setUrlDraft('');
+    }
+    await read();
+  };
+
   const mode = lite?.mode ?? 'remote';
   const configured = lite?.configured ?? false;
   const pillPing = unreachable ? null : lite?.active;
@@ -205,11 +244,14 @@ export function DbStatus() {
                 );
               })}
             </div>
-            {!configured && lite && (
-              <p className="text-xs text-gray-500">
-                This server has no local database. Set LOCAL_DATABASE_URL to use one (see the README).
-              </p>
-            )}
+            <a
+              href={SETUP_DOCS}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-blue-700 underline"
+            >
+              How to set up the local Postgres server
+            </a>
             {busy && <p className="text-xs text-gray-500">{busy}</p>}
             {notice && <p className={`text-xs ${notice.ok ? 'text-green-700' : 'text-red-700'}`}>{notice.text}</p>}
             {confirm && (
@@ -231,6 +273,206 @@ export function DbStatus() {
             )}
             <p className="text-xs text-gray-500">Every screen switches at once: do it between routines.</p>
           </section>
+
+          {!full ? null : full.hosted ? (
+            <p className="text-xs text-gray-500">
+              This is the hosted site. The local database is set on the laptop that runs the local server.
+            </p>
+          ) : (
+            <section className="flex flex-col gap-2">
+              <h2 className={cellTitle}>Local database</h2>
+              {full?.localUrl && !editing ? (
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 text-xs">
+                    <div className="break-all font-mono">{full.localUrl}</div>
+                    <div className="text-gray-500">
+                      {full.localUrlSource === 'settings' ? 'Set here, kept on this computer.' : 'From LOCAL_DATABASE_URL.'}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={busy !== null || mode === 'local'}
+                    onClick={() => {
+                      setUrlNotice(null);
+                      setEditing(true);
+                    }}
+                    className="shrink-0 cursor-pointer rounded border border-gray-300 px-2 py-1 text-xs font-medium hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/10"
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <input
+                    value={urlDraft}
+                    onChange={(e) => setUrlDraft(e.target.value)}
+                    disabled={busy !== null || mode === 'local'}
+                    placeholder="postgresql://postgres:password@localhost:5432/freestyle_local"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="rounded border border-gray-300 bg-background px-2 py-1.5 font-mono text-xs disabled:opacity-50"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={busy !== null || !urlDraft.trim()}
+                      onClick={() => void configAction('test', 'Testing…')}
+                      className="cursor-pointer rounded border border-gray-300 px-2 py-1 text-xs font-medium hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/10"
+                    >
+                      Test connection
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy !== null || mode === 'local' || !urlDraft.trim()}
+                      onClick={() => void configAction('save', 'Saving…')}
+                      className="cursor-pointer rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                    {editing && (
+                      <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() => {
+                          setEditing(false);
+                          setUrlDraft('');
+                          setUrlNotice(null);
+                        }}
+                        className="cursor-pointer rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-white/10"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                    {editing && full?.localUrlSource === 'settings' && (
+                      <button
+                        type="button"
+                        disabled={busy !== null || mode === 'local'}
+                        onClick={() => void configAction('clear', 'Removing…')}
+                        className="cursor-pointer rounded border border-red-300 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <details className="rounded border border-gray-300 px-2 py-1.5">
+                    <summary className="cursor-pointer text-xs font-medium">Create the database and a login for me</summary>
+                    <div className="mt-2 flex flex-col gap-2 text-xs">
+                      <p className="text-gray-500">
+                        For a computer with Postgres installed but no database yet. It makes the database and a login just for this
+                        app, so the saved address never holds the admin password. Do this on the laptop itself.
+                      </p>
+                      <label className="flex flex-col gap-1">
+                        Postgres admin password
+                        <input
+                          type="password"
+                          value={create.adminPassword}
+                          onChange={(e) => setCreate((c) => ({ ...c, adminPassword: e.target.value }))}
+                          disabled={busy !== null || mode === 'local'}
+                          autoComplete="off"
+                          className="rounded border border-gray-300 bg-background px-2 py-1.5 text-xs disabled:opacity-50"
+                        />
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="flex flex-col gap-1">
+                          Database name
+                          <input
+                            value={create.database}
+                            onChange={(e) => setCreate((c) => ({ ...c, database: e.target.value }))}
+                            disabled={busy !== null || mode === 'local'}
+                            autoComplete="off"
+                            spellCheck={false}
+                            className="rounded border border-gray-300 bg-background px-2 py-1.5 text-xs disabled:opacity-50"
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                          App login name
+                          <input
+                            value={create.appUser}
+                            onChange={(e) => setCreate((c) => ({ ...c, appUser: e.target.value }))}
+                            disabled={busy !== null || mode === 'local'}
+                            autoComplete="off"
+                            spellCheck={false}
+                            className="rounded border border-gray-300 bg-background px-2 py-1.5 text-xs disabled:opacity-50"
+                          />
+                        </label>
+                      </div>
+                      <details>
+                        <summary className="cursor-pointer text-gray-500">Advanced</summary>
+                        <div className="mt-2 grid grid-cols-3 gap-2">
+                          <label className="flex flex-col gap-1">
+                            Admin user
+                            <input
+                              value={create.adminUser}
+                              onChange={(e) => setCreate((c) => ({ ...c, adminUser: e.target.value }))}
+                              disabled={busy !== null}
+                              autoComplete="off"
+                              spellCheck={false}
+                              className="rounded border border-gray-300 bg-background px-2 py-1.5 text-xs disabled:opacity-50"
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1">
+                            Host
+                            <input
+                              value={create.host}
+                              onChange={(e) => setCreate((c) => ({ ...c, host: e.target.value }))}
+                              disabled={busy !== null}
+                              autoComplete="off"
+                              spellCheck={false}
+                              className="rounded border border-gray-300 bg-background px-2 py-1.5 text-xs disabled:opacity-50"
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1">
+                            Port
+                            <input
+                              value={create.port}
+                              onChange={(e) => setCreate((c) => ({ ...c, port: e.target.value }))}
+                              disabled={busy !== null}
+                              inputMode="numeric"
+                              autoComplete="off"
+                              className="rounded border border-gray-300 bg-background px-2 py-1.5 text-xs disabled:opacity-50"
+                            />
+                          </label>
+                        </div>
+                      </details>
+                      <button
+                        type="button"
+                        disabled={busy !== null || mode === 'local' || !create.adminPassword}
+                        onClick={() => void createDatabase()}
+                        className="cursor-pointer self-start rounded bg-blue-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Create database and login
+                      </button>
+                    </div>
+                  </details>
+                </div>
+              )}
+              {full?.localUrl && !editing && (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={busy !== null}
+                    onClick={() => void configAction('test', 'Testing…')}
+                    className="cursor-pointer rounded border border-gray-300 px-2 py-1 text-xs font-medium hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/10"
+                  >
+                    Test connection
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy !== null || mode === 'local'}
+                    onClick={() => void configAction('setup', 'Setting up the tables…')}
+                    className="cursor-pointer rounded border border-gray-300 px-2 py-1 text-xs font-medium hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/10"
+                  >
+                    Set up tables
+                  </button>
+                </div>
+              )}
+              {!full?.localUrl && !editing && lite && (
+                <p className="text-xs text-gray-500">No local database yet. Enter its address, or use “Create the database and a login for me” above.</p>
+              )}
+              {urlNotice && <p className={`text-xs ${urlNotice.ok ? 'text-green-700' : 'text-red-700'}`}>{urlNotice.text}</p>}
+              {mode === 'local' && <p className="text-xs text-gray-500">Switch to Postgres to change it.</p>}
+            </section>
+          )}
 
           <section className="flex flex-col gap-1">
             <h2 className={cellTitle}>Ping</h2>

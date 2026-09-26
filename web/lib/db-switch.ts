@@ -17,7 +17,7 @@ export async function switchMode(
   target: 'local' | 'remote',
   opts: { eventId?: string | null; force?: boolean }
 ): Promise<SwitchResult> {
-  if (!localConfigured()) return { ok: false, message: 'This server has no local database (LOCAL_DATABASE_URL is not set).' };
+  if (!localConfigured()) return { ok: false, message: 'This server has no local database address yet: set it in the database panel.' };
   const state = getModeState();
 
   if (target === 'remote') {
