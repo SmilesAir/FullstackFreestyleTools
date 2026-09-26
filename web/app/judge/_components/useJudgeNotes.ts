@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { addNote, deleteNote, editNote, submitBackupScore, submitScore } from '@/lib/judging-actions';
+import { fetchJson } from '@/lib/fetch-json';
 import { startIdlePoller } from '@/lib/idle-poller';
 import type { JudgeNote, JudgeState } from '@/lib/judging';
 import { JUDGE_POLL_MS, type PollMode } from '@/lib/poll-intervals';
@@ -112,9 +113,7 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
     const sentAt = Date.now();
     try {
       const query = new URLSearchParams({ event: eventId, player: playerId, category: categoryType });
-      const response = await fetch(`/api/judge/state?${query}`, { cache: 'no-store' });
-      if (!response.ok) throw new Error(String(response.status));
-      const data: JudgeState = await response.json();
+      const data = await fetchJson<JudgeState>(`/api/judge/state?${query}`);
       // The server read its clock about halfway through the round trip.
       offset.current = data.serverNow - (sentAt + Date.now()) / 2;
       setClockOffset(offset.current);

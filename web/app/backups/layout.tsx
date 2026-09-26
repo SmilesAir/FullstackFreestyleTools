@@ -1,5 +1,9 @@
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/authz';
+import type { Metadata } from 'next';
+import { toolTitle } from '@/lib/tools';
+
+export const metadata: Metadata = { title: toolTitle('/backups') };
 
 export default async function BackupsLayout({ children }: { children: React.ReactNode }) {
   await requireAdmin();

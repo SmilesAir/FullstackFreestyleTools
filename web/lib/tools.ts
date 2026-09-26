@@ -21,6 +21,18 @@ const TOOL_INFO: Record<PermissionKey, ToolInfo> = {
     description: 'Run an event day: see every pool with its teams and judges, choose the playing pool, and follow results.',
     href: '/head-judge',
   },
+  rankings_generator: {
+    label: 'Rankings Generator',
+    description:
+      'Choose events, tune the ranking and rating settings, preview the rankings and ratings, and publish them for the public results pages.',
+    href: '/rankings-generator',
+  },
+  results_parser: {
+    label: 'Results Parser',
+    description:
+      'Enter the results of events run outside this system: paste them for Claude to fill in, check the rounds, pools, places and players, then save.',
+    href: '/results-parser',
+  },
 };
 
 export const FLAGGED_TOOLS = PERMISSIONS.map((p) => ({ key: p.key, ...TOOL_INFO[p.key] }));
@@ -53,3 +65,10 @@ export const ALWAYS_AVAILABLE_TOOLS: ToolInfo[] = [
     href: '/profile',
   },
 ];
+
+// The browser tab title for a tool's pages: its name in the Control Panel.
+export function toolTitle(href: string): string {
+  const tool = [...FLAGGED_TOOLS, ...ADMIN_ONLY_TOOLS, ...ALWAYS_AVAILABLE_TOOLS].find((t) => t.href === href);
+  if (!tool) throw new Error(`No tool at ${href}`);
+  return tool.label;
+}

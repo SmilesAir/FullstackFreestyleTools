@@ -2,6 +2,10 @@ import Link from 'next/link';
 import { PlayerListPanel } from './_components/PlayerListPanel';
 import { AliasPickerProvider } from './_components/AliasPickerContext';
 import { requirePermission } from '@/lib/authz';
+import type { Metadata } from 'next';
+import { toolTitle } from '@/lib/tools';
+
+export const metadata: Metadata = { title: toolTitle('/players') };
 
 export default async function PlayersLayout({ children }: { children: React.ReactNode }) {
   await requirePermission('player_editor');

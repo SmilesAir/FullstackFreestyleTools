@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { startIdlePoller } from '@/lib/idle-poller';
 import type { JudgeState, NoteCategory, SeatHolder } from '@/lib/judging';
+import { fetchJson } from '@/lib/fetch-json';
 import { JUDGE_POLL_MS, type PollMode } from '@/lib/poll-intervals';
 import { IDLE_MS } from './useJudgeNotes';
 import { NotesJudge } from './NotesJudge';
@@ -59,9 +60,7 @@ export function SeatJudge({
   const poll = useCallback(async () => {
     try {
       const query = new URLSearchParams({ event: eventId, category, seat: String(seat) });
-      const response = await fetch(`/api/judge/seat?${query}`, { cache: 'no-store' });
-      if (!response.ok) return;
-      const body: { holder: SeatHolder; mode?: PollMode } = await response.json();
+      const body = await fetchJson<{ holder: SeatHolder; mode?: PollMode }>(`/api/judge/seat?${query}`);
       const now = body.holder;
       seatMode.current = body.mode ?? 'remote';
       const id = now?.playerId ?? null;
@@ -77,9 +76,7 @@ export function SeatJudge({
       }
       // The new judge's screen starts from their own state.
       const stateQuery = new URLSearchParams({ event: eventId, player: now.playerId, category });
-      const stateResponse = await fetch(`/api/judge/state?${stateQuery}`, { cache: 'no-store' });
-      if (!stateResponse.ok) return;
-      const state: JudgeState = await stateResponse.json();
+      const state = await fetchJson<JudgeState>(`/api/judge/state?${stateQuery}`);
       setSeatState((s) => ({ ...s, next: { ...now, initial: state } }));
     } catch {
       // No connection: the current screen says so; ask again next time.

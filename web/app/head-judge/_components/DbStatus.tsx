@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import QRCode from 'qrcode';
 import type { DbStatus as Status, Ping } from '@/lib/db-diagnostics';
+import { fetchJson } from '@/lib/fetch-json';
 
 // Which database the server is using, how healthy each is, and the switch
 // between the head judge's local server and Postgres (Neon). A small pill next
@@ -80,9 +81,8 @@ export function DbStatus() {
   const read = useCallback(async () => {
     try {
       const url = open ? `/api/db/status?event=${encodeURIComponent(eventId ?? '')}` : '/api/db/status?lite=1';
-      const response = await fetch(url, { cache: 'no-store' });
-      if (!response.ok) throw new Error(String(response.status));
-      const json = await response.json();
+      // Well under the 15 s between reads from Neon, so a stuck request can't stall the pill.
+      const json = await fetchJson<Status & Lite & { mode: 'local' | 'remote' }>(url, 12000);
       if (open) {
         const status = json as Status;
         setFull(status);

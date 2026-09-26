@@ -10,6 +10,7 @@ import {
   setPlayingTeam,
   startRoutine,
 } from '@/lib/head-judge-actions';
+import { fetchJson } from '@/lib/fetch-json';
 import { samePlayState, type PlayResponse, type PlayState } from '@/lib/head-judge-state';
 import { HEAD_JUDGE_POLL_MS, type PollMode } from '@/lib/poll-intervals';
 
@@ -101,9 +102,7 @@ export function usePlayState(eventId: string, initial: PlayResponse) {
     polling.current = true;
     const sentAt = Date.now();
     try {
-      const response = await fetch(`/api/head-judge/state?event=${encodeURIComponent(eventId)}`, { cache: 'no-store' });
-      if (!response.ok) throw new Error(String(response.status));
-      const data: PlayResponse = await response.json();
+      const data = await fetchJson<PlayResponse>(`/api/head-judge/state?event=${encodeURIComponent(eventId)}`);
       // The server read its clock about halfway through the round trip.
       offset.current = data.serverNow - (sentAt + Date.now()) / 2;
       setClockOffset(offset.current);

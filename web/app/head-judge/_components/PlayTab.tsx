@@ -30,20 +30,26 @@ const HOLD_COLORS = {
   blue: { button: 'bg-blue-600 hover:bg-blue-700', fill: 'bg-blue-900' },
 };
 
+// Shown instead of a colour while the button has nothing to act on.
+const DISABLED_BUTTON = 'cursor-not-allowed bg-gray-300 text-gray-600';
+
 function HoldButton({
   onConfirm,
   color,
+  disabled = false,
   children,
 }: {
   onConfirm: () => void;
   color: keyof typeof HOLD_COLORS;
+  // Greyed out and does nothing.
+  disabled?: boolean;
   children: ReactNode;
 }) {
   const [holding, setHolding] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const start = () => {
-    if (timer.current) return;
+    if (disabled || timer.current) return;
     setHolding(true);
     timer.current = setTimeout(() => {
       timer.current = null;
@@ -79,7 +85,10 @@ function HoldButton({
       onBlur={stop}
       // A long press on a phone would otherwise open the text menu.
       onContextMenu={(e) => e.preventDefault()}
-      className={`relative flex min-h-48 cursor-pointer touch-manipulation select-none flex-col items-center justify-center gap-3 overflow-hidden rounded-lg p-6 text-white [-webkit-touch-callout:none] ${HOLD_COLORS[color].button}`}
+      disabled={disabled}
+      className={`relative flex min-h-48 touch-manipulation select-none flex-col items-center justify-center gap-3 overflow-hidden rounded-lg p-6 [-webkit-touch-callout:none] ${
+        disabled ? DISABLED_BUTTON : `cursor-pointer text-white ${HOLD_COLORS[color].button}`
+      }`}
     >
       <span
         aria-hidden
@@ -230,7 +239,8 @@ export function PlayTab({
             <span className="text-sm font-semibold uppercase tracking-wide opacity-90">Hold for 1 second</span>
           </HoldButton>
         ) : (
-          <HoldButton key="cancel" color="red" onConfirm={onCancel}>
+          // Nothing to cancel until a routine is running (and nothing hidden to bring back).
+          <HoldButton key="cancel" color="red" onConfirm={onCancel} disabled={!running}>
             <span className="text-3xl font-bold">Cancel Routine</span>
             <span className="text-base">Only press if need to restart or something went wrong.</span>
             <span className="text-sm font-semibold uppercase tracking-wide opacity-90">Hold for 1 second</span>

@@ -24,6 +24,7 @@ import {
 import { getJudgeCandidates, getTeams } from './event-creator-queries';
 import { seedRound } from './event-creator-seeding';
 import { teamKey } from './event-creator-layout';
+import { insertPlayerByName } from './player-match';
 
 export type ActionState = { error: string | null };
 
@@ -291,6 +292,81 @@ export async function addRosterTeams(divisionId: string, teams: string[][]): Pro
   return { error: null, added: valid.length };
 }
 
+// Adds teams to several divisions of one event at once, creating any division the
+// event doesn't have yet (as a draft, like addDivision). A team that is already on a
+// division (on its roster or playing in a round) is left out, so pasting the same list
+// twice doesn't double it.
+export async function addEventRosters(
+  eventId: string,
+  divisions: { divisionName: string; teams: string[][] }[]
+): Promise<ActionState & { results?: { divisionName: string; added: number; duplicates: number; created: boolean }[] }> {
+  await guard();
+  const known = new Set<string>(DIVISION_NAMES);
+  if (divisions.some((d) => !known.has(d.divisionName))) return { error: 'Unknown division' };
+  if (new Set(divisions.map((d) => d.divisionName)).size !== divisions.length) return { error: 'A division is listed twice' };
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const event = await client.query('SELECT 1 FROM events WHERE id = $1', [eventId]);
+    if (event.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return { error: 'Event not found' };
+    }
+
+    const results = [];
+    for (const { divisionName, teams } of divisions) {
+      // Two people pasting at once must not create the same division twice.
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`${eventId}:${divisionName}`]);
+      const found = await client.query<{ id: string }>('SELECT id FROM divisions WHERE event_id = $1 AND division_name = $2', [
+        eventId,
+        divisionName,
+      ]);
+      let divisionId = found.rows[0]?.id;
+      const created = !divisionId;
+      if (!divisionId) {
+        const inserted = await client.query<{ id: string }>(
+          `INSERT INTO divisions (id, event_id, division_name, raw_text, is_hidden, created_at, routine_seconds, rules_id)
+           VALUES (gen_random_uuid(), $1, $2, '', true, now(), $3, $4) RETURNING id`,
+          [eventId, divisionName, defaultRoutineSeconds(divisionName), DEFAULT_NEW_RULES_ID]
+        );
+        divisionId = inserted.rows[0].id;
+      }
+
+      const have = await client.query<{ player_ids: string[] }>(
+        `SELECT array_agg(tp.player_id::text) AS player_ids
+         FROM teams t JOIN team_players tp ON tp.team_id = t.id
+         WHERE t.division_id = $1
+         GROUP BY t.id`,
+        [divisionId]
+      );
+      const seen = new Set(have.rows.map((r) => teamKey(r.player_ids)));
+
+      let added = 0;
+      let duplicates = 0;
+      for (const playerIds of teams) {
+        if (playerIds.length === 0 || new Set(playerIds).size !== playerIds.length) continue;
+        const key = teamKey(playerIds);
+        if (seen.has(key)) {
+          duplicates++;
+          continue;
+        }
+        seen.add(key);
+        await insertTeam(client, divisionId, ROSTER_ROUND, ROSTER_POOL, playerIds);
+        added++;
+      }
+      results.push({ divisionName, added, duplicates, created });
+    }
+    await client.query('COMMIT');
+    return { error: null, results };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    return { error: err instanceof Error ? err.message : 'Failed to add the teams' };
+  } finally {
+    client.release();
+  }
+}
+
 export async function deleteRosterTeam(divisionId: string, teamId: string): Promise<ActionState> {
   await guard();
 
@@ -518,21 +594,9 @@ export async function removeTeamFromRound(divisionId: string, roundNumber: numbe
   return { error: null };
 }
 
-// Splits "First Last" at the final space (the rest is the first name).
 export async function quickCreatePlayer(
   fullName: string
 ): Promise<{ error: string | null; player?: { id: string; name: string } }> {
   await guard();
-  const trimmed = fullName.trim().replace(/\s+/g, ' ');
-  const idx = trimmed.lastIndexOf(' ');
-  if (idx < 1) return { error: 'Need a first and last name to create a player' };
-  const first = trimmed.slice(0, idx);
-  const last = trimmed.slice(idx + 1);
-
-  const result = await pool.query<{ id: string }>(
-    `INSERT INTO players (id, first_name, last_name, created_at, last_active, hidden)
-     VALUES (gen_random_uuid(), $1, $2, now(), now(), false) RETURNING id`,
-    [first, last]
-  );
-  return { error: null, player: { id: result.rows[0].id, name: `${first} ${last}` } };
+  return insertPlayerByName(fullName);
 }

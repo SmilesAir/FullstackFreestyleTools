@@ -1,20 +1,35 @@
 import 'server-only';
-import { getSetting } from './settings-queries';
+import { getSettings } from './settings-queries';
 
 const DEFAULT_LIMIT = 30;
 const DEFAULT_WINDOW_SECONDS = 60;
+const DEFAULT_DAILY_LIMIT = 500;
+const DEFAULT_MONTHLY_LIMIT = 10000;
 
-export async function getRateLimitConfig(): Promise<{ limit: number; windowSeconds: number }> {
-  const [limitRaw, windowRaw] = await Promise.all([
-    getSetting('api_rate_limit_requests'),
-    getSetting('api_rate_limit_window_seconds'),
+const positiveInt = (raw: string | null, fallback: number) => {
+  const value = Number(raw);
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+};
+
+// The public API's limits, all from one read of the settings: `limit` per
+// `windowSeconds` for one IP (a burst), `dailyLimit` per IP per day, and
+// `monthlyLimit` for everyone together per 30 days.
+export async function getRateLimitConfig(): Promise<{
+  limit: number;
+  windowSeconds: number;
+  dailyLimit: number;
+  monthlyLimit: number;
+}> {
+  const settings = await getSettings([
+    'api_rate_limit_requests',
+    'api_rate_limit_window_seconds',
+    'api_rate_limit_daily_requests',
+    'api_rate_limit_monthly_requests',
   ]);
-
-  const limit = Number(limitRaw);
-  const windowSeconds = Number(windowRaw);
-
   return {
-    limit: Number.isInteger(limit) && limit > 0 ? limit : DEFAULT_LIMIT,
-    windowSeconds: Number.isInteger(windowSeconds) && windowSeconds > 0 ? windowSeconds : DEFAULT_WINDOW_SECONDS,
+    limit: positiveInt(settings.api_rate_limit_requests, DEFAULT_LIMIT),
+    windowSeconds: positiveInt(settings.api_rate_limit_window_seconds, DEFAULT_WINDOW_SECONDS),
+    dailyLimit: positiveInt(settings.api_rate_limit_daily_requests, DEFAULT_DAILY_LIMIT),
+    monthlyLimit: positiveInt(settings.api_rate_limit_monthly_requests, DEFAULT_MONTHLY_LIMIT),
   };
 }

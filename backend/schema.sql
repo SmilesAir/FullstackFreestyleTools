@@ -214,6 +214,22 @@ CREATE TABLE IF NOT EXISTS judge_presence (
   PRIMARY KEY (event_id, player_id)
 );
 
+-- Published rankings and ratings, one row per type and date (what the Rankings
+-- Generator publishes and the public points API serves). `key` is
+-- "<type>-<division>_<date>", e.g. ranking-open_2026-9-25 (exactly one "_"):
+-- ranking-open, ranking-women and rating-open. `data` is the array the public API
+-- returns; `meta` holds the counts, the date range and the parameters used.
+CREATE TABLE IF NOT EXISTS points_snapshots (
+  key         text PRIMARY KEY,
+  type        text NOT NULL,
+  division    text NOT NULL,
+  date        text NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  is_hidden   boolean NOT NULL DEFAULT false,
+  data        jsonb NOT NULL,
+  meta        jsonb NOT NULL DEFAULT '{}'
+);
+
 CREATE TABLE IF NOT EXISTS rankings (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   player_id     uuid NOT NULL REFERENCES players(id) ON DELETE RESTRICT,
@@ -291,6 +307,24 @@ CREATE TABLE IF NOT EXISTS api_rate_limits (
   expires_at timestamptz NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_api_rate_limits_expires_at ON api_rate_limits(expires_at);
+
+-- One row per billed Claude call (the parse-with-Claude tools), for the cost shown in
+-- Settings. Tokens are the API's own usage report; cost_usd is worked out at the time
+-- from the list price (NULL when the model's price isn't known). No foreign key: a log
+-- outlives users. Deliberately not in the backup tables, so restoring an old backup
+-- never erases the spending history.
+CREATE TABLE IF NOT EXISTS claude_usage (
+  id            bigserial PRIMARY KEY,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  feature       text NOT NULL,
+  model         text NOT NULL,
+  input_tokens  integer NOT NULL DEFAULT 0,
+  output_tokens integer NOT NULL DEFAULT 0,
+  cost_usd      numeric(12,6),
+  stop_reason   text,
+  user_id       uuid
+);
+CREATE INDEX IF NOT EXISTS idx_claude_usage_created_at ON claude_usage(created_at);
 
 -- Metadata for full-database backups; the actual gzipped dump lives in Vercel
 -- Blob (blob_url), not here. Deliberately has NO foreign key to any other

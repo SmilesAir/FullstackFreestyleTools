@@ -1,5 +1,9 @@
 import Link from 'next/link';
 import { requirePermission } from '@/lib/authz';
+import type { Metadata } from 'next';
+import { toolTitle } from '@/lib/tools';
+
+export const metadata: Metadata = { title: toolTitle('/events') };
 
 export default async function EventsLayout({ children }: { children: React.ReactNode }) {
   await requirePermission('event_creator');

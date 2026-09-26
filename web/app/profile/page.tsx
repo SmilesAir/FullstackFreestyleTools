@@ -6,6 +6,10 @@ import { PlayerLinkPicker } from './_components/PlayerLinkPicker';
 import { UnlinkButton } from './_components/UnlinkButton';
 import { DiscordIdForm } from './_components/DiscordIdForm';
 import { TestDmButton } from './_components/TestDmButton';
+import type { Metadata } from 'next';
+import { toolTitle } from '@/lib/tools';
+
+export const metadata: Metadata = { title: toolTitle('/profile') };
 
 export default async function ProfilePage() {
   const session = await auth();

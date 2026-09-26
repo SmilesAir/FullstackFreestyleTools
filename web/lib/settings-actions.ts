@@ -39,7 +39,12 @@ export async function saveSetting(key: string, _prevState: ActionState, formData
     }
   }
 
-  if (key === 'api_rate_limit_requests' || key === 'api_rate_limit_window_seconds') {
+  if (
+    key === 'api_rate_limit_requests' ||
+    key === 'api_rate_limit_window_seconds' ||
+    key === 'api_rate_limit_daily_requests' ||
+    key === 'api_rate_limit_monthly_requests'
+  ) {
     if (!/^\d+$/.test(value) || Number(value) < 1) {
       return { error: 'Must be a positive whole number.' };
     }

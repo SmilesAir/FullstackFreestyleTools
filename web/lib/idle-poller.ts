@@ -32,8 +32,13 @@ export function startIdlePoller({
       poll();
     }
   };
+  // Coming back to the page (a phone's screen waking, another tab closed): ask at
+  // once rather than at the next tick, which a sleeping phone may have delayed.
   const onVisible = () => {
-    if (doc.visibilityState === 'visible') touched();
+    if (doc.visibilityState !== 'visible') return;
+    const wasPaused = paused;
+    touched();
+    if (!wasPaused) poll();
   };
 
   const tick = () => {

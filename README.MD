@@ -181,17 +181,60 @@ One row per player per rankings
 
 ### List of APIs
 
+All public endpoints are read-only `GET`s that answer CORS (`Access-Control-Allow-Origin: *`, with an `OPTIONS` preflight), are rate limited, and cache well: `Cache-Control: public, max-age=60, s-maxage=600, stale-while-revalidate=3600`, so most requests are served by the CDN and a new publish shows within about 10 minutes.
+
+**Points API** (feeds [ResultsRender](https://github.com/SmilesAir/ResultsRender); the same five calls and JSON shapes as PointsService and its sibling services), under `/api/v1/points/`:
+
+| Endpoint | Returns |
+|---|---|
+| `getManifest` | `{ manifest: { "<type>-<division>_<date>": { key, date, divisionName, createdAt, dataPath, isHidden } } }`, one entry per published `ranking-open`, `ranking-women` and `rating-open` per date (e.g. `ranking-open_2026-9-25`) |
+| `downloadPointsData/{key}` | `{ data: [...] }`: ranking rows `{ id, fullName, rank, points, resultsCount, pointsList: [{ resultsId, points }] }` or rating rows `{ id, fullName, rating, matchCount, highestRating, highestRatingDate, highestRank, highestRankDate }`; 404 for an unknown key |
+| `getAllResults` | `{ results: { [resultsId]: { eventName, divisionName, ... } } }`: every division that has placed teams (`resultsId` is the division id used in the rankings' `pointsList`) |
+| `getAllEvents` | `{ allEventSummaryData: { [eventId]: { eventName, startDate, endDate } } }` |
+| `getAllPlayers` | `{ players: { [playerId]: { firstName, lastName } } }` for the players in published rankings and ratings |
+
+To point ResultsRender at this app, change the URL map in its `client/source/endpoints.js` (production and development) to:
+
+```js
+const base = "https://<this site>/api/v1/points"
+GET_PLAYER_DATA:     `${base}/getAllPlayers`,
+GET_EVENT_DATA:      `${base}/getAllEvents`,
+GET_RESULTS_DATA:    `${base}/getAllResults`,
+GET_POINTS_MANIFEST: `${base}/getManifest`,
+GET_POINTS_DATA:     `${base}/downloadPointsData/<key>`,
+```
+
+**Rankings API** (existing): `GET /api/v1/rankings?category=ranking-open&page=1&country=` gives the live ranking (the one the last publish put there).
+
+**Rate limits** (one results-page view is about 8 calls, and normal traffic is about 3,000 calls a month): per IP 30 calls per minute, per IP 500 per day, and 10,000 per 30 days for everyone together. All three are settings on the admin Settings page. A refused call is HTTP 429 with `Retry-After`; every answer carries `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset` for the tightest window. The limits are counted in one query per call.
+
+### Rankings Generator
+
+`/rankings-generator` (permission *Rankings Generator*) replaces PointsService's manual page. **Events**: every event with played divisions, newest first, one button for the last 2 years, any event or division can be ticked off. **Settings**: every constant of the calculation (K for open and women, major and worlds bonuses and their event names, results counted per player, the divisions that count, the ratings' K factors, starting rating and the rest), edited live and savable as the defaults. **Preview**: the open and women rankings and the open ratings for the current selection and settings. **Published**: publish a version (open and women rankings and open ratings, stored with the settings used), hide or delete versions. Publishing also replaces the live rankings the Event Creator seeds from. Ratings always use every event.
+
+It reproduces PointsService's calculation (checked with `node scripts/verify-points.cjs`, which runs the library on `Planning/AllFrisbeeData-*.json` and compares with that service's own published output: the women's ranking, the open ranking and the ratings agree apart from what was edited after they were published). Deliberate differences: the ratings' major and worlds K factors are the intended 48 and 64 (PointsService's code swapped them; set 64 and 48 to reproduce its numbers), and hidden divisions are left out of both. Rounds are read in PointsService's order (the Finals, then the earliest round on) unless the *Round order* setting is changed.
+
+### Results Parser
+
+`/results-parser` (permission *Results Parser*) enters the results of events that ran outside the system, the way EventResultsService's enter-results widget did. Pick an event (or create one) and a division, then add rounds, pools, teams, places and players, or paste the results into **Fill from Claude** and check what it filled in. Claude reads the text with the Anthropic API key from Settings (the same one the Event Creator uses), each name is matched against the players (unsure or unknown names are flagged, with a button to create a new player), and nothing is saved until **Save results**. Places run per pool, 1, 2, 3 (a tie repeats the number, 1, 1, 3), and the editor shows what is wrong before it lets you save. Saving replaces that division's results and publishes them, so the Rankings Generator counts them; **Hide it** takes them back out. Unsaved work is kept in the browser. It needs the server on Postgres (Neon), not the local database. `node scripts/verify-results-parser.cjs` checks the validation rules and the mapping of Claude's answer.
+
+### Claude integration (Settings)
+
+The admin Settings page has a **Claude integration** section: the Anthropic API key, **every prompt** the app sends to Claude (its use, model, effort, output limit and the full system prompt), and **what the calls have cost** (this month, the last 30 days, all time, per prompt, plus the last 20 calls with who made them and how each ended). The prompts live in `web/lib/claude-prompts.ts` and the three call sites read them from there, so the page shows exactly what is sent; the list is read-only. Cost comes from the app's own log (`claude_usage`, one row per billed call: the tokens Anthropic reports for the call times the list price in `web/lib/claude-pricing.ts`, worked out when the call is made), so it is an estimate and the Anthropic Console is the actual bill. Calls before the log existed are not counted, and a call made while the server runs on the local database is logged there. The log is left out of backups on purpose, so restoring an old backup never erases the history. To add a model or change a price, edit `MODEL_PRICES`; `node scripts/verify-claude-usage.cjs` checks the arithmetic and the prompt list.
+
+
 # Frontend
 
 - **Judging tools**
   - Head Judge
   - Judge Interfaces
-  - Event Creator
+  - Event Creator — teams can be pasted in any format for one division (its *Add teams* section) or for several divisions at once (the selected event's *Add teams to several divisions with Claude*, e.g. a spreadsheet with a heading row per division); Claude sorts them, names are matched to players, and divisions the event lacks are created as drafts
   - Simple Rank Version
 - **Data tools**
   - **Player Editor** — search, create, and edit player records; hide/unhide instead of deleting; link duplicate entries via an alias picker (login required)
   - Events
-  - Ranking
+  - Results Parser — enter results from events run outside the system, with Claude filling the form from pasted text (see below)
+  - Rankings Generator — choose events, tune the settings, preview and publish the rankings and ratings (see below)
 - **Public tools**
   - Results Viewer
   - Rankings Viewer
@@ -240,7 +283,7 @@ Run the app on the laptop as usual. `npm run start:local` (after `npm run build`
 
 Nothing on Neon is touched by any of this. Unsent local changes are lost if you drop the database first, so check the pill says nothing is waiting to send.
 
-**If a phone can't reach the laptop:** allow the app through Windows Firewall for the hotspot network (it may be classed Public); make sure the hotspot has client/AP isolation off; use the address shown in the pill (the `.local` name is a backup for when the IP changes).
+**If a phone can't reach the laptop:** allow the app through Windows Firewall for the hotspot network (it may be classed Public); make sure the hotspot has client/AP isolation off; use the address shown in the pill (the `.local` name is a backup for when the IP changes). If the page loads on the phone but never updates and nothing can be pressed, the server is `next dev` blocking other devices: `web/next.config.ts` already allows local network addresses (restart the server after changing it), and `npm run start:local` (after `npm run build`) has no such check.
 
 # Ideas
 

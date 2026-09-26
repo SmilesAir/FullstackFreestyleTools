@@ -9,6 +9,15 @@ export async function getSetting(key: string): Promise<string | null> {
   return result.rows[0]?.value ?? null;
 }
 
+// Several settings in one query.
+export async function getSettings(keys: string[]): Promise<Record<string, string | null>> {
+  const result = await pool.query<{ key: string; value: string | null }>(
+    'SELECT key, value FROM app_settings WHERE key = ANY($1::text[])',
+    [keys]
+  );
+  return Object.fromEntries(result.rows.map((r) => [r.key, r.value]));
+}
+
 export async function getAllSettings(): Promise<Record<string, string | null>> {
   const result = await pool.query<{ key: string; value: string | null }>('SELECT key, value FROM app_settings');
   return Object.fromEntries(result.rows.map((r) => [r.key, r.value]));

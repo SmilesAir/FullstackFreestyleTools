@@ -4,6 +4,7 @@ import { put, del, get } from '@vercel/blob';
 import type { Pool } from 'pg';
 import { pool } from './db';
 import { BACKUP_TABLES, TABLES_ADDED_LATER, type BackupTableName } from './backup-tables';
+import { isMissingTable } from './db-errors';
 
 type BackupDocument = {
   version: 1;
@@ -19,8 +20,14 @@ export async function dumpDatabase(source: Pool = pool): Promise<Buffer> {
   const tables = {} as BackupDocument['tables'];
 
   for (const table of BACKUP_TABLES) {
-    const result = await source.query(`SELECT * FROM ${table}`);
-    tables[table] = result.rows;
+    try {
+      const result = await source.query(`SELECT * FROM ${table}`);
+      tables[table] = result.rows;
+    } catch (err) {
+      // A database made before a table was added doesn't have it: nothing to back up.
+      if (isMissingTable(err) && TABLES_ADDED_LATER.includes(table)) tables[table] = [];
+      else throw err;
+    }
   }
 
   const doc: BackupDocument = { version: 1, createdAt: new Date().toISOString(), tables };
@@ -103,11 +110,16 @@ export async function restoreFromBuffer(buf: Buffer, target: Pool = pool): Promi
   try {
     await client.query('BEGIN');
 
+    // A table added later may be missing from an older database: with nothing to restore into it, skip it.
+    const present = new Set(
+      (await client.query<{ table_name: string }>(`SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema()`)).rows.map((r) => r.table_name)
+    );
+    const skip = (table: BackupTableName) => !present.has(table) && TABLES_ADDED_LATER.includes(table) && doc.tables[table].length === 0;
     for (const table of [...BACKUP_TABLES].reverse()) {
-      await client.query(`DELETE FROM ${table}`);
+      if (!skip(table)) await client.query(`DELETE FROM ${table}`);
     }
     for (const table of BACKUP_TABLES) {
-      await insertRows(client, table, doc.tables[table]);
+      if (!skip(table)) await insertRows(client, table, doc.tables[table]);
     }
 
     await client.query('COMMIT');

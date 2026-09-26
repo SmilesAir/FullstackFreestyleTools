@@ -1,7 +1,10 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUserAccess } from '@/lib/authz';
 import { FLAGGED_TOOLS, ADMIN_ONLY_TOOLS, ALWAYS_AVAILABLE_TOOLS } from '@/lib/tools';
+
+export const metadata: Metadata = { title: 'Control Panel' };
 
 export default async function ControlPanelPage() {
   const access = await getCurrentUserAccess();

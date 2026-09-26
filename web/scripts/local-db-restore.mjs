@@ -58,8 +58,11 @@ const client = new pg.Client({ connectionString: url });
 try {
   await client.connect();
   await client.query('BEGIN');
-  for (const table of [...tables].reverse()) await client.query(`DELETE FROM ${table}`);
-  for (const table of tables) {
+  // A table added after the database was made may be missing: with nothing to restore into it, skip it.
+  const present = new Set((await client.query(`SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema()`)).rows.map((r) => r.table_name));
+  const usable = tables.filter((t) => present.has(t) || (doc.tables?.[t] ?? []).length > 0);
+  for (const table of [...usable].reverse()) await client.query(`DELETE FROM ${table}`);
+  for (const table of usable) {
     const rows = doc.tables?.[table] ?? [];
     if (rows.length === 0) continue;
     const columns = Object.keys(rows[0]);

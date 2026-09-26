@@ -19,6 +19,7 @@ export const BACKUP_TABLES = [
   'judging_presets',
   'rankings',
   'ranking_points',
+  'points_snapshots',
   'users',
   'permission_groups',
   'group_permissions',
@@ -39,4 +40,5 @@ export const TABLES_ADDED_LATER: readonly BackupTableName[] = [
   'fpa2027_judge_notes',
   'fpa2027_judge_scores',
   'judging_presets',
+  'points_snapshots',
 ];

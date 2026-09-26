@@ -4,6 +4,8 @@ import { DIVISION_NAMES } from '@/lib/event-creator';
 import { NewEventForm } from './_components/NewEventForm';
 import { NewDivisionForm } from './_components/NewDivisionForm';
 import { EventPlayingToggle } from './_components/EventPlayingToggle';
+import { EventRosterPasteForm } from './_components/EventRosterPasteForm';
+import { Collapsible } from './_components/Collapsible';
 import { Tabs, type Tab } from '../_components/Tabs';
 import { DivisionView } from './_components/division/DivisionView';
 
@@ -44,6 +46,10 @@ export default async function EventsPage({
               {selected.start_date} → {selected.end_date} · pick a division tab above to edit it
             </div>
           </div>
+
+          <Collapsible title="Add teams to several divisions with Claude" variant="card" defaultOpen={false}>
+            <EventRosterPasteForm eventId={selected.id} existing={divisions.map((d) => d.division_name)} />
+          </Collapsible>
 
           <div>
             <h3 className="mb-1 text-sm font-medium">Players ({players.length})</h3>
