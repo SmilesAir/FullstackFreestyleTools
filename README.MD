@@ -222,21 +222,33 @@ It reproduces PointsService's calculation (checked with `node scripts/verify-poi
 
 The admin Settings page has a **Claude integration** section: the Anthropic API key, **every prompt** the app sends to Claude (its use, model, effort, output limit and the full system prompt), and **what the calls have cost** (this month, the last 30 days, all time, per prompt, plus the last 20 calls with who made them and how each ended). The prompts live in `web/lib/claude-prompts.ts` and the three call sites read them from there, so the page shows exactly what is sent; the list is read-only. Cost comes from the app's own log (`claude_usage`, one row per billed call: the tokens Anthropic reports for the call times the list price in `web/lib/claude-pricing.ts`, worked out when the call is made), so it is an estimate and the Anthropic Console is the actual bill. Calls before the log existed are not counted, and a call made while the server runs on the local database is logged there. The log is left out of backups on purpose, so restoring an old backup never erases the history. To add a model or change a price, edit `MODEL_PRICES`; `node scripts/verify-claude-usage.cjs` checks the arithmetic and the prompt list.
 
+### Simple Ranking
+
+A division on **Simple Ranking** rules (the Event Creator's Rules dropdown) has no assigned judges: anyone can rank it from a **Judge** button on the main landing page, next to the assigned-judge buttons, whenever the event is turned on. Each judge puts the playing pool's teams in order from best to worst on their phone — up and down arrows always swap two teams' ranks (never just change a number), and an unranked team is inserted 1st (up) or 2nd (down); the ranks in use are always 1, 2, 3 … with no repeats. **Submit** unlocks once every team has a rank. The judge isn't identified: a random id kept in that browser is one ranking per pool, so re-sending replaces it rather than counting twice. The best team gets 1 point, the next 2, and so on; the team with the fewest points wins, and a tie goes to the team that plays later (see `sortPoolTeams` in `web/lib/event-creator-layout.ts`). The Head Judge's Results tab shows, for a Simple Ranking pool, how many judges sent a ranking, each team's count of every place it received, its total and final place (a tie marked "won on seed"), and a **Clear rankings** button. The rules are pure and unit-tested in `web/lib/simple-ranking.ts` (`node scripts/verify-simple-ranking.cjs`, including 2,000 random arrow presses that never produce a repeated or missing rank); ballots are stored in `simple_ranking_ballots` and sync from a local server to Neon like the Fpa2027 scores.
+
+### Pool locking
+
+Each pool (a division's round + letter) has a **Lock**/**Unlock** button on the Head Judge's Pools tab. While locked, that pool's scores and notes, its teams (layout, add/remove, re-seeding, clearing the round) and its judges can't be changed — enforced on the server everywhere those are written, including from the Event Creator, so it isn't just a hidden button. Starting a routine in a locked pool is refused too (a routine is what notes and scores attach to), and locking itself is refused while a routine is running in that exact pool; unlocking is never refused. The Event Creator greys out a locked pool's controls with a 🔒 tag, and the Head Judge's Play tab shows a banner and disables Start while the playing pool is locked. The state lives in a generic `pools` table (one row per division/round/letter, `locked boolean`), left room for other pool-level settings later, and syncs from a local server to Neon like the play state.
+
+### Public results permalinks
+
+Every pool has a public, no-login permalink — a short code, not its ids (`freestylejudge.com/r/Yx7Kp2Qm`), generated the first time it's needed and fixed after that. A **Publish**/**Unpublish** toggle and the link itself (with Copy/View) sit at the top of that pool's results in the Head Judge, and the Pools tab shows a "📢 Published" badge alongside "🔒 Locked" (independent toggles — publishing doesn't require locking). The permalink itself never changes: before publishing it shows only the teams (play order) and the judges by name; after publishing, the full results, but a judge is never named — only "Difficulty #1", "Artistic Impression #2" and so on (Simple Ranking has no judges to name either way, being anonymous already). The page has Division/Round/Pool dropdowns to browse to any other pool of the event (browsing is open; only the results themselves are gated by publishing). The anonymization happens server-side in `web/lib/public-results.ts`, which is the page's only data source — a real judge name or id is never read into a value the page receives. The short code lives in the same `pools` table (`short_code text`, `results_published boolean`).
+
 
 # Frontend
 
 - **Judging tools**
   - Head Judge
   - Judge Interfaces
-  - Event Creator — teams can be pasted in any format for one division (its *Add teams* section) or for several divisions at once (the selected event's *Add teams to several divisions with Claude*, e.g. a spreadsheet with a heading row per division); Claude sorts them, names are matched to players, and divisions the event lacks are created as drafts
-  - Simple Rank Version
+  - Event Creator — a new event starts with no divisions; add each one from its Rules type as needed, and it's published straight away. Teams can be pasted in any format for one division (its *Add teams* section) or for several divisions at once (the selected event's *Add teams to several divisions with Claude*, e.g. a spreadsheet with a heading row per division); Claude sorts them, names are matched to players, and any division the event doesn't have yet is created for it
+  - Simple Rank Version — anonymous judges rank the playing pool from the main landing page's Judge button (see below)
 - **Data tools**
   - **Player Editor** — search, create, and edit player records; hide/unhide instead of deleting; link duplicate entries via an alias picker (login required)
   - Events
   - Results Parser — enter results from events run outside the system, with Claude filling the form from pasted text (see below)
   - Rankings Generator — choose events, tune the settings, preview and publish the rankings and ratings (see below)
 - **Public tools**
-  - Results Viewer
+  - Results Viewer — a pool's public permalink (see above): a short code, no login, browsable by Division/Round/Pool
   - Rankings Viewer
 
 # Running a local server at an event

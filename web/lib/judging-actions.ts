@@ -4,6 +4,7 @@ import { pool } from './db';
 import { JUDGING_RULES_ID, MAX_NOTES_PER_ROUTINE, noteTypesFor } from './judging';
 import { adjustedScore, estimateFromNotes } from './judging-estimate';
 import { categorySettings, resolveEventSettings } from './judging-settings';
+import { POOL_LOCKED_ERROR } from './pool-locks';
 
 // Public on purpose: judges don't log in. Every action checks that the person
 // is judging this category in the event's playing pool (of a division that uses
@@ -96,6 +97,9 @@ export async function addNote(
        AND NOT EXISTS (
          SELECT 1 FROM fpa2027_judge_scores sc
          WHERE sc.routine_id = s.routine_id AND sc.judge_player_id = $3 AND sc.category_type = $4)
+       AND NOT EXISTS (
+         SELECT 1 FROM pools p
+         WHERE p.division_id = s.division_id AND p.round_number = s.round_number AND p.pool_id = s.pool_id AND p.locked)
        AND (SELECT count(*) FROM fpa2027_judge_notes x
             WHERE x.routine_id = s.routine_id AND x.player_id = $3 AND x.category_type = $4) < $7
      ON CONFLICT (id) DO NOTHING`,
@@ -124,6 +128,7 @@ export async function addNote(
     running: boolean;
     same: boolean;
     submitted: boolean;
+    locked: boolean;
   }>(
     `SELECT EXISTS (SELECT 1 FROM fpa2027_judge_notes WHERE id = $1) AS saved,
             COALESCE(e.is_playing AND d.rules_id = $6, false) AS playing,
@@ -134,7 +139,9 @@ export async function addNote(
               WHERE j.division_id = s.division_id AND j.round_number = s.round_number AND j.pool_id = s.pool_id
                 AND j.player_id = $3 AND j.category_type = $4), false) AS judging,
             EXISTS (SELECT 1 FROM fpa2027_judge_scores sc
-                    WHERE sc.routine_id = $5::uuid AND sc.judge_player_id = $3 AND sc.category_type = $4) AS submitted
+                    WHERE sc.routine_id = $5::uuid AND sc.judge_player_id = $3 AND sc.category_type = $4) AS submitted,
+            COALESCE((SELECT p.locked FROM pools p
+                      WHERE p.division_id = s.division_id AND p.round_number = s.round_number AND p.pool_id = s.pool_id), false) AS locked
      FROM (SELECT 1) one
      LEFT JOIN events e ON e.id = $2
      LEFT JOIN event_play_state s ON s.event_id = e.id
@@ -145,6 +152,7 @@ export async function addNote(
   if (r.saved) return { error: null };
   if (!r.playing || !r.judging) return { error: "You're not judging right now" };
   if (!r.running) return { error: 'No routine is running' };
+  if (r.locked) return { error: POOL_LOCKED_ERROR };
   if (!r.same) return { error: 'That routine was restarted, so the note was not saved' };
   if (r.submitted) return { error: ALREADY_SUBMITTED };
   return { error: 'Too many notes for this routine' };
@@ -164,8 +172,10 @@ export async function editNote(
   if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(noteId)) return BAD_INPUT;
   if (!noteTypesFor('Diff')?.includes(rating) || !validPosition(linePosition)) return BAD_INPUT;
 
-  const found = await pool.query<{ judging_settings: unknown; rules_id: string | null }>(
-    `SELECT e.judging_settings, d.rules_id
+  const found = await pool.query<{ judging_settings: unknown; rules_id: string | null; locked: boolean }>(
+    `SELECT e.judging_settings, d.rules_id,
+            COALESCE((SELECT p.locked FROM pools p
+                      WHERE p.division_id = r.division_id AND p.round_number = r.round_number AND p.pool_id = r.pool_id), false) AS locked
      FROM fpa2027_judge_notes n
      JOIN routines r ON r.id = n.routine_id
      JOIN events e ON e.id = n.event_id
@@ -174,6 +184,7 @@ export async function editNote(
     [noteId, eventId, playerId]
   );
   if (!found.rows[0]) return { error: null };
+  if (found.rows[0].locked) return { error: POOL_LOCKED_ERROR };
   const { lineValue, multiplier } = difficultyValues(
     found.rows[0].judging_settings,
     found.rows[0].rules_id,
@@ -187,7 +198,10 @@ export async function editNote(
      WHERE n.id = $1 AND n.event_id = $2 AND n.player_id = $3 AND n.category_type = 'Diff'
        AND NOT EXISTS (
          SELECT 1 FROM fpa2027_judge_scores sc
-         WHERE sc.routine_id = n.routine_id AND sc.judge_player_id = n.player_id AND sc.category_type = n.category_type)`,
+         WHERE sc.routine_id = n.routine_id AND sc.judge_player_id = n.player_id AND sc.category_type = n.category_type)
+       AND NOT EXISTS (
+         SELECT 1 FROM routines r JOIN pools p ON p.division_id = r.division_id AND p.round_number = r.round_number AND p.pool_id = r.pool_id
+         WHERE r.id = n.routine_id AND p.locked)`,
     [noteId, eventId, playerId, rating, linePosition, lineValue, multiplier]
   );
   return { error: updated.rowCount === 1 ? null : ALREADY_SUBMITTED };
@@ -208,15 +222,23 @@ export async function deleteNote(
      WHERE n.id = $1 AND n.event_id = $2 AND n.player_id = $3 AND n.category_type = $4
        AND NOT EXISTS (
          SELECT 1 FROM fpa2027_judge_scores sc
-         WHERE sc.routine_id = n.routine_id AND sc.judge_player_id = n.player_id AND sc.category_type = n.category_type)`,
+         WHERE sc.routine_id = n.routine_id AND sc.judge_player_id = n.player_id AND sc.category_type = n.category_type)
+       AND NOT EXISTS (
+         SELECT 1 FROM routines r JOIN pools p ON p.division_id = r.division_id AND p.round_number = r.round_number AND p.pool_id = r.pool_id
+         WHERE r.id = n.routine_id AND p.locked)`,
     [noteId, eventId, playerId, categoryType]
   );
   if (deleted.rowCount === 1) return { error: null };
-  const locked = await pool.query(
-    'SELECT 1 FROM fpa2027_judge_notes WHERE id = $1 AND event_id = $2 AND player_id = $3 AND category_type = $4',
+  const still = await pool.query<{ locked: boolean }>(
+    `SELECT COALESCE((SELECT p.locked FROM routines r JOIN pools p
+                      ON p.division_id = r.division_id AND p.round_number = r.round_number AND p.pool_id = r.pool_id
+                      WHERE r.id = n.routine_id), false) AS locked
+     FROM fpa2027_judge_notes n
+     WHERE n.id = $1 AND n.event_id = $2 AND n.player_id = $3 AND n.category_type = $4`,
     [noteId, eventId, playerId, categoryType]
   );
-  return { error: locked.rows.length > 0 ? ALREADY_SUBMITTED : null };
+  if (still.rows.length === 0) return { error: null };
+  return { error: still.rows[0].locked ? POOL_LOCKED_ERROR : ALREADY_SUBMITTED };
 }
 
 type SavedNote = { noteType: string; notedAt: number; lineValue?: number; multiplier?: number };
@@ -264,6 +286,15 @@ export async function submitScore(
   if (!noteTypesFor(categoryType)) return { error: 'That score could not be read' };
   if (!Number.isFinite(adjustPercent)) return { error: 'That score could not be read' };
   const percent = Math.round(adjustPercent * 100) / 100;
+
+  const lockCheck = await pool.query<{ locked: boolean }>(
+    `SELECT COALESCE(p.locked, false) AS locked
+     FROM routines r LEFT JOIN pools p
+       ON p.division_id = r.division_id AND p.round_number = r.round_number AND p.pool_id = r.pool_id
+     WHERE r.id = $1 AND r.event_id = $2`,
+    [routineId, eventId]
+  );
+  if (lockCheck.rows[0]?.locked) return { error: POOL_LOCKED_ERROR };
 
   const context = await pool.query<{
     judging_settings: unknown;
@@ -389,6 +420,14 @@ export async function submitBackupScore(
     if (!at) {
       await client.query('ROLLBACK');
       return { error: "That team isn't in the pool you're judging" };
+    }
+    const locked = await client.query(
+      'SELECT 1 FROM pools WHERE division_id = $1 AND round_number = $2 AND pool_id = $3 AND locked',
+      [at.division_id, at.round_number, at.pool_id]
+    );
+    if (locked.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return { error: POOL_LOCKED_ERROR };
     }
     routineId = at.id;
     if (routineId === null) {

@@ -65,26 +65,30 @@ export async function getSeatHolder(eventId: string, categoryType: string, seat:
 }
 
 // Judges of the pool that is playing, for each event that is turned on. An event
-// with no playing pool, or a playing pool without judges, isn't returned.
+// with no playing pool, or a playing pool without judges, isn't returned unless
+// it also has a Simple Ranking division (simpleRanking below).
 export async function getJudgingEvents(): Promise<JudgingEvent[]> {
-  const result = await pool.query<Row>(
-    `SELECT e.id AS event_id, e.event_name, p.id AS player_id, p.first_name, p.last_name, j.category_type
-     FROM events e
-     JOIN event_play_state s ON s.event_id = e.id
-     JOIN divisions d ON d.id = s.division_id AND d.rules_id = $2
-     JOIN pool_judges j ON j.division_id = s.division_id AND j.round_number = s.round_number AND j.pool_id = s.pool_id
-     JOIN players p ON p.id = j.player_id
-     WHERE e.is_playing AND j.category_type = ANY($1)
-     ORDER BY e.start_date DESC, e.event_name, ${SEAT_ORDER}`,
-    [TYPES, JUDGING_RULES_ID]
-  );
+  const [result, simpleRankingEvents] = await Promise.all([
+    pool.query<Row>(
+      `SELECT e.id AS event_id, e.event_name, p.id AS player_id, p.first_name, p.last_name, j.category_type
+       FROM events e
+       JOIN event_play_state s ON s.event_id = e.id
+       JOIN divisions d ON d.id = s.division_id AND d.rules_id = $2
+       JOIN pool_judges j ON j.division_id = s.division_id AND j.round_number = s.round_number AND j.pool_id = s.pool_id
+       JOIN players p ON p.id = j.player_id
+       WHERE e.is_playing AND j.category_type = ANY($1)
+       ORDER BY e.start_date DESC, e.event_name, ${SEAT_ORDER}`,
+      [TYPES, JUDGING_RULES_ID]
+    ),
+    getSimpleRankingEventIds(),
+  ]);
 
   const events = new Map<string, JudgingEvent>();
   for (const r of result.rows) {
     const category = categoryByType(r.category_type);
     if (!category) continue;
     let event = events.get(r.event_id);
-    if (!event) events.set(r.event_id, (event = { eventId: r.event_id, eventName: r.event_name, judges: [] }));
+    if (!event) events.set(r.event_id, (event = { eventId: r.event_id, eventName: r.event_name, judges: [], simpleRanking: false }));
     // Rows come in seat order, so a judge's seat is one more than the judges
     // of their category already listed.
     const seat = event.judges.filter((j) => j.category === category).length + 1;
@@ -96,7 +100,25 @@ export async function getJudgingEvents(): Promise<JudgingEvent[]> {
     // Stable sort: names stay in the query's order within a category.
     event.judges.sort((a, b) => order(a.category) - order(b.category));
   }
-  return [...events.values()];
+
+  for (const r of simpleRankingEvents) {
+    const event = events.get(r.event_id);
+    if (event) event.simpleRanking = true;
+    else events.set(r.event_id, { eventId: r.event_id, eventName: r.event_name, judges: [], simpleRanking: true });
+  }
+  return [...events.values()].sort((a, b) => a.eventName.localeCompare(b.eventName));
+}
+
+// Events that are turned on and have a Simple Ranking division (whether or not
+// its pool is the one playing right now — the judge screen itself says when
+// there's nothing to rank).
+async function getSimpleRankingEventIds(): Promise<{ event_id: string; event_name: string }[]> {
+  const result = await pool.query<{ event_id: string; event_name: string }>(
+    `SELECT DISTINCT e.id AS event_id, e.event_name
+     FROM events e JOIN divisions d ON d.event_id = e.id
+     WHERE e.is_playing AND d.rules_id = 'SimpleRanking'`
+  );
+  return result.rows;
 }
 
 // "First / First" for a team's players (first names only, on the judge screens).

@@ -29,6 +29,15 @@ export const SETTINGS: SettingDef[] = [
     type: 'password',
   },
   {
+    key: 'public_site_url',
+    section: 'discord',
+    label: 'Public site address',
+    description:
+      "The site's public web address, used for the results links the bot posts to an event's Discord thread (\"<address>/r/<code>\").",
+    type: 'text',
+    default: 'https://freestylejudge.com',
+  },
+  {
     key: 'anthropic_api_key',
     section: 'claude',
     label: 'Anthropic API key',

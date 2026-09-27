@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { JUDGE_CATEGORY_LABELS } from '@/lib/event-creator';
+import { ensurePoolLink, setPoolLocked, setPoolResultsPublished } from '@/lib/head-judge-actions';
 import { teamName, type HeadJudgeDivision, type HeadJudgePool } from '@/lib/head-judge';
 
 // Every pool that has teams, grouped by division and then round. A pool row
@@ -73,16 +75,65 @@ function PoolRow({
   pool: HeadJudgePool;
   expanded: boolean;
   playing: boolean;
+  // A routine is running (elsewhere in the pool set), so the playing pool can't change.
   locked: boolean;
   onToggle: () => void;
   onSetPlaying: () => void;
 }) {
+  const router = useRouter();
+  const [lockPending, startLockTransition] = useTransition();
+  const [lockError, setLockError] = useState<string | null>(null);
+  const [publishPending, startPublishTransition] = useTransition();
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [copyState, setCopyState] = useState<'idle' | 'copying' | 'copied' | 'error'>('idle');
   // A pool that needs judges and has none yet stands out.
   const noJudges = pool.usesJudges && pool.judges.length === 0;
 
+  function toggleLock() {
+    setLockError(null);
+    startLockTransition(async () => {
+      const result = await setPoolLocked(pool.divisionId, pool.roundNumber, pool.letter, !pool.locked);
+      if (result.error) setLockError(result.error);
+      else router.refresh();
+    });
+  }
+
+  function togglePublish() {
+    setPublishError(null);
+    startPublishTransition(async () => {
+      const result = await setPoolResultsPublished(pool.divisionId, pool.roundNumber, pool.letter, !pool.resultsPublished);
+      if (result.error) return setPublishError(result.error);
+      // Published either way; say so if the event's Discord post didn't go out.
+      if (result.discord?.status === 'failed') setPublishError(`Published, but not posted to Discord: ${result.discord.error}`);
+      router.refresh();
+    });
+  }
+
+  async function copyLink() {
+    setCopyState('copying');
+    const result = await ensurePoolLink(pool.divisionId, pool.roundNumber, pool.letter);
+    if (result.error || !result.code) {
+      setCopyState('error');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/r/${result.code}`);
+      setCopyState('copied');
+    } catch {
+      setCopyState('error');
+    }
+    setTimeout(() => setCopyState('idle'), 2000);
+  }
+
+  const disabledReason = pool.locked
+    ? 'This pool is locked. Unlock it to change the playing pool.'
+    : locked && !playing
+      ? 'A routine is running. Cancel it before changing the pool.'
+      : undefined;
+
   return (
     <div className={`rounded border ${playing ? 'border-green-600' : 'border-gray-300'}`}>
-      <div className="flex items-center gap-3 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2">
         <button
           type="button"
           aria-expanded={expanded}
@@ -103,14 +154,42 @@ function PoolRow({
         <button
           type="button"
           onClick={onSetPlaying}
-          disabled={playing || locked}
-          title={locked && !playing ? 'A routine is running. Cancel it before changing the pool.' : undefined}
+          disabled={playing || locked || pool.locked}
+          title={disabledReason}
           className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
         >
           Set as playing pool
         </button>
+        <button
+          type="button"
+          onClick={toggleLock}
+          disabled={lockPending}
+          className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
+        >
+          {lockPending ? 'Saving…' : pool.locked ? 'Unlock' : 'Lock'}
+        </button>
+        <button
+          type="button"
+          onClick={togglePublish}
+          disabled={publishPending}
+          className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
+        >
+          {publishPending ? 'Saving…' : pool.resultsPublished ? 'Unpublish' : 'Publish results'}
+        </button>
+        <button
+          type="button"
+          onClick={copyLink}
+          disabled={copyState === 'copying'}
+          className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
+        >
+          {copyState === 'copying' ? 'Getting link…' : copyState === 'copied' ? 'Copied!' : copyState === 'error' ? 'Could not copy' : 'Copy link'}
+        </button>
         {playing && <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">Playing</span>}
+        {pool.locked && <span className="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">🔒 Locked</span>}
+        {pool.resultsPublished && <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">📢 Published</span>}
       </div>
+      {lockError && <p className="px-3 pb-2 text-xs text-red-600">{lockError}</p>}
+      {publishError && <p className="px-3 pb-2 text-xs text-red-600">{publishError}</p>}
 
       {expanded && (
         <div className="grid gap-4 border-t border-gray-200 px-3 py-3 sm:grid-cols-2">

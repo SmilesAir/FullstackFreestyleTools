@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { updateDivisionSettings, setPublished, deleteDivision } from '@/lib/event-creator-actions';
+import { updateDivisionSettings, deleteDivision } from '@/lib/event-creator-actions';
 import { OFFERED_RULES_IDS, ROUTINE_MINUTES, defaultRoutineSeconds } from '@/lib/event-creator';
 import type { PlayerRef } from '@/lib/event-creator-queries';
 import { PlayerPicker } from '../PlayerPicker';
@@ -16,7 +16,6 @@ export function DivisionSettings({
   rulesId: initialRules,
   headJudge: initialHead,
   directors: initialDirectors,
-  isHidden,
 }: {
   eventId: string;
   divisionId: string;
@@ -26,7 +25,6 @@ export function DivisionSettings({
   rulesId: string;
   headJudge: PlayerRef | null;
   directors: PlayerRef[];
-  isHidden: boolean;
 }) {
   const router = useRouter();
   const [name, setName] = useState(initialName);
@@ -71,20 +69,12 @@ export function DivisionSettings({
   }
 
   function remove() {
-    if (!confirm('Delete this draft division and all of its teams? This can\'t be undone.')) return;
+    if (!confirm("Delete this division? This can't be undone.")) return;
     startTransition(async () => {
       const result = await deleteDivision(divisionId);
       if (result.error) return setError(result.error);
       router.push(`/events?event=${eventId}`);
       router.refresh();
-    });
-  }
-
-  function togglePublished() {
-    startTransition(async () => {
-      const result = await setPublished(divisionId, isHidden);
-      setError(result.error);
-      if (!result.error) router.refresh();
     });
   }
 
@@ -177,22 +167,9 @@ export function DivisionSettings({
           Save settings
         </button>
         {saved && <span className="text-xs text-green-700">Saved</span>}
-        <div className="ml-auto flex items-center gap-2 text-sm">
-          <span className={isHidden ? 'text-amber-700' : 'text-green-700'}>{isHidden ? 'Draft (hidden)' : 'Published'}</span>
-          <button
-            type="button"
-            onClick={togglePublished}
-            disabled={pending}
-            className="rounded border border-gray-300 px-3 py-2 disabled:opacity-50"
-          >
-            {isHidden ? 'Publish' : 'Unpublish'}
-          </button>
-          {isHidden && (
-            <button type="button" onClick={remove} disabled={pending} className="text-xs text-red-600 underline disabled:opacity-50">
-              delete division
-            </button>
-          )}
-        </div>
+        <button type="button" onClick={remove} disabled={pending} className="ml-auto text-xs text-red-600 underline disabled:opacity-50">
+          delete division
+        </button>
       </div>
     </div>
   );

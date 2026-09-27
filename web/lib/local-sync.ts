@@ -107,6 +107,18 @@ const JUDGING_SPECS: Spec[] = [
   },
   { table: 'event_play_state', pk: ['event_id'], scope: `SELECT * FROM event_play_state WHERE event_id = $1`, keep: true },
   {
+    table: 'pools',
+    pk: ['division_id', 'round_number', 'pool_id'],
+    scope: `SELECT p.* FROM pools p JOIN divisions d ON d.id = p.division_id WHERE d.event_id = $1`,
+    keep: true,
+  },
+  {
+    table: 'simple_ranking_ballots',
+    pk: ['id'],
+    scope: `SELECT * FROM simple_ranking_ballots WHERE event_id = $1`,
+    unique: ['@.division_id', '@.round_number', '@.pool_id', '@.judge_token'],
+  },
+  {
     table: 'judging_presets',
     pk: ['id'],
     scope: `SELECT * FROM judging_presets`,

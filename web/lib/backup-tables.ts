@@ -10,7 +10,9 @@ export const BACKUP_TABLES = [
   'divisions',
   'teams',
   'team_players',
+  'simple_ranking_ballots',
   'pool_judges',
+  'pools',
   'routines',
   'routine_players',
   'event_play_state',
@@ -34,6 +36,7 @@ export type BackupTableName = (typeof BACKUP_TABLES)[number];
 // clears the table, which is what the database held at that point in time.
 export const TABLES_ADDED_LATER: readonly BackupTableName[] = [
   'pool_judges',
+  'pools',
   'routines',
   'routine_players',
   'event_play_state',
@@ -41,4 +44,5 @@ export const TABLES_ADDED_LATER: readonly BackupTableName[] = [
   'fpa2027_judge_scores',
   'judging_presets',
   'points_snapshots',
+  'simple_ranking_ballots',
 ];

@@ -16,6 +16,7 @@ export function PoolJudgeColumns({
   letter,
   categories,
   judges,
+  locked,
 }: {
   divisionId: string;
   roundNumber: number;
@@ -23,6 +24,8 @@ export function PoolJudgeColumns({
   letter: string;
   categories: readonly string[];
   judges: PoolJudgeView[];
+  // Locked by the Head Judge: judges can't be added, moved or removed.
+  locked: boolean;
 }) {
   const router = useRouter();
   const ui = useDivisionUi();
@@ -65,7 +68,7 @@ export function PoolJudgeColumns({
   // Does this column take what's being dragged? A player from the panel, when
   // it's open for this pool; a chip, only within its own pool.
   function accepts(drag: JudgeDrag | null): drag is JudgeDrag {
-    if (!drag) return false;
+    if (!drag || locked) return false;
     return drag.source === 'panel' ? panelHere : drag.source.roundNumber === roundNumber && drag.source.letter === letter;
   }
 
@@ -96,13 +99,16 @@ export function PoolJudgeColumns({
         <button
           type="button"
           onClick={togglePanel}
-          className={`rounded border px-2 py-0.5 text-xs ${
+          disabled={locked}
+          title={locked ? 'Locked by the Head Judge' : undefined}
+          className={`rounded border px-2 py-0.5 text-xs disabled:opacity-50 ${
             panelHere ? 'border-black bg-black text-white' : 'border-gray-300'
           }`}
         >
           {panelHere ? 'Close judges panel' : 'Set Judges'}
         </button>
         {pending && <span className="text-xs text-gray-500">Saving…</span>}
+        {locked && <span className="rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-700">🔒 Locked</span>}
       </div>
       {message && <p className="text-xs text-red-600">{message}</p>}
 
@@ -157,8 +163,8 @@ export function PoolJudgeColumns({
                   </div>
                   <button
                     type="button"
-                    disabled={pending}
-                    title="Remove judge"
+                    disabled={pending || locked}
+                    title={locked ? 'Locked by the Head Judge' : 'Remove judge'}
                     onClick={() => save(list.filter((x) => x.playerId !== j.playerId))}
                     className="cursor-pointer text-gray-400 hover:text-red-600 disabled:opacity-50"
                   >

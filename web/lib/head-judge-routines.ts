@@ -1,6 +1,7 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { pool } from './db';
+import { isPoolLocked, POOL_LOCKED_ERROR } from './pool-locks';
 
 // Starting and cancelling a routine, as the Head Judge's actions do it. No
 // permission check here (head-judge-actions.ts adds it) so it can be tested.
@@ -17,6 +18,19 @@ export async function startRoutineRow(
   eventId: string,
   clickedAt: number
 ): Promise<{ error: string | null; startedAt?: number }> {
+  // A locked pool never gets a new routine (a routine is what notes and scores
+  // attach to); checked here too, not just where the playing pool is chosen, in
+  // case it was locked after being selected.
+  const state = await pool.query<{ division_id: string; round_number: number; pool_id: string }>(
+    `SELECT division_id, round_number, pool_id FROM event_play_state
+     WHERE event_id = $1 AND team_id IS NOT NULL AND routine_started_at IS NULL`,
+    [eventId]
+  );
+  const playing = state.rows[0];
+  if (playing && (await isPoolLocked(playing.division_id, playing.round_number, playing.pool_id))) {
+    return { error: POOL_LOCKED_ERROR };
+  }
+
   // One statement starts the timer, creates the routine row (the judges' notes
   // and scores hang off it) and fixes who is competing (aliases resolved to the
   // main player), so they cannot disagree.

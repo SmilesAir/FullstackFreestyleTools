@@ -166,6 +166,7 @@ export function PlayTab({
   const elapsed = running && now !== null ? formatElapsed(elapsedMs(routineStartedAt, now, clockOffset)) : '0:00';
 
   if (!pool) return <p className="text-sm text-gray-500">Choose a playing pool on the Pools tab.</p>;
+  const locked = pool.locked;
 
   // Every judge in the pool has submitted their score: time for the next team.
   const allFinished = running && pool.judges.every((j) => finishedJudges.includes(j.playerId));
@@ -179,6 +180,11 @@ export function PlayTab({
 
   return (
     <div className="flex flex-col gap-6">
+      {locked && (
+        <p className="rounded border border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          🔒 This pool is locked. Unlock it on the Pools tab to make changes.
+        </p>
+      )}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="text-sm text-gray-500">{pool.divisionName}</div>
@@ -223,17 +229,18 @@ export function PlayTab({
           <button
             type="button"
             onClick={onStart}
-            disabled={playingTeamId === null}
+            disabled={playingTeamId === null || locked}
             className="flex min-h-48 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg bg-green-600 p-6 text-3xl font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-green-600"
           >
             Click on First Throw
             {playingTeamId === null && <span className="text-base font-normal">Choose the playing team first</span>}
+            {playingTeamId !== null && locked && <span className="text-base font-normal">This pool is locked</span>}
           </button>
         )}
         {!running && restorableRoutineId ? (
           // The team's last routine was cancelled but the judges' notes or
           // scores are still there: offer to bring them back.
-          <HoldButton key="restore" color="blue" onConfirm={() => onRestore(restorableRoutineId)}>
+          <HoldButton key="restore" color="blue" onConfirm={() => onRestore(restorableRoutineId)} disabled={locked}>
             <span className="text-3xl font-bold">Restore Cancelled Routine Scores</span>
             <span className="text-base">This team&apos;s last routine was cancelled. Its judges&apos; scores are hidden.</span>
             <span className="text-sm font-semibold uppercase tracking-wide opacity-90">Hold for 1 second</span>

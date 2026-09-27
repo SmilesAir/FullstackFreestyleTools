@@ -1,5 +1,6 @@
 import { getDivision, getPoolJudges, getTeams } from '@/lib/event-creator-queries';
 import { syncRosterFromRounds } from '@/lib/event-creator-sync';
+import { getLockedPoolKeys } from '@/lib/pool-locks';
 import {
   DIVISION_NAMES,
   JUDGE_CATEGORIES,
@@ -17,6 +18,7 @@ import { DivisionSettings } from './DivisionSettings';
 import { RosterList } from './RosterList';
 import { RosterPasteForm } from './RosterPasteForm';
 import { RoundSection } from './RoundSection';
+import { getEventDiscord } from '@/lib/discord';
 
 export async function DivisionView({
   eventId,
@@ -31,11 +33,15 @@ export async function DivisionView({
   siblings: { id: string; division_name: string }[];
 }) {
   // getTeams only needs the name, so it runs alongside getDivision.
-  const [division, loadedTeams, poolJudges] = await Promise.all([
+  const [division, loadedTeams, poolJudges, lockedPoolKeys, discord] = await Promise.all([
     getDivision(divisionId),
     getTeams(divisionId, divisionName),
     getPoolJudges(divisionId),
+    getLockedPoolKeys(divisionId),
+    getEventDiscord(eventId),
   ]);
+  // Rounds offer "Post play order to Discord" once the event has a channel.
+  const discordReady = discord.ok && discord.channelId !== null;
   if (!division || division.event_id !== eventId) {
     return <p className="text-sm text-red-600">That division doesn&apos;t exist for this event.</p>;
   }
@@ -93,7 +99,6 @@ export async function DivisionView({
             rulesId={division.rules_id}
             headJudge={division.head_judge}
             directors={division.directors}
-            isHidden={division.is_hidden ?? true}
           />
         </Collapsible>
 
@@ -114,6 +119,8 @@ export async function DivisionView({
               teams={teams.filter((t) => t.round_number === round.number)}
               judges={judgesByRound[round.number] ?? {}}
               rosterCount={roster.length}
+              lockedPoolKeys={lockedPoolKeys}
+              discordReady={discordReady}
             />
           ))}
         </section>

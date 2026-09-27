@@ -14,15 +14,20 @@ import {
 import { NOTE_TINT } from '@/app/judge/_components/noteStyles';
 import { OthersLegend } from '@/app/judge/_components/OthersLegend';
 import { ScoreGraph } from '@/app/judge/_components/ScoreGraph';
+import { byPlace, poolStandings } from '@/lib/pool-standings';
+import { PublicLinkControl } from './PublicLinkControl';
+import { SimpleRankingResults } from './SimpleRankingResults';
+import { SortToggle, type ResultsSortOrder } from './SortToggle';
 
 const POLL_MS = 5000;
 
 const NO_SCORES: never[] = [];
 
-// The time axis the averaged curves were sampled over.
-const curveDuration = (curves: TeamResult['curves']) => Math.max(30, ...curves.map((c) => (c.ys.length - 1) * c.step));
+// The time axis the averaged curves were sampled over. Exported: the public
+// results page draws the same (already-anonymous) averaged graphs.
+export const curveDuration = (curves: TeamResult['curves']) => Math.max(30, ...curves.map((c) => (c.ys.length - 1) * c.step));
 
-const categoryLabel = (category: NoteCategory) => JUDGING_CATEGORIES.find((c) => c.type === category)!.label;
+export const categoryLabel = (category: NoteCategory) => JUDGING_CATEGORIES.find((c) => c.type === category)!.label;
 
 // The results of a pool: a summary table of every team's scores and place, then
 // for each team a graph of the categories' averaged lines and a table per judge
@@ -46,7 +51,8 @@ export function PoolResults({
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    if (!active) return;
+    // Simple Ranking has no note-taking judges; SimpleRankingResults polls its own endpoint below.
+    if (!active || !pool.usesJudges) return;
     let stopped = false;
     const load = async () => {
       try {
@@ -75,7 +81,9 @@ export function PoolResults({
       stopped = true;
       clearInterval(timer);
     };
-  }, [active, eventId, pool.divisionId, pool.roundNumber, pool.letter, refreshKey]);
+  }, [active, eventId, pool.divisionId, pool.roundNumber, pool.letter, pool.usesJudges, refreshKey]);
+
+  if (!pool.usesJudges) return <SimpleRankingResults pool={pool} active={active} />;
 
   // The pool's judges in each category that takes notes, by name.
   const judgesByCategory = NOTE_CATEGORIES.map((category) => ({
@@ -86,6 +94,7 @@ export function PoolResults({
 
   return (
     <div className="flex flex-col gap-4">
+      <PublicLinkControl pool={pool} />
       {failed && <p className="text-xs text-amber-700">Could not load the latest results. Trying again.</p>}
       {data !== null && judgesByCategory.length > 0 && (
         <PoolSummary pool={pool} data={data} judgesByCategory={judgesByCategory} />
@@ -147,38 +156,34 @@ export function PoolResults({
 
 const cell = 'border border-gray-300 px-2 py-1.5 text-center';
 
-const round2 = (v: number) => Math.round(v * 100) / 100;
-
 // One row per team in play order: each judge's submitted score under its
 // category, then each category's total, then the team's total (all the submitted
 // scores added up) and its place in the pool by that total (equal totals share
 // a place). A team with no submitted score yet has no total or place.
-function PoolSummary({
+// Exported for the public results page, which builds its own (anonymized)
+// judgesByCategory and data, but wants the identical table.
+export function PoolSummary({
   pool,
   data,
   judgesByCategory,
 }: {
-  pool: HeadJudgePool;
+  pool: Pick<HeadJudgePool, 'teams'>;
   data: PoolResultsData;
   judgesByCategory: { category: NoteCategory; judges: HeadJudgePool['judges'] }[];
 }) {
-  const rows = pool.teams.map((team) => {
-    const result = data[team.id];
-    const categories = judgesByCategory.map(({ judges }) => {
-      const scores = judges.map((j) => result?.judges[j.playerId]?.submitted?.score ?? null);
-      const submitted = scores.filter((s): s is number => s !== null);
-      return { scores, total: submitted.length > 0 ? round2(submitted.reduce((a, b) => a + b, 0)) : null };
-    });
-    const totals = categories.map((c) => c.total).filter((t): t is number => t !== null);
-    return { team, categories, total: totals.length > 0 ? round2(totals.reduce((a, b) => a + b, 0)) : null };
-  });
-  const placeOf = (total: number | null) =>
-    total === null ? null : 1 + rows.filter((r) => r.total !== null && r.total > total).length;
+  const [sort, setSort] = useState<ResultsSortOrder>('play');
+
+  const rows = poolStandings(pool.teams, data, judgesByCategory);
+  // "By place" re-sorts the same rows best-to-worst; a team with no total yet sorts last.
+  const displayRows = sort === 'place' ? [...rows].sort(byPlace) : rows;
   const dash = <span className="font-normal text-gray-400">—</span>;
 
   return (
     <section className="flex flex-col gap-2">
-      <h3 className="text-lg font-semibold">Summary</h3>
+      <div className="flex flex-wrap items-center gap-3">
+        <SortToggle value={sort} onChange={setSort} />
+        <h3 className="text-lg font-semibold">Summary</h3>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm tabular-nums">
           <thead>
@@ -217,10 +222,10 @@ function PoolSummary({
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ team, categories, total }, i) => (
+            {displayRows.map(({ team, playIndex, categories, total, place }) => (
               <tr key={team.id}>
                 <td className="border border-gray-300 px-3 py-1.5 text-left">
-                  <span className="mr-2 text-gray-400">{i + 1}.</span>
+                  <span className="mr-2 text-gray-400">{playIndex + 1}.</span>
                   {teamName(team)}
                 </td>
                 {categories.flatMap((c, k) =>
@@ -236,7 +241,7 @@ function PoolSummary({
                   </td>
                 ))}
                 <td className={`${cell} font-semibold`}>{total === null ? dash : total}</td>
-                <td className={`${cell} font-semibold`}>{placeOf(total) ?? dash}</td>
+                <td className={`${cell} font-semibold`}>{place ?? dash}</td>
               </tr>
             ))}
           </tbody>
@@ -253,7 +258,7 @@ function PoolSummary({
 // the numberline's max was.
 const scaled = (position: number) => (position * 10).toFixed(1);
 
-function DifficultyTable({ judges, result }: { judges: HeadJudgePool['judges']; result: TeamResult }) {
+export function DifficultyTable({ judges, result }: { judges: HeadJudgePool['judges']; result: TeamResult }) {
   const round2 = (v: number) => Math.round(v * 100) / 100;
   const scores = judges.map((j) => result.judges[j.playerId]?.submitted?.score).filter((s): s is number => s !== undefined);
   const baselines = judges
@@ -317,7 +322,7 @@ function DifficultyTable({ judges, result }: { judges: HeadJudgePool['judges']; 
   );
 }
 
-function NotesTable({
+export function NotesTable({
   category,
   judges,
   result,

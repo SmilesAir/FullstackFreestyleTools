@@ -24,7 +24,10 @@ import {
 import { getJudgeCandidates, getTeams } from './event-creator-queries';
 import { seedRound } from './event-creator-seeding';
 import { teamKey } from './event-creator-layout';
+import { describeChannel, getEventDiscord, parseChannelInput, postToEventThread, type ChannelInfo } from './discord';
+import { postRoundPlayOrder } from './discord-posts';
 import { insertPlayerByName } from './player-match';
+import { isPoolLocked, isRoundLocked, POOL_LOCKED_ERROR } from './pool-locks';
 
 export type ActionState = { error: string | null };
 
@@ -39,36 +42,19 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
   if (!start || !end) return { error: 'Start and end dates are required' };
   if (end < start) return { error: 'End date is before the start date' };
 
-  const client = await pool.connect();
   let eventId: string;
-  let firstDivisionId: string;
   try {
-    await client.query('BEGIN');
-    const result = await client.query<{ id: string }>(
+    const result = await pool.query<{ id: string }>(
       `INSERT INTO events (id, event_name, start_date, end_date, created_at)
        VALUES (gen_random_uuid(), $1, $2, $3, now()) RETURNING id`,
       [name, start, end]
     );
     eventId = result.rows[0].id;
-    // One draft division per standard division; each gets its own tab.
-    const ids: string[] = [];
-    for (const divisionName of DIVISION_NAMES) {
-      const d = await client.query<{ id: string }>(
-        `INSERT INTO divisions (id, event_id, division_name, raw_text, is_hidden, created_at, routine_seconds, rules_id)
-         VALUES (gen_random_uuid(), $1, $2, '', true, now(), $3, $4) RETURNING id`,
-        [eventId, divisionName, defaultRoutineSeconds(divisionName), DEFAULT_NEW_RULES_ID]
-      );
-      ids.push(d.rows[0].id);
-    }
-    firstDivisionId = ids[0];
-    await client.query('COMMIT');
   } catch (err) {
-    await client.query('ROLLBACK');
     return { error: err instanceof Error ? err.message : 'Failed to create event' };
-  } finally {
-    client.release();
   }
-  redirect(`/events?event=${eventId}&division=${firstDivisionId}`);
+  // No divisions yet: the event's own tab offers "+ New division" for each type.
+  redirect(`/events?event=${eventId}&division=new`);
 }
 
 export async function addDivision(eventId: string, divisionName: string): Promise<ActionState & { id?: string }> {
@@ -80,20 +66,23 @@ export async function addDivision(eventId: string, divisionName: string): Promis
   ]);
   if (exists.rows.length > 0) return { error: `${divisionName} already exists for this event` };
 
-  // Starts hidden (a draft) with no scraped text; publish flips is_hidden.
+  // Published straight away: no draft step to publish later.
   const inserted = await pool.query<{ id: string }>(
     `INSERT INTO divisions (id, event_id, division_name, raw_text, is_hidden, created_at, routine_seconds, rules_id)
-     VALUES (gen_random_uuid(), $1, $2, '', true, now(), $3, $4) RETURNING id`,
+     VALUES (gen_random_uuid(), $1, $2, '', false, now(), $3, $4) RETURNING id`,
     [eventId, divisionName, defaultRoutineSeconds(divisionName), DEFAULT_NEW_RULES_ID]
   );
   return { error: null, id: inserted.rows[0].id };
 }
 
-// Only drafts can be deleted; this also removes the division's teams.
+// A division with teams already on it holds real data and isn't deletable from
+// here; an empty one (just created, or cleared out) can always go.
 export async function deleteDivision(divisionId: string): Promise<ActionState> {
   await guard();
-  const result = await pool.query('DELETE FROM divisions WHERE id = $1 AND is_hidden = true', [divisionId]);
-  if (result.rowCount === 0) return { error: 'Only draft (unpublished) divisions can be deleted' };
+  const teams = await pool.query('SELECT 1 FROM teams WHERE division_id = $1 LIMIT 1', [divisionId]);
+  if (teams.rows.length > 0) return { error: 'This division already has teams; remove them first' };
+  const result = await pool.query('DELETE FROM divisions WHERE id = $1', [divisionId]);
+  if (result.rowCount === 0) return { error: 'Division not found' };
   return { error: null };
 }
 
@@ -127,12 +116,6 @@ export async function updateDivisionSettings(
      WHERE id = $1`,
     [divisionId, settings.divisionName, settings.routineMinutes * 60, settings.rulesId, settings.headJudgeId, settings.directorIds]
   );
-  return { error: null };
-}
-
-export async function setPublished(divisionId: string, published: boolean): Promise<ActionState> {
-  await guard();
-  await pool.query('UPDATE divisions SET is_hidden = $2 WHERE id = $1', [divisionId, !published]);
   return { error: null };
 }
 
@@ -188,6 +171,7 @@ export async function setPoolJudges(
   if (new Set(judges.map((j) => j.playerId)).size !== judges.length) {
     return { error: 'A player can only judge a pool once' };
   }
+  if (await isPoolLocked(divisionId, roundNumber, poolId(poolLetter))) return { error: POOL_LOCKED_ERROR };
 
   const division = await pool.query<{ rules_id: string }>('SELECT rules_id FROM divisions WHERE id = $1', [divisionId]);
   if (!division.rows[0]) return { error: 'Division not found' };
@@ -293,9 +277,9 @@ export async function addRosterTeams(divisionId: string, teams: string[][]): Pro
 }
 
 // Adds teams to several divisions of one event at once, creating any division the
-// event doesn't have yet (as a draft, like addDivision). A team that is already on a
-// division (on its roster or playing in a round) is left out, so pasting the same list
-// twice doesn't double it.
+// event doesn't have yet (published straight away, like addDivision). A team that is
+// already on a division (on its roster or playing in a round) is left out, so pasting
+// the same list twice doesn't double it.
 export async function addEventRosters(
   eventId: string,
   divisions: { divisionName: string; teams: string[][] }[]
@@ -327,7 +311,7 @@ export async function addEventRosters(
       if (!divisionId) {
         const inserted = await client.query<{ id: string }>(
           `INSERT INTO divisions (id, event_id, division_name, raw_text, is_hidden, created_at, routine_seconds, rules_id)
-           VALUES (gen_random_uuid(), $1, $2, '', true, now(), $3, $4) RETURNING id`,
+           VALUES (gen_random_uuid(), $1, $2, '', false, now(), $3, $4) RETURNING id`,
           [eventId, divisionName, defaultRoutineSeconds(divisionName), DEFAULT_NEW_RULES_ID]
         );
         divisionId = inserted.rows[0].id;
@@ -403,6 +387,7 @@ export async function seedRoundFromRankings(
 ): Promise<ActionState & { seeded?: number; byes?: number }> {
   await guard();
   if (roundNumber < 1 || roundNumber > 4) return { error: 'Unknown round' };
+  if (await isRoundLocked(divisionId, roundNumber)) return { error: POOL_LOCKED_ERROR };
 
   const division = await pool.query<{ division_name: string; pool_config: PoolConfig }>(
     'SELECT division_name, pool_config FROM divisions WHERE id = $1',
@@ -454,6 +439,7 @@ export async function seedRoundFromRankings(
 export async function clearRound(divisionId: string, roundNumber: number): Promise<ActionState> {
   await guard();
   if (roundNumber < 1 || roundNumber > 4) return { error: 'Unknown round' };
+  if (await isRoundLocked(divisionId, roundNumber)) return { error: POOL_LOCKED_ERROR };
   await pool.query('DELETE FROM teams WHERE division_id = $1 AND round_number = $2', [divisionId, roundNumber]);
   return { error: null };
 }
@@ -483,6 +469,32 @@ async function applyRoundLayout(
 ): Promise<string | null> {
   if (Object.keys(layout).some((letter) => !(POOL_LETTERS as readonly string[]).includes(letter))) {
     return 'Unknown pool';
+  }
+
+  // A locked pool's own teams and their order can't change; other pools of the
+  // same round can still be rearranged in the same call (every team of the
+  // round has to be named somewhere in `layout`, including a locked pool's, so
+  // this checks whether that pool's own list actually differs, not just whether
+  // it was named).
+  const lockedLetters: string[] = [];
+  for (const letter of Object.keys(layout)) {
+    if (await isPoolLocked(divisionId, roundNumber, poolId(letter))) lockedLetters.push(letter);
+  }
+  if (lockedLetters.length > 0) {
+    const stored = await db.query<{ id: string; pool_id: string; play_order: number | null }>(
+      'SELECT id, pool_id, play_order FROM teams WHERE division_id = $1 AND round_number = $2',
+      [divisionId, roundNumber]
+    );
+    for (const letter of lockedLetters) {
+      const inPool = stored.rows.filter((r) => r.pool_id === poolId(letter));
+      // Once a round has ever been arranged, every team in it has a play_order
+      // and that alone determines the order (matching sortPoolTeams); before
+      // that (fresh from seeding) the order isn't pinned down the same way on
+      // both sides, so play it safe and refuse any submission naming this pool.
+      if (inPool.some((r) => r.play_order === null)) return POOL_LOCKED_ERROR;
+      const have = inPool.sort((a, b) => (a.play_order as number) - (b.play_order as number)).map((r) => r.id);
+      if (JSON.stringify(layout[letter] ?? []) !== JSON.stringify(have)) return POOL_LOCKED_ERROR;
+    }
   }
 
   const ids: string[] = [];
@@ -580,16 +592,20 @@ export async function removeTeamFromRound(divisionId: string, roundNumber: numbe
   if (!Number.isInteger(roundNumber) || roundNumber < 1) return { error: 'Unknown round' };
 
   const deleted = await pool.query(
-    'DELETE FROM teams WHERE id = $1 AND division_id = $2 AND round_number = $3 AND place IS NULL',
+    `DELETE FROM teams t WHERE t.id = $1 AND t.division_id = $2 AND t.round_number = $3 AND t.place IS NULL
+       AND NOT EXISTS (SELECT 1 FROM pools p WHERE p.division_id = t.division_id AND p.round_number = t.round_number AND p.pool_id = t.pool_id AND p.locked)`,
     [teamId, divisionId, roundNumber]
   );
   if (deleted.rowCount === 0) {
-    const exists = await pool.query('SELECT 1 FROM teams WHERE id = $1 AND division_id = $2 AND round_number = $3', [
-      teamId,
-      divisionId,
-      roundNumber,
-    ]);
-    return { error: exists.rows.length > 0 ? "This team has a result (place) and can't be removed" : 'Team not found' };
+    const existing = await pool.query<{ place: number | null; pool_id: string }>(
+      'SELECT place, pool_id FROM teams WHERE id = $1 AND division_id = $2 AND round_number = $3',
+      [teamId, divisionId, roundNumber]
+    );
+    const row = existing.rows[0];
+    if (!row) return { error: 'Team not found' };
+    if (row.place !== null) return { error: "This team has a result (place) and can't be removed" };
+    if (await isPoolLocked(divisionId, roundNumber, row.pool_id)) return { error: POOL_LOCKED_ERROR };
+    return { error: 'Team not found' };
   }
   return { error: null };
 }
@@ -599,4 +615,52 @@ export async function quickCreatePlayer(
 ): Promise<{ error: string | null; player?: { id: string; name: string } }> {
   await guard();
   return insertPlayerByName(fullName);
+}
+
+// ---- Discord -----------------------------------------------------------------------------
+
+// Sets the event's Discord channel from a pasted channel link or id, after
+// checking the bot can see it; empty input removes it. A new channel starts a
+// new thread (the old one stays in the old channel).
+export async function setEventDiscordChannel(
+  eventId: string,
+  input: string
+): Promise<ActionState & { channel?: ChannelInfo }> {
+  await guard();
+  if (!UUID.test(eventId)) return { error: 'Unknown event' };
+  const current = await getEventDiscord(eventId);
+  if (!current.ok) return { error: current.error };
+
+  if (!input.trim()) {
+    await pool.query('UPDATE events SET discord_channel_id = NULL, discord_thread_id = NULL WHERE id = $1', [eventId]);
+    return { error: null };
+  }
+  const channelId = parseChannelInput(input);
+  if (!channelId) return { error: 'Paste a channel link (right-click the channel → Copy Link) or its id.' };
+  const described = await describeChannel(channelId);
+  if (!described.ok) return { error: described.error };
+
+  if (channelId !== current.channelId) {
+    await pool.query('UPDATE events SET discord_channel_id = $2, discord_thread_id = NULL WHERE id = $1', [eventId, channelId]);
+  }
+  return { error: null, channel: described.channel };
+}
+
+// A first post, to check the bot can post (and to make the event's thread).
+export async function sendEventDiscordTest(eventId: string): Promise<ActionState> {
+  await guard();
+  if (!UUID.test(eventId)) return { error: 'Unknown event' };
+  const event = await getEventDiscord(eventId);
+  if (!event.ok) return { error: event.error };
+  const posted = await postToEventThread(eventId, `Play orders and results for **${event.eventName}** will be posted in this thread.`);
+  return { error: posted.ok ? null : posted.error };
+}
+
+// Posts a round's play order (every pool's teams, with their links) to the event's thread.
+export async function postRoundPlayOrderToDiscord(divisionId: string, roundNumber: number): Promise<ActionState> {
+  await guard();
+  if (!UUID.test(divisionId)) return { error: 'Unknown division' };
+  if (!Number.isInteger(roundNumber) || roundNumber < 1) return { error: 'Unknown round' };
+  const outcome = await postRoundPlayOrder(divisionId, roundNumber);
+  return { error: outcome.status === 'failed' ? outcome.error : null };
 }

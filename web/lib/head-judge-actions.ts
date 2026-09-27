@@ -4,6 +4,10 @@ import { requirePermission } from './authz';
 import { pool } from './db';
 import { POOL_LETTERS, poolId } from './event-creator';
 import { cancelRoutineRow, finishRoutineRow, restoreRoutineRow, startRoutineRow } from './head-judge-routines';
+import { isPoolLocked, setPoolLockedRow, POOL_LOCKED_ERROR } from './pool-locks';
+import { postPoolResults, type PostOutcome } from './discord-posts';
+import { isPoolResultsPublished, setPoolResultsPublishedRow } from './pool-publish';
+import { getOrCreateShortCode } from './pool-shortlink';
 
 const guard = () => requirePermission('head_judge');
 
@@ -35,6 +39,7 @@ export async function setPlayingPool(
     [eventId, divisionId, roundNumber, poolId(letter)]
   );
   if (found.rows.length === 0) return { error: "That pool has no teams in this event" };
+  if (await isPoolLocked(divisionId, roundNumber, poolId(letter))) return { error: POOL_LOCKED_ERROR };
 
   // A running routine is never dropped by changing the pool: cancel it first.
   const saved = await pool.query(
@@ -111,4 +116,55 @@ export async function restoreRoutine(eventId: string, routineId: string): Promis
   await guard();
   if (!UUID.test(eventId) || !UUID.test(routineId)) return BAD_ID;
   return restoreRoutineRow(eventId, routineId);
+}
+
+// Locks or unlocks a pool: while locked, its scores, teams and judges can't be
+// changed (from here or from the Event Creator). Locking is refused while a
+// routine is running in it; unlocking always succeeds.
+export async function setPoolLocked(
+  divisionId: string,
+  roundNumber: number,
+  letter: string,
+  locked: boolean
+): Promise<PlayActionResult> {
+  await guard();
+  if (!UUID.test(divisionId)) return { error: 'Unknown division' };
+  if (!(POOL_LETTERS as readonly string[]).includes(letter)) return { error: 'Unknown pool' };
+  if (!Number.isInteger(roundNumber) || roundNumber < 1) return { error: 'Unknown round' };
+  return setPoolLockedRow(divisionId, roundNumber, poolId(letter), locked);
+}
+
+// Publishes or unpublishes a pool's results on its public permalink. Always
+// succeeds (the same bool can be flipped back at any time). Publishing (from
+// unpublished) also posts the results to the event's Discord thread, if the
+// event has a channel; a Discord problem comes back as `discord`, never as an
+// error, since the results are published either way.
+export async function setPoolResultsPublished(
+  divisionId: string,
+  roundNumber: number,
+  letter: string,
+  published: boolean
+): Promise<PlayActionResult & { discord?: PostOutcome }> {
+  await guard();
+  if (!UUID.test(divisionId)) return { error: 'Unknown division' };
+  if (!(POOL_LETTERS as readonly string[]).includes(letter)) return { error: 'Unknown pool' };
+  if (!Number.isInteger(roundNumber) || roundNumber < 1) return { error: 'Unknown round' };
+  const wasPublished = await isPoolResultsPublished(divisionId, roundNumber, poolId(letter));
+  await setPoolResultsPublishedRow(divisionId, roundNumber, poolId(letter), published);
+  if (!published || wasPublished) return { error: null };
+  return { error: null, discord: await postPoolResults(divisionId, roundNumber, letter) };
+}
+
+// The pool's public permalink code, generating one the first time it's asked for.
+export async function ensurePoolLink(
+  divisionId: string,
+  roundNumber: number,
+  letter: string
+): Promise<PlayActionResult & { code?: string }> {
+  await guard();
+  if (!UUID.test(divisionId)) return { error: 'Unknown division' };
+  if (!(POOL_LETTERS as readonly string[]).includes(letter)) return { error: 'Unknown pool' };
+  if (!Number.isInteger(roundNumber) || roundNumber < 1) return { error: 'Unknown round' };
+  const code = await getOrCreateShortCode(divisionId, roundNumber, poolId(letter));
+  return { error: null, code };
 }

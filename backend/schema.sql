@@ -111,6 +111,28 @@ CREATE TABLE IF NOT EXISTS pool_judges (
 );
 CREATE INDEX IF NOT EXISTS idx_pool_judges_player_id ON pool_judges(player_id);
 
+-- One row per pool (division + round + letter) holding pool-level state; `locked`
+-- is the first use (the Head Judge's lock toggle, freezing that pool's scores,
+-- teams and judges), so later pool-specific settings have a home without another
+-- one-off table. No row is required for an ordinary pool: missing reads as
+-- locked = false. Unlocking sets locked back to false rather than deleting the
+-- row, so it keeps whatever else gets added to it later.
+CREATE TABLE IF NOT EXISTS pools (
+  division_id  uuid NOT NULL REFERENCES divisions(id) ON DELETE CASCADE,
+  round_number integer NOT NULL,
+  pool_id      text NOT NULL,
+  locked       boolean NOT NULL DEFAULT false,
+  PRIMARY KEY (division_id, round_number, pool_id)
+);
+
+-- Whether a pool's results are visible on its public permalink (before, only the
+-- teams and judges show; after, the full results, judges never named), and the
+-- short code that permalink resolves ("freestylejudge.com/r/<code>"): a plain
+-- lookup key, not a secret, generated the first time it's needed.
+ALTER TABLE pools ADD COLUMN IF NOT EXISTS results_published boolean NOT NULL DEFAULT false;
+ALTER TABLE pools ADD COLUMN IF NOT EXISTS short_code text;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pools_short_code ON pools(short_code) WHERE short_code IS NOT NULL;
+
 -- One row per performance: a team playing once in a pool. Created when the Head
 -- Judge starts the routine (started_at is the timer starting) and marked
 -- cancelled if it is cancelled; finished is set when the head judge moves on.
@@ -183,6 +205,22 @@ CREATE INDEX IF NOT EXISTS idx_fpa2027_notes_judge ON fpa2027_judge_notes(player
 -- Keeps what cannot be recreated (the baseline the computer made, the judge's
 -- change, the settings used); note counts are read from fpa2027_judge_notes,
 -- which are locked once a score is submitted.
+-- One judge's finished ranking of a Simple Ranking pool's teams, best first
+-- (see web/lib/simple-ranking.ts). judge_token is a random id the judge's
+-- browser makes up and keeps, so the same phone re-submitting replaces its row
+-- instead of counting twice; there is no login and no assignment of judges.
+CREATE TABLE IF NOT EXISTS simple_ranking_ballots (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id     uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  division_id  uuid NOT NULL REFERENCES divisions(id) ON DELETE CASCADE,
+  round_number integer NOT NULL,
+  pool_id      text NOT NULL,
+  judge_token  text NOT NULL,
+  ranking      jsonb NOT NULL,
+  submitted_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (division_id, round_number, pool_id, judge_token)
+);
+
 CREATE TABLE IF NOT EXISTS fpa2027_judge_scores (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   routine_id        uuid NOT NULL REFERENCES routines(id) ON DELETE CASCADE,
@@ -359,6 +397,12 @@ ALTER TABLE teams ADD COLUMN IF NOT EXISTS play_order integer;
 -- Whether the event is being judged right now. Only playing events list their
 -- judges on the public landing page; toggled in the Event Creator's Events tab.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS is_playing boolean NOT NULL DEFAULT false;
+
+-- The Discord channel the bot posts the event's play orders and results to
+-- (set in the Event Creator), and the thread it keeps there: created by the
+-- bot on its first post, replaced if deleted, cleared when the channel changes.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS discord_channel_id text;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS discord_thread_id text;
 
 -- The head judge's tunables for the event, keyed by judging system (rules id)
 -- and then category, e.g. {"Fpa2027": {"Ex": {"noteWeights": {"large_error": -3}}}}.

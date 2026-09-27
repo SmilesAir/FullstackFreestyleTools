@@ -110,7 +110,16 @@ const john = finals.pools[0].teams[0].players[1];
 check('an unsure match stays unpicked but keeps candidates and the written name', john.id === null && john.input === 'John Smith' && john.status === 'uncertain', JSON.stringify(john));
 const zed = prelims.pools[0].teams[0].players[0];
 check('a name with no match entry becomes a "new player?" slot', zed.id === null && zed.status === 'none' && zed.input === 'Zed Unknown', JSON.stringify(zed));
-check('a null place stays null and a float place is rounded', prelims.pools[0].teams[0].place === null && prelims.pools[1].teams[0].place === 1, JSON.stringify(prelims.pools.map((p) => p.teams.map((t) => t.place))));
+check('a null place takes its position in the pool and a float place is rounded', prelims.pools[0].teams[0].place === 1 && prelims.pools[1].teams[0].place === 1, JSON.stringify(prelims.pools.map((p) => p.teams.map((t) => t.place))));
+const placesOf = (teams) =>
+  buildResult(
+    { eventName: null, startDate: null, endDate: null, unparsed: [], divisions: [{ divisionName: 'Open Pairs', rounds: [{ round: 'Finals', pools: [{ pool: null, teams }] }] }] },
+    matches
+  ).divisions[0].rounds[0].pools[0].teams.map((t) => t.place);
+const listed = placesOf([team(null, 'a'), team(null, 'b'), team(null, 'c')]);
+check('a list with no places is numbered in order', JSON.stringify(listed) === '[1,2,3]', JSON.stringify(listed));
+const afterTie = placesOf([team(1, 'a'), team(1, 'b'), team(null, 'c')]);
+check('a missing place after a tie skips ahead (1, 1, 3)', JSON.stringify(afterTie) === '[1,1,3]', JSON.stringify(afterTie));
 const messy = buildResult(
   {
     eventName: null, startDate: null, endDate: null, unparsed: [],

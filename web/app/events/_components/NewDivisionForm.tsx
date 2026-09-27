@@ -34,7 +34,7 @@ export function NewDivisionForm({ eventId, available }: { eventId: string; avail
         </select>
       </label>
       <p className="text-xs text-gray-500">
-        Starts as a draft with a {defaultRoutineSeconds(name) / 60}-minute routine. Only types this event doesn&apos;t have yet are listed.
+        Starts with a {defaultRoutineSeconds(name) / 60}-minute routine. Only types this event doesn&apos;t have yet are listed.
       </p>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button

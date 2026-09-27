@@ -6,6 +6,8 @@ import { NewDivisionForm } from './_components/NewDivisionForm';
 import { EventPlayingToggle } from './_components/EventPlayingToggle';
 import { EventRosterPasteForm } from './_components/EventRosterPasteForm';
 import { Collapsible } from './_components/Collapsible';
+import { EventDiscordSettings } from './_components/EventDiscordSettings';
+import { getEventDiscordStatus } from '@/lib/discord';
 import { Tabs, type Tab } from '../_components/Tabs';
 import { DivisionView } from './_components/division/DivisionView';
 
@@ -17,11 +19,12 @@ export default async function EventsPage({
   const { event: eventParam, division: divisionParam } = await searchParams;
 
   // Independent queries run together (each DB round trip is ~100ms).
-  const [events, selected, unsortedDivisions, players] = await Promise.all([
+  const [events, selected, unsortedDivisions, players, discord] = await Promise.all([
     listEvents(),
     eventParam ? getEvent(eventParam) : null,
     eventParam ? listDivisions(eventParam) : [],
     eventParam ? getEventPlayers(eventParam) : [],
+    eventParam ? getEventDiscordStatus(eventParam) : null,
   ]);
   const divisions = selected
     ? unsortedDivisions.sort(
@@ -39,20 +42,28 @@ export default async function EventsPage({
       <NewEventForm />
 
       {selected && (
+        // The selected event's own settings, each a collapsible card.
         <section className="flex flex-col gap-3 rounded border border-gray-300 p-3">
           <div>
             <div className="font-semibold">{selected.event_name}</div>
             <div className="text-xs text-gray-500">
-              {selected.start_date} → {selected.end_date} · pick a division tab above to edit it
+              {selected.start_date} → {selected.end_date} · event settings below; pick a division tab above to edit it
             </div>
           </div>
+
+          <Collapsible
+            title={`Discord${discord?.channel ? ` · #${discord.channel.name}` : ''}`}
+            variant="card"
+            defaultOpen={!discord?.channelId}
+          >
+            <EventDiscordSettings eventId={selected.id} status={discord!} />
+          </Collapsible>
 
           <Collapsible title="Add teams to several divisions with Claude" variant="card" defaultOpen={false}>
             <EventRosterPasteForm eventId={selected.id} existing={divisions.map((d) => d.division_name)} />
           </Collapsible>
 
-          <div>
-            <h3 className="mb-1 text-sm font-medium">Players ({players.length})</h3>
+          <Collapsible title={`Players (${players.length})`} variant="card" defaultOpen={false}>
             {players.length === 0 ? (
               <p className="text-sm text-gray-500">No players yet — add teams in a division tab.</p>
             ) : (
@@ -68,7 +79,7 @@ export default async function EventsPage({
                 ))}
               </ul>
             )}
-          </div>
+          </Collapsible>
         </section>
       )}
 

@@ -101,11 +101,15 @@ export function buildResult(parsed: ClaudeResults, matches: Map<string, ParsedSl
         }
       }
     }
+    // A team with no place given finished where it is listed: its position in the pool
+    // (after a tie that is the usual skip ahead: 1, 1, 3).
     const editor: EditorRound[] = [...rounds.entries()]
       .sort((a, b) => a[0] - b[0])
       .map(([round, pools]) => ({
         round,
-        pools: [...pools.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([letter, teams]) => ({ letter, teams })),
+        pools: [...pools.entries()]
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([letter, teams]) => ({ letter, teams: teams.map((t, i) => (t.place === null ? { ...t, place: i + 1 } : t)) })),
       }));
     // A second answer for the same division is merged into the first.
     const earlier = divisions.find((d) => d.divisionName === divisionName);

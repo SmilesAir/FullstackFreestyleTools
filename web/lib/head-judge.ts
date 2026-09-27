@@ -18,6 +18,10 @@ export type HeadJudgePool = {
   usesJudges: boolean;
   // How long a routine in this division lasts.
   routineSeconds: number;
+  // Frozen by the Head Judge: its scores, teams and judges can't be changed.
+  locked: boolean;
+  // Visible on this pool's public permalink (see web/lib/public-results.ts).
+  resultsPublished: boolean;
 };
 
 export type HeadJudgeRound = { number: number; name: string; pools: HeadJudgePool[] };

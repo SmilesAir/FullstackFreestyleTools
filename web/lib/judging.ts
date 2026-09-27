@@ -209,4 +209,7 @@ export type JudgingEvent = {
   eventName: string;
   // `seat` is the judge's place within their category (see seatPath).
   judges: { playerId: string; name: string; category: JudgingCategory; seat: number }[];
+  // The event has a Simple Ranking division, so the landing page also offers
+  // the anonymous "Judge" button to /judge/simple-ranking/<eventId>.
+  simpleRanking: boolean;
 };

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   addTeamToRound,
   clearRound,
+  postRoundPlayOrderToDiscord,
   removeTeamFromRound,
   seedRoundFromRankings,
   setRoundConfig,
@@ -45,6 +46,8 @@ export function RoundSection({
   teams,
   judges,
   rosterCount,
+  lockedPoolKeys,
+  discordReady,
 }: {
   divisionId: string;
   roundNumber: number;
@@ -55,6 +58,10 @@ export function RoundSection({
   // Pool letter -> the judges assigned to that pool of this round.
   judges: Record<string, PoolJudgeView[]>;
   rosterCount: number;
+  // Every locked pool of the division, as "round:LETTER" keys.
+  lockedPoolKeys: string[];
+  // The event has a Discord channel, so the play order can be posted there.
+  discordReady: boolean;
 }) {
   const router = useRouter();
   // Imported rounds can have more pools than the configured count; show every
@@ -169,6 +176,9 @@ export function RoundSection({
 
   const roundIsEmpty = teams.length === 0;
   const poolsWithTeams = POOL_LETTERS.slice(0, poolCount).map((letter) => ({ letter, teams: layout[letter] ?? [] }));
+  // Re-seeding or clearing rewrites every pool of the round at once, so either
+  // is refused (here and on the server) while any pool of the round is locked.
+  const roundLocked = lockedPoolKeys.some((k) => k.startsWith(`${roundNumber}:`));
 
   return (
     <Collapsible title={roundName} variant="card" defaultOpen={teams.length > 0} sectionRef={trackRef}>
@@ -194,7 +204,8 @@ export function RoundSection({
         <button
           type="button"
           onClick={seed}
-          disabled={pending || rosterCount === 0}
+          disabled={pending || rosterCount === 0 || roundLocked}
+          title={roundLocked ? 'A pool of this round is locked by the Head Judge.' : undefined}
           className="rounded bg-black px-3 py-1 text-white disabled:opacity-50"
         >
           Seed from rankings
@@ -202,11 +213,25 @@ export function RoundSection({
         {teams.length > 0 && (
           <button
             type="button"
-            disabled={pending}
+            disabled={pending || roundLocked}
+            title={roundLocked ? 'A pool of this round is locked by the Head Judge.' : undefined}
             onClick={() => confirm(`Clear all teams from ${roundName}?`) && run(() => clearRound(divisionId, roundNumber))}
-            className="text-xs text-red-600 underline"
+            className="text-xs text-red-600 underline disabled:opacity-50"
           >
             clear round
+          </button>
+        )}
+        {roundLocked && (
+          <span className="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">🔒 Locked by the Head Judge</span>
+        )}
+        {discordReady && teams.length > 0 && (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => run(() => postRoundPlayOrderToDiscord(divisionId, roundNumber), () => 'Play order and judges posted to Discord.')}
+            className="ml-auto rounded border border-indigo-300 px-3 py-1 text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+          >
+            Post Play Order/Judges to Discord
           </button>
         )}
       </div>
@@ -214,12 +239,14 @@ export function RoundSection({
       {message && <p className={`text-sm ${message.error ? 'text-red-600' : 'text-green-700'}`}>{message.text}</p>}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        {poolsWithTeams.map(({ letter, teams: poolTeams }) => (
+        {poolsWithTeams.map(({ letter, teams: poolTeams }) => {
+          const poolLocked = lockedPoolKeys.includes(`${roundNumber}:${letter}`);
+          return (
           <div
             key={letter}
             onDragOver={(e) => {
               // Accepts this round's own teams, and team list teams that aren't in it yet.
-              if (!canDrop) return;
+              if (!canDrop || poolLocked) return;
               e.preventDefault();
               e.dataTransfer.dropEffect = draggingId ? 'move' : 'copy';
               const index = gapAt(e.currentTarget, e.clientY);
@@ -230,6 +257,7 @@ export function RoundSection({
             }}
             onDrop={(e) => {
               e.preventDefault();
+              if (poolLocked) return;
               drop(letter, gapAt(e.currentTarget, e.clientY));
             }}
             className={`flex min-h-24 flex-col gap-2 rounded bg-gray-50 p-2 ${
@@ -238,6 +266,7 @@ export function RoundSection({
           >
             <div className="text-sm font-medium">
               Pool {letter} <span className="text-xs font-normal text-gray-500">({poolTeams.length} teams)</span>
+              {poolLocked && <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-700">🔒 Locked</span>}
             </div>
             <ol className="flex flex-col text-[18.2px]">
               {poolTeams.map((t, i) => (
@@ -268,7 +297,7 @@ export function RoundSection({
                   {t.place === null ? (
                     <button
                       type="button"
-                      disabled={pending}
+                      disabled={pending || poolLocked}
                       onClick={() => removeTeam(t.id, letter)}
                       className="cursor-pointer text-[15.6px] text-red-600 underline disabled:opacity-50"
                     >
@@ -294,10 +323,12 @@ export function RoundSection({
                 letter={letter}
                 categories={categories}
                 judges={judges[letter] ?? NO_JUDGES}
+                locked={poolLocked}
               />
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </Collapsible>
   );

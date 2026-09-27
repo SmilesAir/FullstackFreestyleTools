@@ -6,6 +6,8 @@ import { DIVISION_NAMES, JUDGE_CATEGORIES, POOL_LETTERS, ROSTER_ROUND, poolId, t
 import { sortPoolTeams } from './event-creator-layout';
 import { getPoolJudges, getTeams, listDivisions } from './event-creator-queries';
 import { getRoutineCurves } from './judging-queries';
+import { getLockedPoolKeys } from './pool-locks';
+import { getPublishedPoolKeys } from './pool-publish';
 import { poolKey, roundName, type HeadJudgeDivision, type HeadJudgePool } from './head-judge';
 import type { PoolResultsData } from './head-judge-results';
 import { NO_PLAY_STATE, type PlayResponse } from './head-judge-state';
@@ -143,10 +145,14 @@ export async function getHeadJudgePools(eventId: string): Promise<HeadJudgeDivis
 
   return Promise.all(
     divisions.map(async (division): Promise<HeadJudgeDivision> => {
-      const [teams, judges] = await Promise.all([
+      const [teams, judges, lockedKeys, publishedKeys] = await Promise.all([
         getTeams(division.id, division.division_name),
         getPoolJudges(division.id),
+        getLockedPoolKeys(division.id),
+        getPublishedPoolKeys(division.id),
       ]);
+      const locked = new Set(lockedKeys);
+      const published = new Set(publishedKeys);
 
       const roundNumbers = [...new Set(teams.filter((t) => t.round_number !== ROSTER_ROUND).map((t) => t.round_number))];
       roundNumbers.sort((a, b) => b - a);
@@ -165,6 +171,8 @@ export async function getHeadJudgePools(eventId: string): Promise<HeadJudgeDivis
             letter,
             teams: sortPoolTeams(inPool).map((t) => ({ id: t.id, players: t.players.map((p) => p.name) })),
             routineSeconds: division.routine_seconds,
+            locked: locked.has(`${number}:${letter}`),
+            resultsPublished: published.has(`${number}:${letter}`),
             usesJudges: (JUDGE_CATEGORIES[division.rules_id as RulesId] ?? []).length > 0,
             judges: judges
               .filter((j) => j.round_number === number && j.pool_id === poolId(letter))

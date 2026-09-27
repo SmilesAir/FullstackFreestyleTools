@@ -51,6 +51,16 @@ export default async function Home() {
                     <span className="text-sm text-gray-500">{judge.category.label}</span>
                   </Link>
                 ))}
+                {event.simpleRanking && (
+                  // Anonymous: anyone with the link can rank, no assigned seat.
+                  <Link
+                    href={`/judge/simple-ranking/${event.eventId}`}
+                    className="flex min-h-16 flex-col items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-center hover:bg-gray-50"
+                  >
+                    <span className="text-lg font-semibold">Judge</span>
+                    <span className="text-sm text-gray-500">Simple Ranking</span>
+                  </Link>
+                )}
               </div>
             </section>
           ))}

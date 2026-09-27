@@ -11,7 +11,7 @@ type Found = { divisionName: string; teams: Slot[][] };
 
 // Paste the rosters of several divisions at once (a spreadsheet with one block per
 // division works); Claude sorts them into the event's divisions, and any division the
-// event doesn't have yet is created as a draft when the teams are added.
+// event doesn't have yet is created (and published straight away) when the teams are added.
 export function EventRosterPasteForm({ eventId, existing }: { eventId: string; existing: string[] }) {
   const router = useRouter();
   const [text, setText] = useState('');
@@ -116,7 +116,7 @@ export function EventRosterPasteForm({ eventId, existing }: { eventId: string; e
               <section key={division.divisionName} className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-gray-200 pb-1">
                   <h3 className="font-semibold">{division.divisionName}</h3>
-                  <span className="text-xs text-gray-500">{existing.includes(division.divisionName) ? 'existing division' : 'new division, created as a draft'}</span>
+                  <span className="text-xs text-gray-500">{existing.includes(division.divisionName) ? 'existing division' : 'new division'}</span>
                   <span className="text-sm">
                     <strong>{division.teams.length}</strong> team(s) — <span className="text-green-700">{counts.matched} matched</span>
                     {counts.created > 0 && <span className="text-green-700">, {counts.created} created</span>},{' '}
