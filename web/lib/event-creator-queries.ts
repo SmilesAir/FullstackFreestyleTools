@@ -12,11 +12,13 @@ export type EventListItem = {
   player_count: string;
   // Being judged now: its judges are listed on the public landing page.
   is_playing: boolean;
+  // Opted into the Dynamo bridge (web/lib/bridge/) - off by default; see the Bridge column.
+  bridge_enabled: boolean;
 };
 
 export async function listEvents(): Promise<EventListItem[]> {
   const result = await pool.query<EventListItem>(
-    `SELECT e.id, e.event_name, e.start_date::text, e.end_date::text, e.is_playing,
+    `SELECT e.id, e.event_name, e.start_date::text, e.end_date::text, e.is_playing, e.bridge_enabled,
             (SELECT count(*) FROM divisions d WHERE d.event_id = e.id) AS division_count,
             (SELECT count(DISTINCT COALESCE(p.alias_id, p.id))
              FROM divisions d

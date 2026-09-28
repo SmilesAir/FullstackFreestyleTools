@@ -435,3 +435,38 @@ CREATE TABLE IF NOT EXISTS judging_presets (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_judging_presets_name ON judging_presets(rules_id, lower(name));
+
+-- Whether this event is bridged to the live legacy app's DynamoDB table
+-- (freestyle-judge-production-dataTable). Off by default for every event, old
+-- and new; an admin turns it on deliberately once they're ready to link a
+-- specific event, so nothing bidirectional happens until then.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS bridge_enabled boolean NOT NULL DEFAULT false;
+
+-- The bridge's own memory of what it last agreed between the two sides, per
+-- synced "thing" (an event's roster/division setup, or one round's pool
+-- layout, or one pool's finished result). Neither side has a reliable
+-- last-modified timestamp, so reconciliation 3-way diffs against these stored
+-- snapshots (current-dynamo vs last-known vs current-postgres) instead.
+CREATE TABLE IF NOT EXISTS bridge_sync_state (
+  entity_type       text NOT NULL CHECK (entity_type IN ('event_roster', 'pool_layout', 'pool_result')),
+  entity_key        text NOT NULL,
+  dynamo_snapshot   jsonb,
+  postgres_snapshot jsonb,
+  last_synced_at    timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (entity_type, entity_key)
+);
+
+-- A field where both sides changed to different values since the last sync:
+-- left for a person to resolve rather than guessed at automatically.
+CREATE TABLE IF NOT EXISTS bridge_conflicts (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_type    text NOT NULL,
+  entity_key     text NOT NULL,
+  field          text NOT NULL,
+  dynamo_value   jsonb,
+  postgres_value jsonb,
+  detected_at    timestamptz NOT NULL DEFAULT now(),
+  resolved_at    timestamptz,
+  resolution     text CHECK (resolution IN ('dynamo', 'postgres', 'ignored'))
+);
+CREATE INDEX IF NOT EXISTS idx_bridge_conflicts_open ON bridge_conflicts(entity_type, entity_key) WHERE resolved_at IS NULL;

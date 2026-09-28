@@ -9,11 +9,14 @@
     "lint": "eslint",
     "seed:admin": "node scripts/seed-admin-user.mjs",
     "local:setup": "node scripts/local-db-setup.mjs",
+    "remote:setup": "node scripts/apply-schema-remote.mjs",
     "local:restore": "node scripts/local-db-restore.mjs",
     "start:local": "node scripts/start-local.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
+    "@aws-sdk/client-dynamodb": "^3.1141.0",
+    "@aws-sdk/lib-dynamodb": "^3.1141.0",
     "@vercel/blob": "^2.8.0",
     "bcryptjs": "^3.0.3",
     "dotenv": "^18.0.3",

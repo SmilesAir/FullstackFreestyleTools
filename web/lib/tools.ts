@@ -55,6 +55,11 @@ export const ADMIN_ONLY_TOOLS: ToolInfo[] = [
     description: 'Create, download, upload, and restore full database backups.',
     href: '/backups',
   },
+  {
+    label: 'Data Bridge',
+    description: 'Keep events in sync with the live app’s DynamoDB table: per-event toggle, manual run/dry run, and conflict resolution.',
+    href: '/data-bridge',
+  },
 ];
 
 // Available to any logged-in user regardless of permissions/admin status.
