@@ -1,7 +1,9 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { auth } from '@/auth';
+import { auth, signIn } from '@/auth';
+import { disconnectLogin, isOAuthProvider, setConnectIntent } from './auth-logins';
 import { pool } from './db';
 import { isUniqueViolation } from './db-errors';
 import { sendDiscordDM } from './discord';
@@ -34,6 +36,24 @@ export async function linkPlayer(_prevState: ActionState, formData: FormData): P
     if (isUniqueViolation(err)) return { error: 'That player is already linked to another account.' };
     return { error: err instanceof Error ? err.message : 'Failed to link player' };
   }
+}
+
+// Starts a Google/Discord sign-in that connects that sign-in to this account (see
+// lib/auth-logins.ts): afterwards it opens this account, whatever its email.
+export async function connectSignIn(provider: string): Promise<void> {
+  const userId = await currentUserId();
+  if (!isOAuthProvider(provider)) return;
+  await setConnectIntent(userId, provider);
+  // Redirects to the provider, and from there back to Profile.
+  await signIn(provider, { redirectTo: '/profile?connect=done' });
+}
+
+export async function disconnectSignIn(provider: string): Promise<ActionState> {
+  const userId = await currentUserId();
+  if (!isOAuthProvider(provider)) return { error: 'Unknown sign-in' };
+  const error = await disconnectLogin(userId, provider);
+  if (!error) revalidatePath('/profile');
+  return { error };
 }
 
 export async function unlinkPlayer() {

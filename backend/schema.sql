@@ -308,6 +308,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_player_id_unique ON users(player_id)
 -- Auto-filled on Discord OAuth sign-in; also manually editable on /profile.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_id text;
 
+-- Each Google/Discord sign-in connected to an account, by the provider's permanent
+-- account id (not its email, which can differ between providers or change). A sign-in
+-- found here opens its account; otherwise the account with the same email does (and
+-- the sign-in is recorded here), otherwise a new account is made. Profile's
+-- "Connect" adds a row for the signed-in account.
+CREATE TABLE IF NOT EXISTS user_logins (
+  provider            text        NOT NULL,              -- 'google' | 'discord'
+  provider_account_id text        NOT NULL,              -- the provider's id for the account
+  user_id             uuid        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email               text,                              -- the provider's email, when last seen
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (provider, provider_account_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_logins_user ON user_logins(user_id);
+
 -- Permissions: one flag per tool, bundled into named groups, groups assigned to users.
 -- is_admin (above) bypasses this entirely.
 CREATE TABLE IF NOT EXISTS permission_groups (

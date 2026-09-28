@@ -23,6 +23,7 @@ export const BACKUP_TABLES = [
   'ranking_points',
   'points_snapshots',
   'users',
+  'user_logins',
   'permission_groups',
   'group_permissions',
   'user_permission_groups',
@@ -45,4 +46,5 @@ export const TABLES_ADDED_LATER: readonly BackupTableName[] = [
   'judging_presets',
   'points_snapshots',
   'simple_ranking_ballots',
+  'user_logins',
 ];
