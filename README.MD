@@ -297,6 +297,82 @@ Nothing on Neon is touched by any of this. Unsent local changes are lost if you 
 
 **If a phone can't reach the laptop:** allow the app through Windows Firewall for the hotspot network (it may be classed Public); make sure the hotspot has client/AP isolation off; use the address shown in the pill (the `.local` name is a backup for when the IP changes). If the page loads on the phone but never updates and nothing can be pressed, the server is `next dev` blocking other devices: `web/next.config.ts` already allows local network addresses (restart the server after changing it), and `npm run start:local` (after `npm run build`) has no such check.
 
+# Sharing freestylejudge.com with the old system
+
+While the old FPA Judging System is still in use, both live on freestylejudge.com. The app (on Vercel) answers the domain and passes the old system's requests through to its CloudFront distribution, unchanged on AWS.
+
+| Address | Served by |
+|---|---|
+| `/` (with or without `?…`), `/index.html`, `/bundle.js`, `/bundle.js.LICENSE.txt` | Old system |
+| Anything the app has no page or file for | Old system (its S3 bucket answers any path with the app) |
+| `/new` (this app's home page), `/r/…`, `/judge/…`, `/events`, `/head-judge`, `/login`, `/api/…`, … | This app |
+
+The old app keeps everything on `/` and reads its `?startup=…&eventKey=…` parameters from the browser's address, so every old link and permalink keeps working. It calls its own APIs at their AWS addresses, not through freestylejudge.com; none of its API paths (`/getEventData`, `/updateJudgeData`, …) collide with this app's.
+
+**How it's switched on**: `LEGACY_SITE_ORIGIN=https://dgtjhs1oj3tvk.cloudfront.net` in Vercel's Production environment (`web/next.config.ts` adds the pass-through only when it's set). Laptops and dev leave it unset, so `/` is this app's home page there. Links back to this app's home page use `/new` (`web/lib/site.ts`), which works either way.
+
+**Putting it live** (one time):
+
+1. Vercel project → Domains: add `freestylejudge.com` and `www.freestylejudge.com` (www redirecting to the apex). Environment Variables (Production): `LEGACY_SITE_ORIGIN` as above and `AUTH_URL=https://freestylejudge.com`. Redeploy.
+2. Add `https://freestylejudge.com/api/auth/callback/google` (Google Cloud Console, the OAuth client) and `https://freestylejudge.com/api/auth/callback/discord` (Discord Developer Portal → OAuth2) as redirect URLs.
+3. Test on the project's `*.vercel.app` address: the old system at `/` (event directory, a results permalink, its admin login), then `/new`, and Google and Discord sign-in.
+4. At a quiet time (never during an event), change Route 53 (hosted zone `freestylejudge.com`) to the values Vercel's Domains screen shows: apex A record to Vercel's address (usually `76.76.21.21`) and delete the apex AAAA; `www` a CNAME to `cname.vercel-dns.com`. Leave the `acm-validations.aws` CNAMEs. For a few minutes some visitors may still reach AWS or see a certificate warning while Vercel issues its certificate.
+   - **Rollback**: put back the four alias records (A and AAAA for `freestylejudge.com` and `www.freestylejudge.com`) pointing at `d5rsjgoyn07f8.cloudfront.net`. (That target is the `completejudging` distribution, but CloudFront routes by name, so it reaches the old site's own distribution `E2ZYDVHUHB7W9Z`.)
+
+**Cutover** (when the old system is retired): remove `LEGACY_SITE_ORIGIN` and redeploy. `/` becomes this app's home page and `/new` still works. Decide first what old `/?…` links should do (for example keep the old app reachable on `old.freestylejudge.com` with a CloudFront alias and certificate, or let them land on the home page), then follow *Handing off the project*, Phase 2.
+
+# Handing off the project
+
+Everything needed to move the project to a new owner, and to retire the old AWS system it replaces. Work through the phases in order: each one only relies on the ones before it.
+
+**What runs where today**
+
+| Service | What it's for | Needed long term? |
+|---|---|---|
+| Vercel project | Hosts the app; runs the monthly backup cron (`web/vercel.json`) | Yes |
+| Neon | The Postgres database (`DATABASE_URL`) | Yes |
+| Vercel Blob | Stores the monthly backups (`BLOB_READ_WRITE_TOKEN`) | Yes |
+| GitHub `SmilesAir/FullstackFreestyleTools` | The code | Yes |
+| Google Cloud OAuth client | "Sign in with Google" | Yes |
+| Discord application (with a bot) | "Sign in with Discord", DMs, and the event thread posts | Yes |
+| Anthropic API key | Claude in the Event Creator and Results Parser | Yes |
+| AWS Route 53 Domains | Registration of `freestylejudge.com` | Moves to the new owner's registrar |
+| AWS Route 53 hosted zone | DNS for `freestylejudge.com` | Replaced by the new DNS host |
+| AWS DynamoDB `freestyle-judge-production-dataTable` | The old system's live data, kept in step with Postgres by the bridge (`web/lib/bridge/`) | Only until the old system is retired |
+| Everything else in AWS (us-west-2) | The old FPA Judging System and its services | Retired with it |
+
+**Where the secrets live**
+
+- **Vercel environment variables** (Production): `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `AUTH_DISCORD_ID`, `AUTH_DISCORD_SECRET`, `BLOB_READ_WRITE_TOKEN`, `CRON_SECRET`; while the bridge runs, the AWS keys the SDK reads (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`) and optionally `BRIDGE_AWS_REGION`.
+- **`web/.env.local`** on each developer machine: the same names, for local development.
+- **Settings page** (stored in the database's `app_settings` table, so they move with the database): Discord bot token, Anthropic API key, public site address, public API rate limits.
+- **Event laptops**: `web/.local/` holds the local database's address and password (see *Running a local server at an event*).
+
+### Phase 1: Move the accounts to the new owner
+
+Do each step, check the app still works (sign-in with all three methods, a page that reads the database, a Claude parse, a Discord test post), then revoke the old credential.
+
+1. **GitHub**: transfer the repository to the new owner (Settings → Transfer), or add them as an owner of the organization it lives in.
+2. **Vercel**: transfer the project to the new owner's team (Project Settings → Transfer), together with its Blob store. The environment variables and domains move with it; re-link the transferred GitHub repo if Vercel asks.
+3. **Neon**: transfer the project to the new owner's Neon account, or have them create a project, restore a backup into it (Backups page) and change `DATABASE_URL`. Change the database password afterwards either way.
+4. **Google sign-in**: the new owner creates an OAuth client in their Google Cloud project with redirect URL `https://<site>/api/auth/callback/google`, then replaces `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`.
+5. **Discord**: transfer the Discord application to the new owner's team in the Developer Portal (this keeps the bot's membership in servers), or have them create one: redirect URL `https://<site>/api/auth/callback/discord`, replace `AUTH_DISCORD_ID` and `AUTH_DISCORD_SECRET`, reset the bot token and save it on the Settings page, and invite the new bot to the servers the events post to.
+6. **Anthropic**: the new owner creates an API key on their account (console.anthropic.com) and saves it on the Settings page. Billing moves with it.
+7. **Rotate the rest**: new `AUTH_SECRET` (signs everyone out once) and `CRON_SECRET` in Vercel.
+
+### Phase 2: Retire the old system (after the switch to this app is complete)
+
+1. **Stop the bridge**: turn it off for every event, then remove `web/lib/bridge/`, `web/lib/bridge-actions.ts`, the Settings page's bridge section, the Event Creator's bridge toggle, the `bridge_*` tables and the `@aws-sdk/*` packages. Remove the AWS keys from Vercel. The app then has no AWS code.
+2. **Keep a copy of the old data**: export every DynamoDB table (DynamoDB → Exports to S3, then download) and download the S3 buckets that hold uploaded data, and keep them with the project's records.
+3. **Serve freestylejudge.com from Vercel alone**: add the domain to the Vercel project (if it isn't already) and remove any rewrites or links that pointed at the old site.
+4. **Delete the old stacks**: remove the old `serverless` services (the `*-production` and `*-development` CloudFront distributions, API Gateways, Lambdas, S3 buckets and DynamoDB tables in us-west-2). Check first whether *ResultsRender* (`results-render-production-host-bucket`) is still used: if it is, move it to Vercel as a static site and point it at this app's Points API (see *List of APIs*) before deleting.
+
+### Phase 3: Move freestylejudge.com off AWS
+
+1. **DNS**: create the records at the new DNS host (Vercel's DNS is simplest: it adds the app's own records itself). Copy anything else still in use from the Route 53 zone `freestylejudge.com`; the `acm-validations.aws` CNAMEs are only for AWS certificates and can be dropped. Then change the domain's name servers (Route 53 → Registered domains → freestylejudge.com → Name servers) to the new host's. Wait a day, check the site, then delete the hosted zone.
+2. **Registration**: in Route 53 → Registered domains → freestylejudge.com, turn off the transfer lock and get the authorization code; start the transfer at the new owner's registrar with it and approve the confirmation email. It takes about 5–7 days and adds a year to the expiry (currently February 2027, auto-renew on). If the new owner also uses AWS, Route 53 can instead transfer the domain to their AWS account directly.
+3. **Close out AWS**: once nothing is left, remove the IAM user and access keys the project used, and check the bill shows no charges for it the next month.
+
 # Ideas
 
 - Auth for everything

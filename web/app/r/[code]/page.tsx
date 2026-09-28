@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { HOME_PATH } from '@/lib/site';
 import { getEventPoolNav, getPublicPoolResults } from '@/lib/public-results';
 import { resolveShortCode } from '@/lib/pool-shortlink';
 import { PublicResultsView } from '../_components/PublicResultsView';
@@ -10,7 +11,7 @@ function NotFound() {
     <main className="mx-auto mt-24 max-w-sm px-4 text-center">
       <h1 className="mb-2 text-xl font-semibold">Not found</h1>
       <p className="mb-6 text-sm text-gray-500">This results link doesn&apos;t point to anything — it may have been for an event that&apos;s gone.</p>
-      <Link href="/" className="text-blue-600 underline">
+      <Link href={HOME_PATH} className="text-blue-600 underline">
         ← Back
       </Link>
     </main>

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { HOME_PATH } from '@/lib/site';
 
 // The frame every judging screen shares. The tab bar (which shows the judge's
 // name) and the category's own controls go in `children`.
@@ -13,7 +14,7 @@ export function NotJudging() {
       <p className="mb-6 text-sm text-gray-500">
         Go back to the main page. Your name appears there when your pool is playing.
       </p>
-      <Link href="/" className="text-blue-600 underline">
+      <Link href={HOME_PATH} className="text-blue-600 underline">
         ← Back
       </Link>
     </main>
