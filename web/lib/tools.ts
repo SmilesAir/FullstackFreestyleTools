@@ -60,6 +60,11 @@ export const ADMIN_ONLY_TOOLS: ToolInfo[] = [
     description: 'Keep events in sync with the live app’s DynamoDB table: per-event toggle, manual run/dry run, and conflict resolution.',
     href: '/data-bridge',
   },
+  {
+    label: 'Public API',
+    description: 'Every public read-only endpoint with what it returns, plus its rate limit settings.',
+    href: '/public-api',
+  },
 ];
 
 // Available to any logged-in user regardless of permissions/admin status.

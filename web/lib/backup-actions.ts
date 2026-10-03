@@ -1,12 +1,30 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { requireAdmin } from './authz';
+import { BACKUP_INTERVAL_KEY, MAX_BACKUP_INTERVAL_DAYS, MIN_BACKUP_INTERVAL_DAYS } from './backup-schedule';
 import { pool } from './db';
 import { createBackup, restoreFromBuffer, validateBackupBuffer, fetchBackupBuffer, deleteBackupBlob } from './backup';
 import { getBackupWithUrl } from './backup-queries';
 import { put } from '@vercel/blob';
 
 export type ActionState = { error: string | null };
+
+// How many days apart automatic backups are (lib/backup-schedule.ts).
+export async function setBackupIntervalAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const days = Number(String(formData.get('days') ?? '').trim());
+  if (!Number.isInteger(days) || days < MIN_BACKUP_INTERVAL_DAYS || days > MAX_BACKUP_INTERVAL_DAYS) {
+    return { error: `Enter a whole number of days from ${MIN_BACKUP_INTERVAL_DAYS} to ${MAX_BACKUP_INTERVAL_DAYS}.` };
+  }
+  await pool.query(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2, now())
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+    [BACKUP_INTERVAL_KEY, String(days)]
+  );
+  revalidatePath('/backups');
+  return { error: null };
+}
 
 export async function createBackupAction(): Promise<ActionState> {
   await requireAdmin();

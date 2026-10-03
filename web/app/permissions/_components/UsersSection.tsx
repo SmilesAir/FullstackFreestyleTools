@@ -1,14 +1,23 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import type { PermissionGroup, UserAccess } from '@/lib/permissions-queries';
 import { createUser, setUserAccess, type ActionState } from '@/lib/permissions-actions';
+import { useRefreshOnSuccess } from '../../_components/useRefreshOnSuccess';
 
 function NewUserForm() {
   const [state, formAction, pending] = useActionState(createUser, { error: null });
+  // On success: refresh the list, and remount the form (via key) for a fresh, empty one.
+  const [formKey, setFormKey] = useState(0);
+  const wasPending = useRef(false);
+  useRefreshOnSuccess(state.error, pending);
+  useEffect(() => {
+    if (wasPending.current && !pending && !state.error) setFormKey((k) => k + 1);
+    wasPending.current = pending;
+  }, [pending, state.error]);
 
   return (
-    <form action={formAction} className="flex flex-col gap-2 rounded border border-gray-300 p-3">
+    <form key={formKey} action={formAction} className="flex flex-col gap-2 rounded border border-gray-300 p-3">
       <input
         name="email"
         type="email"
@@ -39,6 +48,7 @@ function NewUserForm() {
 function UserRow({ user, groups }: { user: UserAccess; groups: PermissionGroup[] }) {
   const boundUpdate = (prevState: ActionState, formData: FormData) => setUserAccess(user.id, prevState, formData);
   const [state, formAction, pending] = useActionState(boundUpdate, { error: null });
+  useRefreshOnSuccess(state.error, pending);
 
   return (
     <form action={formAction} className="flex flex-col gap-2 rounded border border-gray-300 p-3">

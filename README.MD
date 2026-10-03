@@ -329,9 +329,9 @@ Everything needed to move the project to a new owner, and to retire the old AWS 
 
 | Service | What it's for | Needed long term? |
 |---|---|---|
-| Vercel project | Hosts the app; runs the monthly backup cron (`web/vercel.json`) | Yes |
+| Vercel project | Hosts the app; runs the daily backup check (`web/vercel.json`), which backs up every N days (Backups page) | Yes |
 | Neon | The Postgres database (`DATABASE_URL`) | Yes |
-| Vercel Blob | Stores the monthly backups (`BLOB_READ_WRITE_TOKEN`) | Yes |
+| Vercel Blob | Stores the automatic and manual backups (`BLOB_READ_WRITE_TOKEN`) | Yes |
 | GitHub `SmilesAir/FullstackFreestyleTools` | The code | Yes |
 | Google Cloud OAuth client | "Sign in with Google" | Yes |
 | Discord application (with a bot) | "Sign in with Discord", DMs, and the event thread posts | Yes |

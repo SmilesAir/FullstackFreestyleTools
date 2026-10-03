@@ -37,8 +37,25 @@
   animation: attention-pulse 1.4s ease-in-out infinite;
 }
 
+/* A section's background flashes a soft amber once, to show where to look
+   (Profile's Linked player section right after signing in). */
+@keyframes pulse-once {
+  0%,
+  100% {
+    background-color: transparent;
+  }
+  50% {
+    background-color: rgb(254 243 199); /* amber-100 */
+  }
+}
+
+.pulse-once {
+  animation: pulse-once 1.6s ease-in-out 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .attention-pulse {
+  .attention-pulse,
+  .pulse-once {
     animation: none;
   }
 }

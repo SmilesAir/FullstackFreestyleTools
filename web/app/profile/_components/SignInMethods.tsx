@@ -13,11 +13,15 @@ export function SignInMethods({
   logins,
   hasPassword,
   notice,
+  showGoogle,
 }: {
   logins: Login[];
   hasPassword: boolean;
   // From the URL after a Connect: 'done' or 'taken'.
   notice: string | null;
+  // Offer Google (lib/login-options.ts). An already-connected Google is listed either way,
+  // so it can be disconnected.
+  showGoogle: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -26,7 +30,7 @@ export function SignInMethods({
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs text-gray-500">
-        Connect your Google and Discord sign-ins to this account so either one opens it, even if they use different emails.
+        Connect your sign-ins to this account so any of them opens it, even if they use different emails.
       </p>
       {notice === 'done' && <p className="text-sm text-green-700">Sign-in connected.</p>}
       {notice === 'taken' && (
@@ -39,7 +43,9 @@ export function SignInMethods({
           <span>Email &amp; password</span>
           <span className="text-gray-500">{hasPassword ? 'set' : 'not set'}</span>
         </li>
-        {(['google', 'discord'] as const).map((provider) => {
+        {(['google', 'discord'] as const)
+          .filter((provider) => provider !== 'google' || showGoogle || logins.some((l) => l.provider === 'google'))
+          .map((provider) => {
           const connected = logins.filter((l) => l.provider === provider);
           return (
             <li key={provider} className="flex items-center justify-between gap-3 rounded border border-gray-300 p-3 text-sm">

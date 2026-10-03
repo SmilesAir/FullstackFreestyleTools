@@ -1,4 +1,6 @@
 import { listBackups } from '@/lib/backup-queries';
+import { getBackupSchedule, MAX_BACKUP_INTERVAL_DAYS, MIN_BACKUP_INTERVAL_DAYS } from '@/lib/backup-schedule';
+import { BackupScheduleForm } from './_components/BackupScheduleForm';
 import { CreateBackupButton } from './_components/CreateBackupButton';
 import { UploadBackupForm } from './_components/UploadBackupForm';
 import { RestoreButton } from './_components/RestoreButton';
@@ -24,15 +26,23 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 export default async function BackupsPage() {
-  const backups = await listBackups();
+  const [backups, schedule] = await Promise.all([listBackups(), getBackupSchedule()]);
 
   return (
     <main className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold">Backups</h1>
       <p className="text-sm text-gray-600">
-        Full-database backups, gzipped and stored in Blob storage. An automatic backup also runs monthly once this
-        app is deployed.
+        Full-database backups, gzipped and stored in Blob storage. An automatic backup runs every {schedule.intervalDays}{' '}
+        day{schedule.intervalDays === 1 ? '' : 's'} on the hosted site.
       </p>
+
+      <BackupScheduleForm
+        intervalDays={schedule.intervalDays}
+        min={MIN_BACKUP_INTERVAL_DAYS}
+        max={MAX_BACKUP_INTERVAL_DAYS}
+        lastAutomaticAt={schedule.lastAutomaticAt?.toISOString() ?? null}
+        nextDueAt={schedule.nextDueAt?.toISOString() ?? null}
+      />
 
       <div className="flex flex-col gap-4 sm:flex-row">
         <CreateBackupButton />

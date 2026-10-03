@@ -15,8 +15,6 @@ export function PublicApiSection({
 }) {
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">Public API</h2>
-
       <div className="flex flex-col gap-2 rounded border border-gray-300 p-3 text-sm">
         <div className="font-medium">How every endpoint behaves</div>
         <ul className="list-disc space-y-1 pl-5 text-xs text-gray-600">

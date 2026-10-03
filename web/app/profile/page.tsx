@@ -7,17 +7,26 @@ import { UnlinkButton } from './_components/UnlinkButton';
 import { DiscordIdForm } from './_components/DiscordIdForm';
 import { TestDmButton } from './_components/TestDmButton';
 import { SignInMethods } from './_components/SignInMethods';
+import { PulseOnce } from './_components/PulseOnce';
 import { getLogins } from '@/lib/auth-logins';
+import { SHOW_GOOGLE } from '@/lib/login-options';
 import type { Metadata } from 'next';
 import { toolTitle } from '@/lib/tools';
 
 export const metadata: Metadata = { title: toolTitle('/profile') };
 
-export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ connect?: string }> }) {
+export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ connect?: string; welcome?: string }> }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/login');
 
-  const [profile, signIns, { connect }] = await Promise.all([getProfileData(session.user.id), getLogins(session.user.id), searchParams]);
+  const [profile, signIns, { connect, welcome }] = await Promise.all([
+    getProfileData(session.user.id),
+    getLogins(session.user.id),
+    searchParams,
+  ]);
+  // Every sign-in lands here (?welcome=1). With a player already linked there's nothing to
+  // do on Profile, so go on to the Control Panel; otherwise stay and highlight Linked player.
+  if (welcome === '1' && profile.player) redirect('/control-panel');
 
   return (
     <main className="mx-auto flex max-w-sm flex-col gap-8 px-4 py-10">
@@ -31,10 +40,18 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
 
       <div>
         <h2 className="mb-2 text-sm font-medium text-gray-700">Sign-in methods</h2>
-        <SignInMethods logins={signIns.logins} hasPassword={signIns.hasPassword} notice={connect ?? null} />
+        <SignInMethods
+          logins={signIns.logins}
+          hasPassword={signIns.hasPassword}
+          notice={connect ?? null}
+          showGoogle={SHOW_GOOGLE}
+        />
       </div>
 
-      <div>
+      {/* Flashes once right after signing in (?welcome=1). A signed-in person with a player
+          already linked was sent on to the Control Panel above, so this is always the
+          "link your player" case. */}
+      <PulseOnce id="linked-player" active={welcome === '1' && !profile.player}>
         <h2 className="mb-2 text-sm font-medium text-gray-700">Linked player</h2>
         {profile.player ? (
           <div className="flex items-center justify-between rounded border border-gray-300 p-3">
@@ -46,7 +63,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
         ) : (
           <PlayerLinkPicker />
         )}
-      </div>
+      </PulseOnce>
 
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-medium text-gray-700">Discord ID</h2>
