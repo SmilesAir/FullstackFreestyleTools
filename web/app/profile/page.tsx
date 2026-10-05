@@ -24,6 +24,9 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
     getLogins(session.user.id),
     searchParams,
   ]);
+  // The session's user id doesn't match any account any more (e.g. it predates a fix to how
+  // that account gets created) - nothing to show, so send them back through sign-in.
+  if (!profile) redirect('/login');
   // Every sign-in lands here (?welcome=1). With a player already linked there's nothing to
   // do on Profile, so go on to the Control Panel; otherwise stay and highlight Linked player.
   if (welcome === '1' && profile.player) redirect('/control-panel');

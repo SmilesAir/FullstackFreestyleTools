@@ -8,8 +8,8 @@ export default async function PermissionsPage() {
   return (
     <main className="flex flex-col gap-10">
       <h1 className="text-xl font-semibold">Permissions</h1>
-      <UsersSection users={users} groups={groups} />
       <GroupsSection groups={groups} />
+      <UsersSection users={users} groups={groups} />
     </main>
   );
 }

@@ -26,22 +26,32 @@ async function recordLogin(userId: string, { provider, providerAccountId, email 
   }
 }
 
+// A Discord account with no email on file (e.g. phone-only signup) still needs a unique,
+// non-null `users.email` to insert against - a clearly-fake address an admin can recognize
+// in the Permissions list, not a real address anyone could receive mail at.
+const placeholderEmail = (provider: OAuthProvider, providerAccountId: string) => `${provider}:${providerAccountId}@no-email.invalid`;
+
 // The account a Google/Discord sign-in opens: the one it's connected to; otherwise the one
-// with the same email (and the sign-in is connected to it); otherwise a new account.
-// Null when there's no connected account and no email to go by.
-export async function resolveOAuthUser(facts: SignInFacts): Promise<string | null> {
+// with the same email (and the sign-in is connected to it); otherwise a new account (with a
+// placeholder email if the provider gave none - see placeholderEmail above). Always resolves
+// to a real account, so every sign-in ends up visible in the Permissions user list.
+export async function resolveOAuthUser(facts: SignInFacts): Promise<string> {
   const connected = await pool.query<{ user_id: string }>(
     'SELECT user_id FROM user_logins WHERE provider = $1 AND provider_account_id = $2',
     [facts.provider, facts.providerAccountId]
   );
   let userId = connected.rows[0]?.user_id ?? null;
   if (!userId) {
-    if (!facts.email) return null;
-    const byEmail = await pool.query<{ id: string }>('SELECT id FROM users WHERE email = $1', [facts.email]);
+    const byEmail = facts.email
+      ? await pool.query<{ id: string }>('SELECT id FROM users WHERE email = $1', [facts.email])
+      : { rows: [] as { id: string }[] };
     userId =
       byEmail.rows[0]?.id ??
-      (await pool.query<{ id: string }>('INSERT INTO users (email, password_hash) VALUES ($1, NULL) RETURNING id', [facts.email]))
-        .rows[0].id;
+      (
+        await pool.query<{ id: string }>('INSERT INTO users (email, password_hash) VALUES ($1, NULL) RETURNING id', [
+          facts.email ?? placeholderEmail(facts.provider, facts.providerAccountId),
+        ])
+      ).rows[0].id;
   }
   await recordLogin(userId, facts);
   return userId;

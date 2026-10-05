@@ -89,13 +89,26 @@ function UserRow({ user, groups }: { user: UserAccess; groups: PermissionGroup[]
 }
 
 export function UsersSection({ users, groups }: { users: UserAccess[]; groups: PermissionGroup[] }) {
+  const [search, setSearch] = useState('');
+  const query = search.trim().toLowerCase();
+  const filtered = query ? users.filter((u) => u.email.toLowerCase().includes(query)) : users;
+
   return (
     <section className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold">Users</h2>
-      {users.map((u) => (
-        <UserRow key={u.id} user={u} groups={groups} />
-      ))}
       <NewUserForm />
+      <input
+        type="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search users by email…"
+        className="rounded border border-gray-300 px-3 py-2 text-sm"
+      />
+      {filtered.length === 0 ? (
+        <p className="text-sm text-gray-500">No users match &ldquo;{search}&rdquo;.</p>
+      ) : (
+        filtered.map((u) => <UserRow key={u.id} user={u} groups={groups} />)
+      )}
     </section>
   );
 }

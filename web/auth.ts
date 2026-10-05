@@ -25,12 +25,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user && account && isOAuthProvider(account.provider)) {
         // Google/Discord: the account this sign-in is connected to, else the one with its
         // email, else a new one (lib/auth-logins.ts).
-        const userId = await resolveOAuthUser({
+        token.sub = await resolveOAuthUser({
           provider: account.provider,
           providerAccountId: account.providerAccountId,
           email: user.email ?? null,
         });
-        if (userId) token.sub = userId;
       } else if (user) {
         token.sub = user.id;
       }

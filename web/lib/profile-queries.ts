@@ -7,7 +7,9 @@ export type ProfileData = {
   player: { id: string; first_name: string; last_name: string } | null;
 };
 
-export async function getProfileData(userId: string): Promise<ProfileData> {
+// Null when the session's user id doesn't match any row (e.g. an old session surviving an
+// account's deletion) - the caller should treat that like no session at all, not crash.
+export async function getProfileData(userId: string): Promise<ProfileData | null> {
   const result = await pool.query<{
     email: string;
     discord_id: string | null;
@@ -23,6 +25,7 @@ export async function getProfileData(userId: string): Promise<ProfileData> {
   );
 
   const row = result.rows[0];
+  if (!row) return null;
   return {
     email: row.email,
     discordId: row.discord_id,
