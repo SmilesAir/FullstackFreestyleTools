@@ -308,6 +308,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_player_id_unique ON users(player_id)
 -- Auto-filled on Discord OAuth sign-in; also manually editable on /profile.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_id text;
 
+-- The Discord username at last sign-in, purely for display (e.g. the Permissions user
+-- list) when there's nothing better to show - notably when email is the placeholder
+-- address synthesized for a Discord account with no email of its own (lib/auth-logins.ts).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_username text;
+
 -- Each Google/Discord sign-in connected to an account, by the provider's permanent
 -- account id (not its email, which can differ between providers or change). A sign-in
 -- found here opens its account; otherwise the account with the same email does (and

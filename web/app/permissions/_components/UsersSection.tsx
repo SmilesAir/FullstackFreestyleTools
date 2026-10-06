@@ -3,7 +3,16 @@
 import { useActionState, useEffect, useRef, useState } from 'react';
 import type { PermissionGroup, UserAccess } from '@/lib/permissions-queries';
 import { createUser, setUserAccess, type ActionState } from '@/lib/permissions-actions';
+import { isPlaceholderEmail } from '@/lib/oauth-placeholder';
 import { useRefreshOnSuccess } from '../../_components/useRefreshOnSuccess';
+
+// What to show for this account: its email, unless that's the placeholder synthesized for
+// a Discord sign-in with no email of its own (lib/oauth-placeholder.ts) - then its Discord
+// username if we have one, or a plain fallback label.
+function userLabel(user: UserAccess): string {
+  if (!isPlaceholderEmail(user.email)) return user.email;
+  return user.discord_username ? `${user.discord_username} (Discord, no email)` : 'Discord sign-in (no email)';
+}
 
 function NewUserForm() {
   const [state, formAction, pending] = useActionState(createUser, { error: null });
@@ -52,7 +61,7 @@ function UserRow({ user, groups }: { user: UserAccess; groups: PermissionGroup[]
 
   return (
     <form action={formAction} className="flex flex-col gap-2 rounded border border-gray-300 p-3">
-      <div className="font-medium">{user.email}</div>
+      <div className="font-medium">{userLabel(user)}</div>
 
       <label className="flex items-center gap-1 text-sm">
         <input type="checkbox" name="is_admin" defaultChecked={user.is_admin} />
@@ -91,7 +100,9 @@ function UserRow({ user, groups }: { user: UserAccess; groups: PermissionGroup[]
 export function UsersSection({ users, groups }: { users: UserAccess[]; groups: PermissionGroup[] }) {
   const [search, setSearch] = useState('');
   const query = search.trim().toLowerCase();
-  const filtered = query ? users.filter((u) => u.email.toLowerCase().includes(query)) : users;
+  const filtered = query
+    ? users.filter((u) => userLabel(u).toLowerCase().includes(query) || u.email.toLowerCase().includes(query))
+    : users;
 
   return (
     <section className="flex flex-col gap-4">
@@ -101,7 +112,7 @@ export function UsersSection({ users, groups }: { users: UserAccess[]; groups: P
         type="search"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search users by email…"
+        placeholder="Search users by email or Discord username…"
         className="rounded border border-gray-300 px-3 py-2 text-sm"
       />
       {filtered.length === 0 ? (

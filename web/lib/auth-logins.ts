@@ -2,6 +2,7 @@ import 'server-only';
 import crypto from 'node:crypto';
 import { cookies } from 'next/headers';
 import { pool } from './db';
+import { placeholderEmail } from './oauth-placeholder';
 
 // Which account a Google or Discord sign-in opens, and connecting several sign-ins to one
 // account (see user_logins in backend/schema.sql). A sign-in is recognised by the
@@ -12,24 +13,23 @@ export const OAUTH_PROVIDERS = ['google', 'discord'] as const;
 export type OAuthProvider = (typeof OAUTH_PROVIDERS)[number];
 export const isOAuthProvider = (p: string): p is OAuthProvider => (OAUTH_PROVIDERS as readonly string[]).includes(p);
 
-type SignInFacts = { provider: OAuthProvider; providerAccountId: string; email: string | null };
+// `name` is the provider's display name (Discord's username) - available even when the
+// provider gives no email, so it's the one human-readable thing we can show for an
+// account stuck with a placeholder email (see recordLogin, isPlaceholderEmail).
+type SignInFacts = { provider: OAuthProvider; providerAccountId: string; email: string | null; name: string | null };
 
-async function recordLogin(userId: string, { provider, providerAccountId, email }: SignInFacts) {
+async function recordLogin(userId: string, { provider, providerAccountId, email, name }: SignInFacts) {
   await pool.query(
     `INSERT INTO user_logins (provider, provider_account_id, user_id, email) VALUES ($1, $2, $3, $4)
      ON CONFLICT (provider, provider_account_id) DO UPDATE SET email = EXCLUDED.email`,
     [provider, providerAccountId, userId, email]
   );
-  // A Discord sign-in also tells the bot who to tag and DM.
+  // A Discord sign-in also tells the bot who to tag and DM, and refreshes the display name
+  // shown for this account (handy in the Permissions list, especially without an email).
   if (provider === 'discord') {
-    await pool.query('UPDATE users SET discord_id = $1 WHERE id = $2', [providerAccountId, userId]);
+    await pool.query('UPDATE users SET discord_id = $1, discord_username = $2 WHERE id = $3', [providerAccountId, name, userId]);
   }
 }
-
-// A Discord account with no email on file (e.g. phone-only signup) still needs a unique,
-// non-null `users.email` to insert against - a clearly-fake address an admin can recognize
-// in the Permissions list, not a real address anyone could receive mail at.
-const placeholderEmail = (provider: OAuthProvider, providerAccountId: string) => `${provider}:${providerAccountId}@no-email.invalid`;
 
 // The account a Google/Discord sign-in opens: the one it's connected to; otherwise the one
 // with the same email (and the sign-in is connected to it); otherwise a new account (with a

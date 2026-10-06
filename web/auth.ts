@@ -18,7 +18,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!account || !isOAuthProvider(account.provider)) return true;
       const connectTo = await takeConnectIntent(account.provider);
       if (!connectTo) return true;
-      const facts = { provider: account.provider, providerAccountId: account.providerAccountId, email: user.email ?? null };
+      const facts = {
+        provider: account.provider,
+        providerAccountId: account.providerAccountId,
+        email: user.email ?? null,
+        name: user.name ?? null,
+      };
       return (await connectLogin(connectTo, facts)) === 'ok' ? true : '/profile?connect=taken';
     },
     async jwt({ token, user, account }) {
@@ -29,6 +34,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           provider: account.provider,
           providerAccountId: account.providerAccountId,
           email: user.email ?? null,
+          name: user.name ?? null,
         });
       } else if (user) {
         token.sub = user.id;

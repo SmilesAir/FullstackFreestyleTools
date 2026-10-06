@@ -10,6 +10,7 @@ export type PermissionGroup = {
 export type UserAccess = {
   id: string;
   email: string;
+  discord_username: string | null;
   is_admin: boolean;
   created_at: string;
   group_ids: string[];
@@ -29,11 +30,11 @@ export async function listGroups(): Promise<PermissionGroup[]> {
 
 export async function listUsers(): Promise<UserAccess[]> {
   const result = await pool.query<UserAccess>(
-    `SELECT u.id, u.email, u.is_admin, u.created_at,
+    `SELECT u.id, u.email, u.discord_username, u.is_admin, u.created_at,
        COALESCE(array_agg(upg.group_id) FILTER (WHERE upg.group_id IS NOT NULL), '{}') AS group_ids
      FROM users u
      LEFT JOIN user_permission_groups upg ON upg.user_id = u.id
-     GROUP BY u.id, u.email, u.is_admin, u.created_at
+     GROUP BY u.id, u.email, u.discord_username, u.is_admin, u.created_at
      ORDER BY u.email`
   );
   return result.rows;
