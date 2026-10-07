@@ -67,6 +67,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
     Google,
-    Discord,
+    // Discord now sends an RFC 9207 `iss` parameter on the OAuth redirect, and Auth.js
+    // validates it against the provider's `issuer` - which next-auth's built-in Discord
+    // provider leaves unset, so every callback failed ("unexpected iss", expected the
+    // library's own placeholder domain). https://github.com/nextauthjs/next-auth/issues/12208
+    Discord({ issuer: 'https://discord.com' }),
   ],
 });
