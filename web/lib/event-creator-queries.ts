@@ -14,11 +14,18 @@ export type EventListItem = {
   is_playing: boolean;
   // Opted into the Dynamo bridge (web/lib/bridge/) - off by default; see the Bridge column.
   bridge_enabled: boolean;
+  // Test/practice event and/or hidden from the Rankings Generator (Event Editor).
+  is_test: boolean;
+  is_hidden: boolean;
 };
 
-export async function listEvents(): Promise<EventListItem[]> {
+// `limit` defaults to 100 (the original cap, sized for a dropdown) - the Event
+// Editor's calendar passes a much higher limit since its whole point is to show
+// every event, not just the most recent ones.
+export async function listEvents(limit = 100): Promise<EventListItem[]> {
   const result = await pool.query<EventListItem>(
     `SELECT e.id, e.event_name, e.start_date::text, e.end_date::text, e.is_playing, e.bridge_enabled,
+            e.is_test, e.is_hidden,
             (SELECT count(*) FROM divisions d WHERE d.event_id = e.id) AS division_count,
             (SELECT count(DISTINCT COALESCE(p.alias_id, p.id))
              FROM divisions d
@@ -28,7 +35,8 @@ export async function listEvents(): Promise<EventListItem[]> {
              WHERE d.event_id = e.id) AS player_count
      FROM events e
      ORDER BY e.start_date DESC
-     LIMIT 100`
+     LIMIT $1`,
+    [limit]
   );
   return result.rows;
 }

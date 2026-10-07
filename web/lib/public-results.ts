@@ -114,7 +114,7 @@ export async function getPublicPoolResults(
   const allTeams = await getTeams(divisionId, divisionName);
   const inPool = sortPoolTeams(allTeams.filter((t) => t.round_number === roundNumber && t.pool_id === pid));
   if (inPool.length === 0) return null;
-  const teams: HeadJudgeTeam[] = inPool.map((t) => ({ id: t.id, players: t.players.map((p) => p.name) }));
+  const teams: HeadJudgeTeam[] = inPool.map((t) => ({ id: t.id, players: t.players.map((p) => p.name), place: t.place }));
 
   const usesJudges = (JUDGE_CATEGORIES[rulesId as RulesId] ?? []).length > 0;
   const published = await isPoolResultsPublished(divisionId, roundNumber, pid);

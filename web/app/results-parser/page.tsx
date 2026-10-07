@@ -5,7 +5,9 @@ import { ResultsParserClient } from './_components/ResultsParserClient';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ResultsParserPage() {
+export default async function ResultsParserPage({ searchParams }: { searchParams: Promise<{ event?: string }> }) {
+  const { event: eventParam } = await searchParams;
+
   // Saved results have to land in Neon, where the Rankings Generator and the public pages read them.
   if (getMode() === 'local') {
     return (
@@ -30,7 +32,7 @@ export default async function ResultsParserPage() {
           rounds, places and players, then save. Saved results count in the Rankings Generator.
         </p>
       </div>
-      <ResultsParserClient events={events} hasKey={!!apiKey} />
+      <ResultsParserClient events={events} hasKey={!!apiKey} initialEventId={eventParam ?? ''} />
     </main>
   );
 }

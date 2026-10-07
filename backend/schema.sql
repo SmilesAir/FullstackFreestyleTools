@@ -79,6 +79,17 @@ CREATE TABLE IF NOT EXISTS divisions (
 );
 CREATE INDEX IF NOT EXISTS idx_divisions_event_id ON divisions(event_id);
 
+-- Marks an event as a test/practice event: excluded from the Rankings
+-- Generator's event list and shown muted in the Event Editor's calendar.
+-- Independent from is_hidden below (an event can be both, either, or neither).
+ALTER TABLE events ADD COLUMN IF NOT EXISTS is_test boolean NOT NULL DEFAULT false;
+
+-- Hides an event from the Rankings Generator; still fully visible/editable in
+-- every tool that manages events directly. Toggled in the Event Editor.
+-- Distinct from divisions.is_hidden above (division-level draft/published) -
+-- queries touching both must qualify (e.is_hidden / d.is_hidden).
+ALTER TABLE events ADD COLUMN IF NOT EXISTS is_hidden boolean NOT NULL DEFAULT false;
+
 CREATE TABLE IF NOT EXISTS teams (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   division_id  uuid NOT NULL REFERENCES divisions(id) ON DELETE CASCADE,

@@ -1,7 +1,10 @@
 // Shared (client + server) shapes for the Head Judge tool.
 import { ROUNDS } from './event-creator';
 
-export type HeadJudgeTeam = { id: string; players: string[] };
+// `place` is the recorded final result for this team (NULL until the pool has
+// played) - threaded through by getHeadJudgePools for the Event Editor's detail
+// panel; Head Judge's own UI uses live derived standings instead and ignores it.
+export type HeadJudgeTeam = { id: string; players: string[]; place: number | null };
 export type HeadJudgeJudge = { playerId: string; name: string; categoryType: string };
 
 // One pool of one round of one division, with its teams (in play order) and judges.

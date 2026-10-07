@@ -37,7 +37,17 @@ function writeDraft(key: string, rounds: EditorRound[] | null) {
 
 const same = (a: EditorRound[], b: EditorRound[]) => JSON.stringify(toSaveRounds(a)) === JSON.stringify(toSaveRounds(b));
 
-export function ResultsParserClient({ events: initialEvents, hasKey }: { events: EventOption[]; hasKey: boolean }) {
+export function ResultsParserClient({
+  events: initialEvents,
+  hasKey,
+  initialEventId = '',
+}: {
+  events: EventOption[];
+  hasKey: boolean;
+  // Deep-linked from the Event Editor (?event=) - preselects the event; division
+  // still needs picking by hand, same one-division-at-a-time design as always.
+  initialEventId?: string;
+}) {
   const [events, setEvents] = useState(initialEvents);
   const [eventId, setEventId] = useState('');
   const [divisionName, setDivisionName] = useState('');
@@ -123,6 +133,16 @@ export function ResultsParserClient({ events: initialEvents, hasKey }: { events:
     setReady(true);
     return true;
   }
+
+  // Deep-linked from the Event Editor: preselect the event once, on mount.
+  // Deferred a tick since `open`'s setState calls must not run synchronously
+  // within the effect body.
+  useEffect(() => {
+    if (!initialEventId) return;
+    const id = setTimeout(() => void open(initialEventId, ''), 0);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function loadParsed(division: ParsedDivision) {
     if (!eventId) return;

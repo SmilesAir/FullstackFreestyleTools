@@ -16,6 +16,12 @@ const TOOL_INFO: Record<PermissionKey, ToolInfo> = {
       'Create events, set up divisions/rounds/pools, paste in teams (parsed by Claude), and seed rounds from rankings.',
     href: '/events',
   },
+  event_editor: {
+    label: 'Event Editor',
+    description:
+      "Browse every event on a scrolling monthly calendar, see each one's divisions/rounds/pools/teams, mark events test or hidden, and jump into Results Parser, Event Creator, or Head Judge for one.",
+    href: '/event-editor',
+  },
   head_judge: {
     label: 'Head Judge',
     description: 'Run an event day: see every pool with its teams and judges, choose the playing pool, and follow results.',

@@ -35,7 +35,9 @@ export async function loadEvents(): Promise<EventInput[]> {
     pool.query<{ id: string; event_name: string; start_date: string; start_ms: string }>(
       `SELECT id, event_name, to_char(start_date, 'YYYY-MM-DD') AS start_date,
               (extract(epoch FROM start_date) * 1000)::float8 AS start_ms
-       FROM events ORDER BY start_date, created_at, id`
+       FROM events
+       WHERE COALESCE(is_test, false) = false AND COALESCE(is_hidden, false) = false
+       ORDER BY start_date, created_at, id`
     ),
     pool.query<TeamRow>(
       `SELECT d.event_id, d.id AS division_id, d.division_name,

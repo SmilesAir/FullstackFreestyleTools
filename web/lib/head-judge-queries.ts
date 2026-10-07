@@ -169,7 +169,7 @@ export async function getHeadJudgePools(eventId: string): Promise<HeadJudgeDivis
             roundNumber: number,
             roundName: roundName(number),
             letter,
-            teams: sortPoolTeams(inPool).map((t) => ({ id: t.id, players: t.players.map((p) => p.name) })),
+            teams: sortPoolTeams(inPool).map((t) => ({ id: t.id, players: t.players.map((p) => p.name), place: t.place })),
             routineSeconds: division.routine_seconds,
             locked: locked.has(`${number}:${letter}`),
             resultsPublished: published.has(`${number}:${letter}`),
