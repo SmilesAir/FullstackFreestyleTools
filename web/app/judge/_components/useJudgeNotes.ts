@@ -18,6 +18,13 @@ type Op =
   | { type: 'edit'; id: string; noteType: string; position: number }
   | { type: 'delete'; id: string };
 
+// A note tapped before this judge's poll has confirmed the real routine id -
+// closing the gap between the head judge starting a routine and this judge's
+// screen learning about it (JUDGE_POLL_MS.remote is 5s). Kept locally, shown
+// at once, and attached to the real routine (with its original tap time) once
+// the next poll resolves it - see the effect near the bottom of the hook.
+type PreStartNote = { id: string; noteType: string; clickedAt: number; position?: number };
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // crypto.randomUUID only exists on secure pages; getRandomValues works on any.
@@ -81,6 +88,12 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
   // Saved, but not yet in a read of the server's state: still shown, so a note
   // doesn't vanish between being saved and the next read.
   const [settled, setSettled] = useState<Op[]>([]);
+  // Notes tapped before the real routine id is known (see PreStartNote above).
+  const [preStart, setPreStart] = useState<PreStartNote[]>([]);
+  const preStartRef = useRef<PreStartNote[]>([]);
+  // The routine id a buffer was already flushed for, so a routine that stays
+  // current across several polls doesn't get flushed into more than once.
+  const flushedFor = useRef<string | null>(null);
   const [clockOffset, setClockOffset] = useState(() => initial.serverNow - Date.now());
   const [status, setStatus] = useState<SaveStatus>('saved');
   const [connection, setConnection] = useState<'ok' | 'lost'>('ok');
@@ -211,10 +224,45 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
 
   const notes = useMemo(() => withPending(server, [...settled, ...ops]), [server, settled, ops]);
   const state = useMemo(() => ({ ...server, notes }), [server, notes]);
+  const preStartNotes = useMemo<JudgeNote[]>(
+    () =>
+      preStart.map((p) => ({
+        id: p.id,
+        noteType: p.noteType,
+        notedAt: p.clickedAt,
+        ...(p.position === undefined ? {} : difficultyPart(server, p.noteType, p.position)),
+      })),
+    [preStart, server]
+  );
 
   // Notes are locked once the judge has submitted their score for the routine.
   const submittedHere = server.submitted !== null && server.notesRoutine?.id === server.routineId;
-  const canNote = server.judging && server.routineId !== null && !submittedHere;
+  // True once this judge may note: a routine is confirmed running, or (to
+  // close the gap before this judge's own poll learns of it) a team is up and
+  // about to start - those taps are buffered in preStart until the real
+  // routine id resolves (see the effect below), not sent early.
+  const canNote = server.judging && !submittedHere && (server.routineId !== null || server.teamName !== null);
+
+  // Reconciles the pre-start buffer against the server's play state: once a
+  // routine id appears, attach every buffered tap to it (with its original
+  // tap time - the server clamps anything before the real start, same as any
+  // other late-arriving note); if the team comes off instead (the head judge
+  // backed out before starting), there is nothing to attach them to.
+  useEffect(() => {
+    if (server.routineId !== null) {
+      if (preStartRef.current.length === 0 || flushedFor.current === server.routineId) return;
+      flushedFor.current = server.routineId;
+      const toFlush = preStartRef.current;
+      preStartRef.current = [];
+      setPreStart([]);
+      for (const p of toFlush) {
+        enqueue({ type: 'add', id: p.id, noteType: p.noteType, clickedAt: p.clickedAt, routineId: server.routineId, position: p.position });
+      }
+    } else if (server.teamName === null && preStartRef.current.length > 0) {
+      preStartRef.current = [];
+      setPreStart([]);
+    }
+  }, [server.routineId, server.teamName, enqueue]);
 
   // Submits the judge's score for the running routine (or, given `routineId`, an
   // earlier one whose score is being changed): the server works out the baseline
@@ -280,22 +328,26 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
     error,
     dismissError: () => setError(null),
     canNote,
+    preStartNotes,
     submit,
     submitBackup,
     submitting,
     // Saves a note as of this moment on the server's clock. A Difficulty note is
     // the rating (`noteType`) of a move placed at `position` on the numberline,
     // and is as of the tap that placed it (`tappedAt`, on this device's clock).
+    // While the real routine id isn't known yet (canNote is true because a team
+    // is up, about to start), the note is buffered in preStart instead of sent -
+    // the effect above attaches it once the id resolves.
     note: (noteType: string, position?: number, tappedAt: number = Date.now()) => {
-      if (!canNote || server.routineId === null) return;
-      enqueue({
-        type: 'add',
-        id: newId(),
-        noteType,
-        clickedAt: Math.round(tappedAt + offset.current),
-        routineId: server.routineId,
-        position,
-      });
+      if (!canNote) return;
+      const clickedAt = Math.round(tappedAt + offset.current);
+      if (server.routineId !== null) {
+        enqueue({ type: 'add', id: newId(), noteType, clickedAt, routineId: server.routineId, position });
+        return;
+      }
+      const next = [...preStartRef.current, { id: newId(), noteType, clickedAt, position }];
+      preStartRef.current = next;
+      setPreStart(next);
     },
     // Saves a note as of `atSeconds` into the running routine (editing a
     // routine after the fact). The server keeps it between the start and now.
@@ -311,15 +363,45 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
       });
     },
     // Changes a Difficulty note's rating and where it sits on the numberline.
+    // A still-buffered pre-start note is changed in place (the server has
+    // never seen it); anything else goes through the usual queue.
     editNote: (noteId: string, rating: string, position: number) => {
-      if (canNote) enqueue({ type: 'edit', id: noteId, noteType: rating, position });
+      if (!canNote) return;
+      const idx = preStartRef.current.findIndex((p) => p.id === noteId);
+      if (idx !== -1) {
+        const next = [...preStartRef.current];
+        next[idx] = { ...next[idx], noteType: rating, position };
+        preStartRef.current = next;
+        setPreStart(next);
+        return;
+      }
+      enqueue({ type: 'edit', id: noteId, noteType: rating, position });
     },
-    // Removes one particular note (picked on the score graph).
+    // Removes one particular note (picked on the score graph). A still-buffered
+    // pre-start note is just dropped locally, not sent as a delete (the server
+    // has never seen it, and it will never be flushed once it's gone).
     removeNote: (noteId: string) => {
-      if (canNote) enqueue({ type: 'delete', id: noteId });
+      if (!canNote) return;
+      if (preStartRef.current.some((p) => p.id === noteId)) {
+        const next = preStartRef.current.filter((p) => p.id !== noteId);
+        preStartRef.current = next;
+        setPreStart(next);
+        return;
+      }
+      enqueue({ type: 'delete', id: noteId });
     },
-    // Removes the newest note of one type (the decrement button).
+    // Removes the newest note of one type (the decrement button) - a buffered
+    // pre-start note first (it's the one actually shown while a routine isn't
+    // confirmed running yet; see NotesPlay's `running ? state.notes :
+    // preStartNotes`), otherwise the newest sent one.
     removeLast: (noteType: string) => {
+      const pending = [...preStartRef.current].reverse().find((p) => p.noteType === noteType);
+      if (pending) {
+        const next = preStartRef.current.filter((p) => p.id !== pending.id);
+        preStartRef.current = next;
+        setPreStart(next);
+        return;
+      }
       const target = [...notes].reverse().find((n) => n.noteType === noteType);
       if (target) enqueue({ type: 'delete', id: target.id });
     },

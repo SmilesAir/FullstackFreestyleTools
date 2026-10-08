@@ -3,6 +3,10 @@
 
 export type View = { start: number; end: number };
 
+// Seconds as "m:ss", for graph time labels - shared so every graph formats
+// time the same way.
+export const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+
 // The closest a graph zooms in (or the whole routine, if that is shorter).
 export const MIN_SPAN = 5;
 

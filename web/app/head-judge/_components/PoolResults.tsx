@@ -1,20 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { teamName, type HeadJudgePool } from '@/lib/head-judge';
 import type { PoolResultsData, TeamResult } from '@/lib/head-judge-results';
 import {
   CATEGORY_NOTES,
+  combineTeamCurve,
   JUDGING_CATEGORIES,
   NOTE_CATEGORIES,
   noteFullLabel,
   noteGroups,
   type NoteCategory,
 } from '@/lib/judging';
-import { NOTE_TINT } from '@/app/judge/_components/noteStyles';
+import { NOTE_TINT, teamColorVar } from '@/app/judge/_components/noteStyles';
 import { OthersLegend } from '@/app/judge/_components/OthersLegend';
-import { ScoreGraph } from '@/app/judge/_components/ScoreGraph';
+import { graphExtent, ScoreGraph } from '@/app/judge/_components/ScoreGraph';
 import { byPlace, poolStandings } from '@/lib/pool-standings';
+import { PoolOverviewGraph, type OverviewTeam } from './PoolOverviewGraph';
 import { PublicLinkControl } from './PublicLinkControl';
 import { SimpleRankingResults } from './SimpleRankingResults';
 import { SortToggle, type ResultsSortOrder } from './SortToggle';
@@ -28,6 +30,42 @@ const NO_SCORES: never[] = [];
 export const curveDuration = (curves: TeamResult['curves']) => Math.max(30, ...curves.map((c) => (c.ys.length - 1) * c.step));
 
 export const categoryLabel = (category: NoteCategory) => JUDGING_CATEGORIES.find((c) => c.type === category)!.label;
+
+// The Y axis every team's graph in a pool should share, so they can be
+// compared to each other at a glance (a team that hasn't played yet, or has
+// no curves, doesn't affect it). Exported: the public results page shares it.
+export function poolGraphExtent(teams: readonly { id: string }[], data: PoolResultsData): { max: number; min: number } {
+  let max = 0;
+  let min = 0;
+  for (const team of teams) {
+    const result = data[team.id];
+    if (!result || result.curves.length === 0) continue;
+    const e = graphExtent(NO_SCORES, curveDuration(result.curves), result.curves);
+    max = Math.max(max, e.max);
+    min = Math.min(min, e.min);
+  }
+  return { max, min };
+}
+
+// Every team's judges averaged into one line each, for the combined graph
+// below the Summary table - colour slot by play order (stable across the
+// Summary table's sort toggle, unlike its on-screen position), place from the
+// same poolStandings() the table itself sorts by, so "by place" always means
+// the same thing in both places. A team with no curve yet (hasn't played) is
+// left out - same as the existing per-team overview graphs.
+export function poolOverviewTeams(
+  teams: HeadJudgePool['teams'],
+  data: PoolResultsData,
+  judgesByCategory: { judges: HeadJudgePool['judges'] }[]
+): OverviewTeam[] {
+  const rows = poolStandings(teams, data, judgesByCategory);
+  const overview: OverviewTeam[] = [];
+  rows.forEach((row, colorIndex) => {
+    const curve = combineTeamCurve(data[row.team.id]?.curves ?? []);
+    if (curve) overview.push({ id: row.team.id, name: teamName(row.team), place: row.place, curve, colorIndex });
+  });
+  return overview;
+}
 
 // The results of a pool: a summary table of every team's scores and place, then
 // for each team a graph of the categories' averaged lines and a table per judge
@@ -49,6 +87,8 @@ export function PoolResults({
 }) {
   const [data, setData] = useState<PoolResultsData | null>(null);
   const [failed, setFailed] = useState(false);
+  // Hovering a Summary row highlights that team's line in the combined graph below it.
+  const [highlightedTeamId, setHighlightedTeamId] = useState<string | null>(null);
 
   useEffect(() => {
     // Simple Ranking has no note-taking judges; SimpleRankingResults polls its own endpoint below.
@@ -83,21 +123,45 @@ export function PoolResults({
     };
   }, [active, eventId, pool.divisionId, pool.roundNumber, pool.letter, pool.usesJudges, refreshKey]);
 
-  if (!pool.usesJudges) return <SimpleRankingResults pool={pool} active={active} />;
-
-  // The pool's judges in each category that takes notes, by name.
-  const judgesByCategory = NOTE_CATEGORIES.map((category) => ({
-    category,
-    judges: pool.judges.filter((j) => j.categoryType === category).sort((a, b) => a.name.localeCompare(b.name)),
-  })).filter((c) => c.judges.length > 0);
+  // The pool's judges in each category that takes notes, by name (computed,
+  // and the two memos below with it, above the early return - hooks can't be
+  // conditional; this doesn't depend on `pool.usesJudges` anyway). Memoized so
+  // overviewTeams below gets a stable dependency, not a fresh array every render.
+  const judgesByCategory = useMemo(
+    () =>
+      NOTE_CATEGORIES.map((category) => ({
+        category,
+        judges: pool.judges.filter((j) => j.categoryType === category).sort((a, b) => a.name.localeCompare(b.name)),
+      })).filter((c) => c.judges.length > 0),
+    [pool.judges]
+  );
   const noteJudges = judgesByCategory.flatMap((c) => c.judges);
+
+  // Every team's graph in this pool shares this Y axis so they can be compared.
+  const extent = useMemo(() => (data ? poolGraphExtent(pool.teams, data) : undefined), [data, pool.teams]);
+  // Every team's judges averaged into one line each, for the combined graph.
+  const overviewTeams = useMemo(
+    () => (data && judgesByCategory.length > 0 ? poolOverviewTeams(pool.teams, data, judgesByCategory) : []),
+    [data, pool.teams, judgesByCategory]
+  );
+
+  if (!pool.usesJudges) return <SimpleRankingResults pool={pool} active={active} />;
 
   return (
     <div className="flex flex-col gap-4">
       <PublicLinkControl pool={pool} />
       {failed && <p className="text-xs text-amber-700">Could not load the latest results. Trying again.</p>}
       {data !== null && judgesByCategory.length > 0 && (
-        <PoolSummary pool={pool} data={data} judgesByCategory={judgesByCategory} />
+        <>
+          <PoolSummary
+            pool={pool}
+            data={data}
+            judgesByCategory={judgesByCategory}
+            highlightedTeamId={highlightedTeamId}
+            onHighlight={setHighlightedTeamId}
+          />
+          <PoolOverviewGraph teams={overviewTeams} routineSeconds={pool.routineSeconds} highlightedTeamId={highlightedTeamId} />
+        </>
       )}
       <ol className="flex flex-col gap-4">
         {pool.teams.map((team, i) => {
@@ -130,6 +194,7 @@ export function PoolResults({
                     duration={curveDuration(result.curves)}
                     routineSeconds={pool.routineSeconds}
                     heightFactor={0.375}
+                    yExtent={extent}
                   />
                   <OthersLegend others={result.curves} showYou={false} bold />
                 </div>
@@ -166,10 +231,17 @@ export function PoolSummary({
   pool,
   data,
   judgesByCategory,
+  highlightedTeamId = null,
+  onHighlight,
 }: {
   pool: Pick<HeadJudgePool, 'teams'>;
   data: PoolResultsData;
   judgesByCategory: { category: NoteCategory; judges: HeadJudgePool['judges'] }[];
+  // Hovering a row calls onHighlight(team.id)/onHighlight(null), to highlight
+  // that team's line in the combined graph below. Both optional: the table
+  // works standalone (e.g. before that graph existed) without them.
+  highlightedTeamId?: string | null;
+  onHighlight?: (teamId: string | null) => void;
 }) {
   const [sort, setSort] = useState<ResultsSortOrder>('play');
 
@@ -222,28 +294,44 @@ export function PoolSummary({
             </tr>
           </thead>
           <tbody>
-            {displayRows.map(({ team, playIndex, categories, total, place }) => (
-              <tr key={team.id}>
-                <td className="border border-gray-300 px-3 py-1.5 text-left">
-                  <span className="mr-2 text-gray-400">{playIndex + 1}.</span>
-                  {teamName(team)}
-                </td>
-                {categories.flatMap((c, k) =>
-                  c.scores.map((score, j) => (
-                    <td key={`${k}-${j}`} className={cell}>
-                      {score === null ? dash : score}
-                    </td>
-                  ))
-                )}
-                {categories.map((c, k) => (
-                  <td key={`total-${k}`} className={`${cell} font-semibold`}>
-                    {c.total === null ? dash : c.total}
+            {displayRows.map(({ team, playIndex, categories, total, place }) => {
+              // By play order this always starts at 1; by place it's the
+              // team's actual place (so the list reads 1, 2, 3... by rank
+              // too), a dash for a team with no total yet.
+              const rank = sort === 'place' ? place : playIndex + 1;
+              return (
+                <tr
+                  key={team.id}
+                  onMouseEnter={() => onHighlight?.(team.id)}
+                  onMouseLeave={() => onHighlight?.(null)}
+                  className={team.id === highlightedTeamId ? 'bg-yellow-100' : undefined}
+                >
+                  <td className="border border-gray-300 px-3 py-1.5 text-left">
+                    <span
+                      aria-hidden
+                      className="mr-2 inline-block h-2.5 w-2.5 rounded-full align-middle"
+                      style={{ background: teamColorVar(playIndex) }}
+                    />
+                    <span className="mr-2 text-gray-400">{rank === null ? dash : `${rank}.`}</span>
+                    {teamName(team)}
                   </td>
-                ))}
-                <td className={`${cell} font-semibold`}>{total === null ? dash : total}</td>
-                <td className={`${cell} font-semibold`}>{place ?? dash}</td>
-              </tr>
-            ))}
+                  {categories.flatMap((c, k) =>
+                    c.scores.map((score, j) => (
+                      <td key={`${k}-${j}`} className={cell}>
+                        {score === null ? dash : score}
+                      </td>
+                    ))
+                  )}
+                  {categories.map((c, k) => (
+                    <td key={`total-${k}`} className={`${cell} font-semibold`}>
+                      {c.total === null ? dash : c.total}
+                    </td>
+                  ))}
+                  <td className={`${cell} font-semibold`}>{total === null ? dash : total}</td>
+                  <td className={`${cell} font-semibold`}>{place ?? dash}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -179,6 +179,26 @@ export type JudgeState = {
 // timer starting. Only the average is ever sent, never one judge's notes.
 export type OtherCurve = { category: string; judges: number; step: number; ys: number[] };
 
+// A team's judges, averaged across every category present (weighted by each
+// category's judge count) into one curve, for the pool's combined results
+// graph. A team missing a whole category (no judges of that type) just isn't
+// counted - categories are never zero-filled. Every category curve for one
+// team shares the same step/length within a single render (they're all built
+// against the same duration - see judging-queries.ts's averagedCurves), but
+// head-judge-results.ts's combineTeamRoutines can merge curves from different
+// routine-runs of a re-judged team, so this clamps to the shortest rather than
+// assuming equal length.
+export function combineTeamCurve(curves: readonly OtherCurve[]): OtherCurve | null {
+  if (curves.length === 0) return null;
+  const len = Math.min(...curves.map((c) => c.ys.length));
+  const totalJudges = curves.reduce((sum, c) => sum + c.judges, 0);
+  const ys = Array.from(
+    { length: len },
+    (_, i) => Math.round((curves.reduce((sum, c) => sum + c.ys[i] * c.judges, 0) / totalJudges) * 100) / 100
+  );
+  return { category: 'all', judges: totalJudges, step: curves[0].step, ys };
+}
+
 // One routine a judge took notes on or scored, for the Review tab's list. The
 // weights are the ones the score was submitted with, or the event's current
 // ones if it wasn't submitted.

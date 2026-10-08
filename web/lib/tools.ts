@@ -10,6 +10,11 @@ const TOOL_INFO: Record<PermissionKey, ToolInfo> = {
       'Search, create, and edit player records; hide/unhide instead of deleting; link duplicate entries via an alias picker.',
     href: '/players',
   },
+  data_bridge: {
+    label: 'Data Bridge',
+    description: 'Keep events in sync with the live app’s DynamoDB table: per-event toggle, manual run/dry run, and conflict resolution.',
+    href: '/data-bridge',
+  },
   event_creator: {
     label: 'Event Creator',
     description:
@@ -60,11 +65,6 @@ export const ADMIN_ONLY_TOOLS: ToolInfo[] = [
     label: 'Backups',
     description: 'Create, download, upload, and restore full database backups.',
     href: '/backups',
-  },
-  {
-    label: 'Data Bridge',
-    description: 'Keep events in sync with the live app’s DynamoDB table: per-event toggle, manual run/dry run, and conflict resolution.',
-    href: '/data-bridge',
   },
   {
     label: 'Public API',

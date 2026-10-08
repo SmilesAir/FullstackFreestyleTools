@@ -104,6 +104,42 @@ export function baselineEstimate(
   return Math.round(value * 10) / 10 || 0;
 }
 
+// A value with its sign spelled out ("+12.3" / "−4.5"), for graph labels.
+export const signed = (v: number) => `${v < 0 ? '−' : '+'}${Math.abs(v).toFixed(1)}`;
+
+export type CurveSegment = { fromIndex: number; toIndex: number; peakIndex: number; area: number };
+
+// Splits a sampled curve (e.g. a team's combined curve - OtherCurve.ys, a
+// fixed-step array, not raw notes) into contiguous runs above/below zero
+// ("mountains" and "valleys"), each with its trapezoidal-integrated area
+// (summed over the run's own samples - it doesn't chase the exact
+// zero-crossing moment between two samples, which is only ever off by at most
+// half a step's worth of area; fine for a contextual label, not a scored
+// value) and the index of its tallest/deepest point, for placing that label.
+// Runs under `minArea` are left out entirely - too small to be worth labelling.
+export function curveSegments(ys: readonly number[], step: number, minArea = 0.5): CurveSegment[] {
+  const segments: CurveSegment[] = [];
+  let i = 0;
+  while (i < ys.length) {
+    if (ys[i] === 0) {
+      i++;
+      continue;
+    }
+    const sign = Math.sign(ys[i]);
+    let j = i;
+    while (j < ys.length && ys[j] !== 0 && Math.sign(ys[j]) === sign) j++;
+    let area = j - i === 1 ? ys[i] * step : 0;
+    for (let k = i; k < j - 1; k++) area += ((ys[k] + ys[k + 1]) / 2) * step;
+    if (Math.abs(area) >= minArea) {
+      let peakIndex = i;
+      for (let k = i + 1; k < j; k++) if (Math.abs(ys[k]) > Math.abs(ys[peakIndex])) peakIndex = k;
+      segments.push({ fromIndex: i, toIndex: j - 1, peakIndex, area: Math.round(area * 10) / 10 });
+    }
+    i = j;
+  }
+  return segments;
+}
+
 // A round axis step (1, 2, 5, 10, ...) at or above `raw`.
 export function niceStep(raw: number): number {
   const p = Math.pow(10, Math.floor(Math.log10(raw)));

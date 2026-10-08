@@ -9,7 +9,7 @@ import { getRoutineCurves } from './judging-queries';
 import { getLockedPoolKeys } from './pool-locks';
 import { getPublishedPoolKeys } from './pool-publish';
 import { poolKey, roundName, type HeadJudgeDivision, type HeadJudgePool } from './head-judge';
-import type { PoolResultsData } from './head-judge-results';
+import { combineTeamRoutines, type PoolResultsData, type TeamResult } from './head-judge-results';
 import { NO_PLAY_STATE, type PlayResponse } from './head-judge-state';
 
 // A fingerprint of everything the Head Judge screen shows that the Event Creator
@@ -196,12 +196,14 @@ export async function getPoolResults(
   roundNumber: number,
   letter: string
 ): Promise<PoolResultsData> {
+  // Every run of each team's routine that wasn't cancelled, oldest first: judges may score
+  // a team one at a time, so the team's result is combined over all of them below.
   const routines = await pool.query<{ id: string; team_id: string }>(
-    `SELECT DISTINCT ON (r.team_id) r.id, r.team_id
+    `SELECT r.id, r.team_id
      FROM routines r
      WHERE r.event_id = $1 AND r.division_id = $2 AND r.round_number = $3 AND r.pool_id = $4
        AND r.status <> 'cancelled' AND r.team_id IS NOT NULL
-     ORDER BY r.team_id, r.started_at DESC`,
+     ORDER BY r.team_id, r.started_at`,
     [eventId, divisionId, roundNumber, poolId(letter)]
   );
   if (routines.rows.length === 0) return {};
@@ -234,11 +236,12 @@ export async function getPoolResults(
     getRoutineCurves(ids),
   ]);
 
-  const data: PoolResultsData = {};
-  const byRoutine = new Map<string, PoolResultsData[string]>();
+  // Each routine's own result first (team id -> its routines, oldest first).
+  const byTeam = new Map<string, TeamResult[]>();
+  const byRoutine = new Map<string, TeamResult>();
   for (const r of routines.rows) {
-    const entry = { routineId: r.id, judges: {}, curves: curves[r.id] ?? [] };
-    data[r.team_id] = entry;
+    const entry: TeamResult = { routineId: r.id, judges: {}, curves: curves[r.id] ?? [] };
+    byTeam.set(r.team_id, [...(byTeam.get(r.team_id) ?? []), entry]);
     byRoutine.set(r.id, entry);
   }
   const judge = (routineId: string, playerId: string) => {
@@ -259,6 +262,12 @@ export async function getPoolResults(
       baseline: Number(s.baseline_estimate),
       adjustPercent: Number(s.adjust_percent),
     };
+  }
+
+  const data: PoolResultsData = {};
+  for (const [teamId, teamRoutines] of byTeam) {
+    const combined = combineTeamRoutines(teamRoutines);
+    if (combined) data[teamId] = combined;
   }
   return data;
 }

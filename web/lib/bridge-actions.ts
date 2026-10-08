@@ -1,6 +1,6 @@
 'use server';
 
-import { requireAdmin } from './authz';
+import { requirePermission } from './authz';
 import { pool } from './db';
 import { reconcile, type ReconcileSummary } from './bridge/reconcile';
 import { applyPoolLayout, applyPoolResult, updateEventName } from './bridge/postgres-writer';
@@ -8,11 +8,12 @@ import { pushEventNameToDynamo, pushPoolLayoutToDynamo, pushPoolResultToDynamo }
 import { roundNameByNumber } from './bridge/postgres-reader';
 import type { CanonicalPoolLayout, CanonicalPoolResult } from './bridge/mapping';
 
-// The Data Bridge tool's admin surface: a manual "run now" (dry or for real) and the
+// The Data Bridge tool's surface: a manual "run now" (dry or for real) and the
 // open-conflicts list a person resolves by hand (see the plan - reconciliation never guesses
-// when both sides changed a thing differently since the last agreed state). Admin-only, same
-// as Backups/Settings - this can write to a live production data store.
-const guard = () => requireAdmin();
+// when both sides changed a thing differently since the last agreed state). Gated by the
+// data_bridge permission (assignable to a group), not admin-only - this does write to a live
+// production data store, so only hand that permission to people who should be able to.
+const guard = () => requirePermission('data_bridge');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

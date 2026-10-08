@@ -62,6 +62,7 @@ export function NotesJudge({
           state={state}
           clockOffset={judge.clockOffset}
           canNote={judge.canNote}
+          preStartNotes={judge.preStartNotes}
           saveStatus={judge.status}
           onNote={judge.note}
           onRemove={judge.removeLast}

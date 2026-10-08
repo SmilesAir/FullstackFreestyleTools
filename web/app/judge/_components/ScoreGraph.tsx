@@ -1,13 +1,14 @@
 'use client';
 
 import { useId, useMemo, useRef, useState, useEffect } from 'react';
-import { fullView, isZoomed, clampView, panBy, pinchTo, timeTicks, zoomAround, type View } from '@/lib/graph-view';
+import { fullView, isZoomed, clampView, mmss, panBy, pinchTo, timeTicks, zoomAround, type View } from '@/lib/graph-view';
 import {
   CURVE_SHAPE,
   CURVE_SPREAD,
   axisRange,
   curveValueAt,
   scoreCurve,
+  signed,
   type CurveScore,
   type CurveShape,
 } from '@/lib/score-curve';
@@ -20,8 +21,6 @@ const FULL_MARGIN = { l: 38, r: 12, t: 24, b: 30 };
 // Lists of graphs: just room for the title and small axis labels.
 const COMPACT_MARGIN = { l: 30, r: 6, t: 15, b: 14 };
 
-const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
-const signed = (v: number) => `${v < 0 ? '−' : '+'}${Math.abs(v).toFixed(1)}`;
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 // A dot's radius: bigger for a bigger score, scaled by the score's own factor.

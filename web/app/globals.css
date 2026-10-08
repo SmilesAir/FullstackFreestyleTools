@@ -3,6 +3,18 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* A pool's combined results graph: one of these per team, in order (never
+     cycled live - see noteStyles.ts's teamColorVar). The dataviz skill's own
+     validated categorical palette, used unchanged. */
+  --team-color-1: #2a78d6; /* blue */
+  --team-color-2: #eb6834; /* orange */
+  --team-color-3: #1baf7a; /* aqua */
+  --team-color-4: #eda100; /* yellow */
+  --team-color-5: #e87ba4; /* magenta */
+  --team-color-6: #008300; /* green */
+  --team-color-7: #4a3aa7; /* violet */
+  --team-color-8: #e34948; /* red */
 }
 
 @theme inline {
@@ -16,6 +28,15 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+
+    --team-color-1: #3987e5;
+    --team-color-2: #d95926;
+    --team-color-3: #199e70;
+    --team-color-4: #c98500;
+    --team-color-5: #d55181;
+    --team-color-6: #008300;
+    --team-color-7: #9085e9;
+    --team-color-8: #e66767;
   }
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CATEGORY_NOTES, noteGroups, type JudgeState, type NoteCategory } from '@/lib/judging';
+import { CATEGORY_NOTES, noteGroups, type JudgeNote, type JudgeState, type NoteCategory } from '@/lib/judging';
 import { elapsedMs, formatElapsed } from '@/lib/head-judge-state';
 import type { SaveStatus } from '@/app/judge/_components/useJudgeNotes';
 import { NOTE_STYLE, NOTE_TINT } from './noteStyles';
@@ -20,6 +20,7 @@ export function NotesPlay({
   state,
   clockOffset,
   canNote,
+  preStartNotes,
   saveStatus,
   onNote,
   onRemove,
@@ -36,6 +37,9 @@ export function NotesPlay({
   state: JudgeState;
   clockOffset: number;
   canNote: boolean;
+  // Tapped before the routine id was confirmed (the head-judge-start-to-this-
+  // judge's-poll gap); shown in place of state.notes until it is.
+  preStartNotes: JudgeNote[];
   saveStatus: SaveStatus;
   // A Difficulty note is a rating, the position it was placed at on the numberline and when that was tapped.
   onNote: (noteType: string, position?: number, tappedAt?: number) => void;
@@ -78,8 +82,10 @@ export function NotesPlay({
   const [adjust, setAdjust] = useState<{ for: number | null; percent: number }>({ for: null, percent: 0 });
   const adjustPercent = adjust.for === state.routineStartedAt ? adjust.percent : 0;
 
-  // Counts only mean something while a routine is running.
-  const notes = running ? state.notes : [];
+  // Once running, the server's (+ still-sending) notes; before that, anything
+  // tapped early while waiting for the real routine id (preStartNotes) - never
+  // a previous routine's now-stale notes, which server.notes would otherwise be.
+  const notes = running ? state.notes : preStartNotes;
   const counts = new Map<string, number>();
   for (const n of notes) counts.set(n.noteType, (counts.get(n.noteType) ?? 0) + 1);
 
@@ -99,7 +105,7 @@ export function NotesPlay({
     : !state.teamName
       ? 'Waiting for the head judge to choose the team.'
       : !running
-        ? 'Waiting for the head judge to start the routine.'
+        ? 'Starting any moment — go ahead, what you tap now still counts.'
         : null;
 
   return (

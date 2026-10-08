@@ -78,3 +78,13 @@ export const OTHER_LABEL: Record<string, string> = {
   AI: 'Artistic Impression',
   Diff: 'Difficulty',
 };
+
+// One of 8 fixed, pre-validated colours (globals.css) for a team's line on the
+// pool's combined results graph - never generated or cycled live. Indexed by
+// each team's stable play order, not by whatever order they're displayed in
+// (see PoolOverviewGraph.tsx), so a colour never reassigns when the Summary
+// table's sort toggle changes. Past 8 teams (rare) colours repeat - a known,
+// disclosed limit; the hover highlight and the Summary table's names remain
+// the real way to tell teams apart, not colour alone.
+export const TEAM_COLOR_COUNT = 8;
+export const teamColorVar = (index: number) => `var(--team-color-${(index % TEAM_COLOR_COUNT) + 1})`;

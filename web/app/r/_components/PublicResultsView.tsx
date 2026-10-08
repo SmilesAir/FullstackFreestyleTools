@@ -4,7 +4,16 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { OthersLegend } from '@/app/judge/_components/OthersLegend';
 import { ScoreGraph } from '@/app/judge/_components/ScoreGraph';
-import { categoryLabel, curveDuration, DifficultyTable, NotesTable, PoolSummary } from '@/app/head-judge/_components/PoolResults';
+import {
+  categoryLabel,
+  curveDuration,
+  DifficultyTable,
+  NotesTable,
+  poolGraphExtent,
+  poolOverviewTeams,
+  PoolSummary,
+} from '@/app/head-judge/_components/PoolResults';
+import { PoolOverviewGraph } from '@/app/head-judge/_components/PoolOverviewGraph';
 import { SimpleRankingTable } from '@/app/head-judge/_components/SimpleRankingResults';
 import { navigateToPool } from '@/lib/public-results-actions';
 import type { EventPoolNav, PublicPoolResult } from '@/lib/public-results';
@@ -158,13 +167,30 @@ function UnpublishedView({ result }: { result: PublicPoolResult }) {
 }
 
 function FpaResultsView({ result }: { result: PublicPoolResult }) {
+  // Hovering a Summary row highlights that team's line in the combined graph below it.
+  const [highlightedTeamId, setHighlightedTeamId] = useState<string | null>(null);
+
   const data = result.data!;
   const judgesByCategory = result.judgesByCategory!;
   const noteJudges = judgesByCategory.flatMap((c) => c.judges);
+  // Every team's graph in this pool shares this Y axis so they can be compared.
+  const extent = poolGraphExtent(result.teams, data);
+  const overviewTeams = poolOverviewTeams(result.teams, data, judgesByCategory);
 
   return (
     <div className="flex flex-col gap-4">
-      {judgesByCategory.length > 0 && <PoolSummary pool={{ teams: result.teams }} data={data} judgesByCategory={judgesByCategory} />}
+      {judgesByCategory.length > 0 && (
+        <>
+          <PoolSummary
+            pool={{ teams: result.teams }}
+            data={data}
+            judgesByCategory={judgesByCategory}
+            highlightedTeamId={highlightedTeamId}
+            onHighlight={setHighlightedTeamId}
+          />
+          <PoolOverviewGraph teams={overviewTeams} routineSeconds={result.routineSeconds} highlightedTeamId={highlightedTeamId} />
+        </>
+      )}
       <ol className="flex flex-col gap-4">
         {result.teams.map((team, i) => {
           const teamResult = data[team.id];
@@ -189,6 +215,7 @@ function FpaResultsView({ result }: { result: PublicPoolResult }) {
                     duration={curveDuration(teamResult.curves)}
                     routineSeconds={result.routineSeconds}
                     heightFactor={0.375}
+                    yExtent={extent}
                   />
                   <OthersLegend others={teamResult.curves} showYou={false} bold />
                 </div>
