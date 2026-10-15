@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { ActivityEntryCard } from '@/app/activity/_components/ActivityEntryCard';
+import { MyTeamsTable } from '@/app/activity/_components/MyTeamsTable';
 import { getActiveEvents } from '@/lib/active-events-queries';
 import { getActiveEventActivity, getActivityDetails } from '@/lib/player-activity-queries';
 import { getProfileData } from '@/lib/profile-queries';
+import { getMyTeams } from '@/lib/team-timecalls';
 import { PoolGrid } from './PoolGrid';
 
 function formatDate(isoDate: string): string {
@@ -17,7 +19,9 @@ const dateRange = (start: string, end: string) => (start === end ? formatDate(st
 export async function SignedInHome({ userId }: { userId: string }) {
   const [events, profile] = await Promise.all([getActiveEvents(), getProfileData(userId)]);
   const player = profile?.player ?? null;
-  const entries = player ? await getActiveEventActivity(player.id) : [];
+  const [entries, myTeams] = player
+    ? await Promise.all([getActiveEventActivity(player.id), getMyTeams(player.id)])
+    : [[], []];
   const details = player ? await getActivityDetails(entries, player.id) : [];
 
   return (
@@ -25,12 +29,19 @@ export async function SignedInHome({ userId }: { userId: string }) {
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">Active events</h2>
         {events.length === 0 ? (
-          <p className="text-sm text-gray-500">No events running today.</p>
+          <p className="text-sm text-gray-500">No events are being played right now.</p>
         ) : (
           events.map((event) => (
             <div key={event.eventId} className="flex flex-col gap-3 rounded border border-gray-300 p-4">
               <div>
-                <h3 className="text-lg font-semibold">{event.eventName}</h3>
+                <h3 className="text-lg font-semibold">
+                  {event.eventName}
+                  {event.isTest && (
+                    <span className="ml-2 rounded bg-purple-50 px-2 py-0.5 align-middle text-xs font-normal text-purple-800">
+                      Test
+                    </span>
+                  )}
+                </h3>
                 <p className="text-sm text-gray-500">{dateRange(event.startDate, event.endDate)}</p>
               </div>
               <PoolGrid divisions={event.divisions} />
@@ -55,7 +66,10 @@ export async function SignedInHome({ userId }: { userId: string }) {
             </Link>{' '}
             to see the pools you&apos;re playing and judging.
           </p>
-        ) : entries.length === 0 ? (
+        ) : (
+          <MyTeamsTable teams={myTeams} nested />
+        )}
+        {!player ? null : entries.length === 0 ? (
           <p className="text-sm text-gray-500">You&apos;re not playing or judging in any active event.</p>
         ) : (
           <ol className="flex flex-col gap-4">

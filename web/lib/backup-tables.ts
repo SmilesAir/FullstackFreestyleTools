@@ -13,6 +13,7 @@ export const BACKUP_TABLES = [
   'simple_ranking_ballots',
   'pool_judges',
   'pools',
+  'team_music',
   'routines',
   'routine_players',
   'event_play_state',
@@ -47,4 +48,5 @@ export const TABLES_ADDED_LATER: readonly BackupTableName[] = [
   'points_snapshots',
   'simple_ranking_ballots',
   'user_logins',
+  'team_music',
 ];

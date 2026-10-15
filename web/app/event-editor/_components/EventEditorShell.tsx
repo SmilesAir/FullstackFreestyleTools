@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import { getEventDetail } from '@/lib/event-editor-actions';
 import type { CalendarEvent, EventEditorDetail } from '@/lib/event-editor-queries';
 import { Calendar } from './Calendar';
-import { DetailPanel } from './DetailPanel';
+import { DetailPanel, type EventPatch } from './DetailPanel';
 import { EventList } from './EventList';
 
 // Owns the one shared "what's selected" state and wires the three panes
@@ -61,11 +61,21 @@ export function EventEditorShell({
     }, 500);
   }, []);
 
-  const onFlagsChanged = useCallback((eventId: string, patch: { is_test?: boolean; is_hidden?: boolean }) => {
+  // Applies a saved edit (flags, or name/dates) everywhere the event appears:
+  // the list + calendar's copy, the open detail, and the detail cache.
+  const onEventChanged = useCallback((eventId: string, patch: EventPatch) => {
     setEvents((prev) => prev.map((e) => (e.id === eventId ? { ...e, ...patch } : e)));
     setDetail((prev) => (prev && prev.id === eventId ? { ...prev, ...patch } : prev));
     const cached = detailCache.current.get(eventId);
     if (cached) detailCache.current.set(eventId, { ...cached, ...patch });
+    // New dates can move the event to another month - bring both panes to it.
+    if (patch.start_date) {
+      programmaticScroll.current = true;
+      setFocusRequest({ id: eventId, token: focusToken.current++ });
+      setTimeout(() => {
+        programmaticScroll.current = false;
+      }, 500);
+    }
   }, []);
 
   return (
@@ -84,7 +94,7 @@ export function EventEditorShell({
         <Calendar events={events} pulsingId={pulsingId} focusRequest={focusRequest} trackedMonth={trackedMonth} onSelect={select} />
       </div>
       <div className="min-h-0 overflow-y-auto rounded border border-gray-200 p-4">
-        <DetailPanel detail={detail} loading={loadingDetail} onFlagsChanged={onFlagsChanged} />
+        <DetailPanel detail={detail} loading={loadingDetail} onEventChanged={onEventChanged} />
       </div>
     </div>
   );

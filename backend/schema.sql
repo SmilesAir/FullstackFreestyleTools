@@ -490,3 +490,20 @@ CREATE TABLE IF NOT EXISTS bridge_conflicts (
   resolution     text CHECK (resolution IN ('dynamo', 'postgres', 'ignored'))
 );
 CREATE INDEX IF NOT EXISTS idx_bridge_conflicts_open ON bridge_conflicts(entity_type, entity_key) WHERE resolved_at IS NULL;
+
+-- A team's routine music, set by its players on Player Activity. Keyed by the
+-- division and the team's players (sorted ids, as time calls are copied between
+-- a team's rows), not a teams row, so it covers rounds not seeded yet.
+-- round_number 0 = every round; 1 Finals, 2 Semifinals, 3 Quarterfinals,
+-- 4 Preliminaries (ROUNDS in lib/event-creator.ts) replaces it for that round.
+-- An uploaded file wins over a link when both are set.
+CREATE TABLE IF NOT EXISTS team_music (
+  division_id  uuid NOT NULL REFERENCES divisions(id) ON DELETE CASCADE,
+  player_ids   uuid[] NOT NULL,
+  round_number integer NOT NULL,
+  file_url     text,   -- private Vercel Blob URL of the MP3, played through /api/team-music
+  file_name    text,   -- the file's original name, for display
+  link         text,   -- a YouTube or Spotify URL in standard form (lib/team-music-links.ts)
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (division_id, player_ids, round_number)
+);

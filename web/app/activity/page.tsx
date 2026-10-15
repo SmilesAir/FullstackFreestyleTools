@@ -4,8 +4,10 @@ import type { Metadata } from 'next';
 import { auth } from '@/auth';
 import { getProfileData } from '@/lib/profile-queries';
 import { getActivityDetails, getPlayerActivityPage } from '@/lib/player-activity-queries';
+import { getMyTeams } from '@/lib/team-timecalls';
 import { toolTitle } from '@/lib/tools';
 import { ActivityEntryCard } from './_components/ActivityEntryCard';
+import { MyTeamsTable } from './_components/MyTeamsTable';
 import { Pagination } from './_components/Pagination';
 
 export const metadata: Metadata = { title: toolTitle('/activity') };
@@ -18,7 +20,9 @@ export default async function PlayerActivityPage({ searchParams }: { searchParam
   if (!profile) redirect('/login');
 
   const player = profile.player;
-  const activity = player ? await getPlayerActivityPage(player.id, Number(pageParam ?? 1)) : null;
+  const [activity, myTeams] = player
+    ? await Promise.all([getPlayerActivityPage(player.id, Number(pageParam ?? 1)), getMyTeams(player.id)])
+    : [null, []];
   const details = player && activity ? await getActivityDetails(activity.entries, player.id) : [];
 
   return (
@@ -35,6 +39,8 @@ export default async function PlayerActivityPage({ searchParams }: { searchParam
           </p>
         )}
       </div>
+
+      <MyTeamsTable teams={myTeams} />
 
       {!player ? (
         <p className="text-sm text-gray-600">

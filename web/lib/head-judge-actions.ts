@@ -5,6 +5,7 @@ import { pool } from './db';
 import { POOL_LETTERS, poolId } from './event-creator';
 import { cleanTimecalls } from './head-judge';
 import { cancelRoutineRow, finishRoutineRow, restoreRoutineRow, startRoutineRow } from './head-judge-routines';
+import { saveTeamTimecalls } from './team-timecalls';
 import { isPoolLocked, setPoolLockedRow, POOL_LOCKED_ERROR } from './pool-locks';
 import { postPoolResults, type PostOutcome } from './discord-posts';
 import { isPoolResultsPublished, setPoolResultsPublishedRow } from './pool-publish';
@@ -133,7 +134,8 @@ export async function setTeamTimecalls(teamId: string, seconds: number[]): Promi
   const row = team.rows[0];
   if (!row) return BAD_ID;
   if (await isPoolLocked(row.division_id, row.round_number, row.pool_id)) return { error: POOL_LOCKED_ERROR };
-  await pool.query('UPDATE teams SET timecalls = $2 WHERE id = $1', [teamId, values]);
+  // Saved for the team's other pools still to come too (see team-timecalls.ts).
+  await saveTeamTimecalls(teamId, values);
   return { error: null };
 }
 

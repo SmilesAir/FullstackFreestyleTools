@@ -1,10 +1,8 @@
 import Link from 'next/link';
 import { PoolSummary } from '@/app/head-judge/_components/PoolResults';
 import { JUDGE_CATEGORY_LABELS } from '@/lib/event-creator';
-import { DEFAULT_TIMECALLS } from '@/lib/head-judge';
 import { categoryByType } from '@/lib/judging';
 import type { ActivityDetail, ActivityEntry, ActivityTeam } from '@/lib/player-activity-queries';
-import { MyTimecalls } from './MyTimecalls';
 
 const categoryName = (type: string) => categoryByType(type)?.label ?? JUDGE_CATEGORY_LABELS[type] ?? type;
 
@@ -93,13 +91,6 @@ export function ActivityEntryCard({ entry, detail }: { entry: ActivityEntry; det
             <h3 className="text-sm font-medium text-gray-600">Play order</h3>
             <TeamList teams={detail.teams} byPlace={false} />
           </section>
-          {detail.timecallTeamId && myTeam && (
-            <MyTimecalls
-              teamId={detail.timecallTeamId}
-              initial={myTeam.timecalls ?? DEFAULT_TIMECALLS}
-              routineSeconds={entry.routineSeconds}
-            />
-          )}
           {detail.judges && (
             <section className="flex flex-col gap-1">
               <h3 className="text-sm font-medium text-gray-600">Judges</h3>

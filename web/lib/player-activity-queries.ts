@@ -3,7 +3,7 @@ import { activeEventSql } from './active-events-queries';
 import { pool } from './db';
 import { getPoolJudges, getTeams, type PoolJudgeRow, type TeamRow } from './event-creator-queries';
 import { sortPoolTeams } from './event-creator-layout';
-import { DEFAULT_TIMECALLS, roundName, type HeadJudgeJudge, type HeadJudgeTeam } from './head-judge';
+import { roundName, type HeadJudgeJudge, type HeadJudgeTeam } from './head-judge';
 import type { PoolResultsData } from './head-judge-results';
 import type { NoteCategory } from './judging';
 import { getOrCreateShortCode } from './pool-shortlink';
@@ -31,9 +31,6 @@ export type ActivityEntry = {
   judged: { categoryType: string; categoryCount: number | null; overallCount: number | null } | null;
   hasResults: boolean;
   resultsPublished: boolean;
-  // Frozen by the Head Judge.
-  locked: boolean;
-  routineSeconds: number;
   shortCode: string | null;
 };
 
@@ -54,8 +51,6 @@ type ActivityRow = {
   overall_count: string | null;
   has_results: boolean;
   results_published: boolean | null;
-  locked: boolean | null;
-  routine_seconds: number;
   short_code: string | null;
   total: string;
 };
@@ -86,7 +81,7 @@ const activitySql = (activeOnly: boolean) =>
      SELECT division_id, round_number, pool_id FROM judged
    ),
    info AS (
-     SELECT m.division_id, m.round_number, m.pool_id, d.division_name, d.rules_id, d.routine_seconds,
+     SELECT m.division_id, m.round_number, m.pool_id, d.division_name, d.rules_id,
             e.id AS event_id, e.event_name, e.start_date, e.is_test, ${activeEventSql('e')} AS active,
             (pl.division_id IS NOT NULL) AS played, j.category_type,
             (SELECT min(r.started_at) FROM routines r
@@ -95,7 +90,7 @@ const activitySql = (activeOnly: boolean) =>
             EXISTS (SELECT 1 FROM teams t
                     WHERE t.division_id = m.division_id AND t.round_number = m.round_number
                       AND t.pool_id = m.pool_id AND t.place IS NOT NULL) AS has_results,
-            po.results_published, po.locked, po.short_code
+            po.results_published, po.short_code
      FROM mine m
      JOIN divisions d ON d.id = m.division_id
      JOIN events e ON e.id = d.event_id
@@ -123,7 +118,7 @@ const activitySql = (activeOnly: boolean) =>
    )
    SELECT event_id, event_name, to_char(start_date, 'YYYY-MM-DD') AS start_date, division_id, division_name,
           rules_id, round_number, pool_id, played, category_type, category_count, overall_count,
-          has_results, results_published, locked, routine_seconds, short_code, total
+          has_results, results_published, short_code, total
    FROM counted
    ${activeOnly ? 'WHERE active' : ''}
    ORDER BY recency
@@ -150,8 +145,6 @@ const toEntry = (r: ActivityRow): ActivityEntry => ({
     : null,
   hasResults: r.has_results,
   resultsPublished: r.results_published ?? false,
-  locked: r.locked ?? false,
-  routineSeconds: r.routine_seconds,
   shortCode: r.short_code,
 });
 
@@ -200,9 +193,6 @@ export type ActivityDetail = {
     judgesByCategory: { category: NoteCategory; judges: HeadJudgeJudge[] }[];
   } | null;
   shortCode: string;
-  // The player's team, while they can still set its time calls (in a pool with
-  // no results that isn't locked, before the team has played).
-  timecallTeamId: string | null;
 };
 
 // The teams, judges and results behind each entry of a page. Entries often
@@ -224,13 +214,6 @@ export async function getActivityDetails(entries: ActivityEntry[], playerId: str
   // Their own player row and its aliases, to mark their team.
   const me = await pool.query<{ id: string }>('SELECT id FROM players WHERE id = $1 OR alias_id = $1', [playerId]);
   const myIds = new Set(me.rows.map((r) => r.id));
-  // Teams of theirs (on any pool of the page) that have already played.
-  const playedTeams = await pool.query<{ team_id: string }>(
-    `SELECT DISTINCT r.team_id::text FROM routines r JOIN team_players tp ON tp.team_id = r.team_id
-     WHERE tp.player_id = ANY($1::uuid[]) AND r.status <> 'cancelled'`,
-    [[...myIds]]
-  );
-  const alreadyPlayed = new Set(playedTeams.rows.map((r) => r.team_id));
 
   return Promise.all(
     entries.map(async (e): Promise<ActivityDetail> => {
@@ -248,7 +231,6 @@ export async function getActivityDetails(entries: ActivityEntry[], playerId: str
           id: t.id,
           players: t.players.map((p) => p.name),
           place: t.place,
-          timecalls: t.timecalls ?? DEFAULT_TIMECALLS,
           mine: t.players.some((p) => myIds.has(p.id)),
         })
       );
@@ -261,11 +243,7 @@ export async function getActivityDetails(entries: ActivityEntry[], playerId: str
           ? { teams: publicResult.teams, data: publicResult.data, judgesByCategory: publicResult.judgesByCategory }
           : null;
 
-      const myTeam = teams.find((t) => t.mine);
-      const timecallTeamId =
-        myTeam && !e.hasResults && !e.locked && !alreadyPlayed.has(myTeam.id) ? myTeam.id : null;
-
-      return { teams, judges, summary, shortCode, timecallTeamId };
+      return { teams, judges, summary, shortCode };
     })
   );
 }

@@ -4,16 +4,18 @@ import { useState } from 'react';
 import { TimecallControls } from '@/app/head-judge/_components/TimecallControls';
 import { setMyTeamTimecalls } from '@/lib/player-timecall-actions';
 
-// The player's own team's time calls, set before the pool plays. A change shows
-// at once and is saved in the background; if saving fails it goes back.
+// One of the player's teams' time calls, set before it plays. A change shows at
+// once and is saved in the background; if saving fails it goes back.
 export function MyTimecalls({
   teamId,
   initial,
   routineSeconds,
+  disabled,
 }: {
   teamId: string;
   initial: number[];
   routineSeconds: number;
+  disabled: boolean;
 }) {
   const [timecalls, setTimecalls] = useState(initial);
   const [saving, setSaving] = useState(false);
@@ -41,20 +43,16 @@ export function MyTimecalls({
   };
 
   return (
-    <section className="flex flex-col gap-1">
-      <h3 className="text-sm font-medium text-gray-600">
-        Your time calls
-        {saving && <span className="ml-2 font-normal text-gray-400">Saving…</span>}
-      </h3>
-      <p className="text-xs text-gray-500">Called out during your routine when this much time is left.</p>
+    <div className="flex flex-col gap-1">
       <TimecallControls
         timecalls={timecalls}
         routineSeconds={routineSeconds}
-        disabled={false}
+        disabled={disabled}
         onChange={change}
         align="start"
       />
+      {saving && <p className="text-xs text-gray-400">Saving…</p>}
       {error && <p className="text-xs font-medium text-red-700">{error}</p>}
-    </section>
+    </div>
   );
 }
