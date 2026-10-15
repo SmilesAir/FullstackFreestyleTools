@@ -169,6 +169,9 @@ function UnpublishedView({ result }: { result: PublicPoolResult }) {
 function FpaResultsView({ result }: { result: PublicPoolResult }) {
   // Hovering a Summary row highlights that team's line in the combined graph below it.
   const [highlightedTeamId, setHighlightedTeamId] = useState<string | null>(null);
+  // Checking a Summary row's box makes every score in the tables below a delta
+  // against it instead of an absolute number.
+  const [baselineTeamId, setBaselineTeamId] = useState<string | null>(null);
 
   const data = result.data!;
   const judgesByCategory = result.judgesByCategory!;
@@ -176,6 +179,7 @@ function FpaResultsView({ result }: { result: PublicPoolResult }) {
   // Every team's graph in this pool shares this Y axis so they can be compared.
   const extent = poolGraphExtent(result.teams, data);
   const overviewTeams = poolOverviewTeams(result.teams, data, judgesByCategory);
+  const baselineResult = baselineTeamId ? (data[baselineTeamId] ?? null) : undefined;
 
   return (
     <div className="flex flex-col gap-4">
@@ -187,6 +191,8 @@ function FpaResultsView({ result }: { result: PublicPoolResult }) {
             judgesByCategory={judgesByCategory}
             highlightedTeamId={highlightedTeamId}
             onHighlight={setHighlightedTeamId}
+            baselineTeamId={baselineTeamId}
+            onSetBaseline={setBaselineTeamId}
           />
           <PoolOverviewGraph teams={overviewTeams} routineSeconds={result.routineSeconds} highlightedTeamId={highlightedTeamId} />
         </>
@@ -195,6 +201,9 @@ function FpaResultsView({ result }: { result: PublicPoolResult }) {
         {result.teams.map((team, i) => {
           const teamResult = data[team.id];
           const finished = teamResult ? noteJudges.filter((j) => teamResult.judges[j.playerId]?.submitted).length : 0;
+          // The baseline's own tables read their actual values, not an
+          // all-zero delta against themselves - only every other team compares.
+          const compareResult = team.id === baselineTeamId ? undefined : baselineResult;
           return (
             <li key={team.id} className="flex flex-col gap-3 rounded border border-gray-200 p-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -225,12 +234,12 @@ function FpaResultsView({ result }: { result: PublicPoolResult }) {
                   category === 'Diff' ? (
                     <div key={category} className="flex flex-col gap-1">
                       <h4 className="text-sm font-medium text-gray-600">{categoryLabel(category)}</h4>
-                      <DifficultyTable judges={judges} result={teamResult} />
+                      <DifficultyTable judges={judges} result={teamResult} baselineResult={compareResult} />
                     </div>
                   ) : (
                     <div key={category} className="flex flex-col gap-1">
                       <h4 className="text-sm font-medium text-gray-600">{categoryLabel(category)}</h4>
-                      <NotesTable category={category} judges={judges} result={teamResult} />
+                      <NotesTable category={category} judges={judges} result={teamResult} baselineResult={compareResult} />
                     </div>
                   )
                 )}

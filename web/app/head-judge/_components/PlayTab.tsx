@@ -2,13 +2,25 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { JUDGE_CATEGORY_LABELS } from '@/lib/event-creator';
-import { teamName, type HeadJudgePool } from '@/lib/head-judge';
+import { DEFAULT_TIMECALLS, teamName, timecallSpeech, type HeadJudgePool } from '@/lib/head-judge';
+import { setTeamTimecalls } from '@/lib/head-judge-actions';
 import { elapsedMs, formatElapsed } from '@/lib/head-judge-state';
 import { CONNECTED_INTERVALS, JUDGE_POLL_MS, WEAK_SECONDS, type PollMode } from '@/lib/poll-intervals';
 import { PoolResults } from './PoolResults';
+import { TimecallControls } from './TimecallControls';
 import type { SaveStatus } from './usePlayState';
 
 const HOLD_MS = 1000;
+
+// Whether this device's time call callouts are muted (muted unless it says otherwise).
+const MUTED_KEY = 'head-judge-muted';
+// How long before its time a time call starts being spoken.
+const CALLOUT_LEAD_SECONDS = 1;
+
+function speak(text: string) {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+}
 
 // Whether a judge's screen is reaching the server: how long ago it last asked
 // for news (undefined = never), against how often it asks.
@@ -165,6 +177,86 @@ export function PlayTab({
   }, [running]);
   const elapsed = running && now !== null ? formatElapsed(elapsedMs(routineStartedAt, now, clockOffset)) : '0:00';
 
+  // The playing team's time calls. A change shows at once and is kept on top of
+  // the saved value it was made from, until the saved value changes (the page's
+  // data is read again once the server has it).
+  const playingTeam = pool?.teams.find((t) => t.id === playingTeamId) ?? null;
+  const savedTimecalls = playingTeam?.timecalls ?? DEFAULT_TIMECALLS;
+  const [edited, setEdited] = useState<Record<string, { from: number[]; value: number[] }>>({});
+  const [timecallError, setTimecallError] = useState<string | null>(null);
+  const edit = playingTeamId ? edited[playingTeamId] : undefined;
+  const timecalls = edit && edit.from.join() === savedTimecalls.join() ? edit.value : savedTimecalls;
+
+  const changeTimecalls = (value: number[]) => {
+    if (!playingTeamId) return;
+    const teamId = playingTeamId;
+    const from = savedTimecalls;
+    setTimecallError(null);
+    setEdited((current) => ({ ...current, [teamId]: { from, value } }));
+    const drop = () =>
+      setEdited((current) => {
+        const rest = { ...current };
+        delete rest[teamId];
+        return rest;
+      });
+    setTeamTimecalls(teamId, value).then(
+      (result) => {
+        if (result.error) {
+          drop();
+          setTimecallError(result.error);
+        }
+      },
+      () => {
+        drop();
+        setTimecallError('Time calls not saved. Check the connection and try again.');
+      }
+    );
+  };
+
+  // Callouts are muted until this device is told otherwise.
+  const [muted, setMuted] = useState(true);
+  useEffect(() => {
+    const read = setTimeout(() => {
+      try {
+        setMuted(localStorage.getItem(MUTED_KEY) !== 'false');
+      } catch {
+        // Storage unavailable: stay muted.
+      }
+    }, 0);
+    return () => clearTimeout(read);
+  }, []);
+  const toggleMute = () => {
+    const next = !muted;
+    setMuted(next);
+    if (next && typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+    try {
+      localStorage.setItem(MUTED_KEY, String(next));
+    } catch {
+      // Not kept across a reload; fine.
+    }
+  };
+
+  // Calls out each time call as the time left passes it. Only passings seen
+  // between two ticks count, so opening the screen mid-routine doesn't call out
+  // the ones already gone.
+  const lastTick = useRef<{ startedAt: number; remaining: number } | null>(null);
+  const routineSeconds = pool?.routineSeconds ?? 0;
+  useEffect(() => {
+    if (routineStartedAt === null || now === null) {
+      lastTick.current = null;
+      return;
+    }
+    const remaining = routineSeconds - elapsedMs(routineStartedAt, now, clockOffset) / 1000;
+    const prev = lastTick.current?.startedAt === routineStartedAt ? lastTick.current.remaining : null;
+    lastTick.current = { startedAt: routineStartedAt, remaining };
+    if (prev === null || muted) return;
+    // A second early, so the words land on the time rather than after it.
+    for (const t of [...timecalls].sort((a, b) => b - a)) {
+      const at = t + CALLOUT_LEAD_SECONDS;
+      if (prev > at && at >= remaining) speak(timecallSpeech(t));
+    }
+  }, [now, routineStartedAt, clockOffset, routineSeconds, timecalls, muted]);
+
   if (!pool) return <p className="text-sm text-gray-500">Choose a playing pool on the Pools tab.</p>;
   const locked = pool.locked;
 
@@ -192,15 +284,30 @@ export function PlayTab({
             {pool.roundName} · Pool {pool.letter}
           </h2>
         </div>
-        <div className="text-right">
-          <div className="font-mono text-6xl font-bold tabular-nums">
-            {elapsed}
-            <span className="text-3xl font-normal text-gray-500"> / {formatElapsed(pool.routineSeconds * 1000)}</span>
+        <div className="flex flex-wrap items-end justify-end gap-6">
+          <div className="flex flex-col items-end gap-1">
+            <TimecallControls
+              timecalls={timecalls}
+              routineSeconds={pool.routineSeconds}
+              disabled={playingTeamId === null || locked}
+              muted={muted}
+              onChange={changeTimecalls}
+              onToggleMute={toggleMute}
+            />
+            {timecallError && <p className="text-xs font-medium text-red-700">{timecallError}</p>}
           </div>
-          <div className="text-xs text-gray-500">
-            Routine time since first throw
-            {saveStatus === 'saving' && <span className="ml-2 text-gray-400">Saving…</span>}
-            {saveStatus === 'retrying' && <span className="ml-2 font-medium text-amber-700">Not saved yet, retrying</span>}
+          <div className="text-right">
+            <div className="font-mono text-6xl font-bold tabular-nums">
+              {elapsed}
+              <span className="text-3xl font-normal text-gray-500"> / {formatElapsed(pool.routineSeconds * 1000)}</span>
+            </div>
+            <div className="text-xs text-gray-500">
+              Routine time since first throw
+              {saveStatus === 'saving' && <span className="ml-2 text-gray-400">Saving…</span>}
+              {saveStatus === 'retrying' && (
+                <span className="ml-2 font-medium text-amber-700">Not saved yet, retrying</span>
+              )}
+            </div>
           </div>
         </div>
       </div>

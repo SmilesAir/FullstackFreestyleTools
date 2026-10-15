@@ -1,7 +1,7 @@
 'use server';
 
 import { pool } from './db';
-import { JUDGING_RULES_ID, MAX_NOTES_PER_ROUTINE, noteTypesFor } from './judging';
+import { JUDGING_RULES_ID, MAX_NOTES_PER_ROUTINE, noteTypesFor, type NoteCategory } from './judging';
 import { adjustedScore, estimateFromNotes } from './judging-estimate';
 import { categorySettings, resolveEventSettings } from './judging-settings';
 import { POOL_LOCKED_ERROR } from './pool-locks';
@@ -349,7 +349,7 @@ export async function submitScore(
   const settings = categorySettings(resolveEventSettings(ctx.rules_id, ctx.judging_settings), categoryType)!;
   const startedAt = Math.round(ctx.started_ms);
   const baselineOf = (notes: SavedNote[]) =>
-    estimateFromNotes(notes, startedAt, ctx.routine_seconds, settings.noteWeights, settings.estimate);
+    estimateFromNotes(notes, startedAt, ctx.routine_seconds, settings.noteWeights, settings.estimate, categoryType as NoteCategory);
   const snapshot = JSON.stringify({ rulesId: ctx.rules_id, [categoryType]: settings });
 
   const save = (baseline: number) =>

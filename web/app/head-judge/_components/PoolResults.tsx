@@ -89,6 +89,11 @@ export function PoolResults({
   const [failed, setFailed] = useState(false);
   // Hovering a Summary row highlights that team's line in the combined graph below it.
   const [highlightedTeamId, setHighlightedTeamId] = useState<string | null>(null);
+  // Checking a Summary row's box makes every score in the tables below a delta
+  // against it instead of an absolute number. undefined once threaded down =
+  // "no baseline picked" (unchanged absolute display); null = picked but that
+  // team has no result yet (so every delta is a dash).
+  const [baselineTeamId, setBaselineTeamId] = useState<string | null>(null);
 
   useEffect(() => {
     // Simple Ranking has no note-taking judges; SimpleRankingResults polls its own endpoint below.
@@ -147,6 +152,8 @@ export function PoolResults({
 
   if (!pool.usesJudges) return <SimpleRankingResults pool={pool} active={active} />;
 
+  const baselineResult = baselineTeamId ? (data?.[baselineTeamId] ?? null) : undefined;
+
   return (
     <div className="flex flex-col gap-4">
       <PublicLinkControl pool={pool} />
@@ -159,6 +166,8 @@ export function PoolResults({
             judgesByCategory={judgesByCategory}
             highlightedTeamId={highlightedTeamId}
             onHighlight={setHighlightedTeamId}
+            baselineTeamId={baselineTeamId}
+            onSetBaseline={setBaselineTeamId}
           />
           <PoolOverviewGraph teams={overviewTeams} routineSeconds={pool.routineSeconds} highlightedTeamId={highlightedTeamId} />
         </>
@@ -207,7 +216,12 @@ export function PoolResults({
                   judgesByCategory.map(({ category, judges }) => (
                     <div key={category} className="flex flex-col gap-1">
                       <h4 className="text-sm font-medium text-gray-600">{categoryLabel(category)}</h4>
-                      <NotesTable category={category} judges={judges} result={result} />
+                      <NotesTable
+                        category={category}
+                        judges={judges}
+                        result={result}
+                        baselineResult={team.id === baselineTeamId ? undefined : baselineResult}
+                      />
                     </div>
                   ))
                 ))}
@@ -221,6 +235,22 @@ export function PoolResults({
 
 const cell = 'border border-gray-300 px-2 py-1.5 text-center';
 
+// A score cell once a baseline team is picked: `value` minus `baseline`,
+// signed and colored (the same green/red ScoreGraph.tsx uses for positive/
+// negative scores), an em-dash if either side has no value yet, and plain
+// text for an exact tie - the baseline's own row lands here naturally.
+function scoreDelta(value: number | null, baseline: number | null) {
+  if (value === null || baseline === null) return <span className="font-normal text-gray-400">—</span>;
+  const delta = Math.round((value - baseline) * 100) / 100;
+  if (delta === 0) return <>0</>;
+  return (
+    <span className={delta > 0 ? 'text-green-600' : 'text-red-600'}>
+      {delta > 0 ? '+' : '−'}
+      {Math.abs(delta)}
+    </span>
+  );
+}
+
 // One row per team in play order: each judge's submitted score under its
 // category, then each category's total, then the team's total (all the submitted
 // scores added up) and its place in the pool by that total (equal totals share
@@ -233,6 +263,8 @@ export function PoolSummary({
   judgesByCategory,
   highlightedTeamId = null,
   onHighlight,
+  baselineTeamId = null,
+  onSetBaseline,
 }: {
   pool: Pick<HeadJudgePool, 'teams'>;
   data: PoolResultsData;
@@ -242,6 +274,11 @@ export function PoolSummary({
   // works standalone (e.g. before that graph existed) without them.
   highlightedTeamId?: string | null;
   onHighlight?: (teamId: string | null) => void;
+  // Checking a row's box calls onSetBaseline(team.id); checking a different
+  // row moves it there; unchecking the current one calls onSetBaseline(null).
+  // Both optional, same reasoning as highlightedTeamId above.
+  baselineTeamId?: string | null;
+  onSetBaseline?: (teamId: string | null) => void;
 }) {
   const [sort, setSort] = useState<ResultsSortOrder>('play');
 
@@ -249,12 +286,15 @@ export function PoolSummary({
   // "By place" re-sorts the same rows best-to-worst; a team with no total yet sorts last.
   const displayRows = sort === 'place' ? [...rows].sort(byPlace) : rows;
   const dash = <span className="font-normal text-gray-400">—</span>;
+  const baselineRow = baselineTeamId ? rows.find((r) => r.team.id === baselineTeamId) : undefined;
+  const baselineTeam = baselineRow?.team;
 
   return (
     <section className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-3">
         <SortToggle value={sort} onChange={setSort} />
         <h3 className="text-lg font-semibold">Summary</h3>
+        {baselineTeam && <span className="text-sm text-gray-500">— compared to {teamName(baselineTeam)}</span>}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm tabular-nums">
@@ -299,14 +339,27 @@ export function PoolSummary({
               // team's actual place (so the list reads 1, 2, 3... by rank
               // too), a dash for a team with no total yet.
               const rank = sort === 'place' ? place : playIndex + 1;
+              const showCheckbox = team.id === highlightedTeamId || team.id === baselineTeamId;
+              // The baseline's own row reads its actual scores, not an
+              // all-zero delta against itself - only every other row compares.
+              const compareRow = team.id === baselineTeamId ? undefined : baselineRow;
               return (
                 <tr
                   key={team.id}
                   onMouseEnter={() => onHighlight?.(team.id)}
                   onMouseLeave={() => onHighlight?.(null)}
-                  className={team.id === highlightedTeamId ? 'bg-yellow-100' : undefined}
+                  className={
+                    team.id === highlightedTeamId ? 'bg-yellow-100' : team.id === baselineTeamId ? 'bg-blue-50' : undefined
+                  }
                 >
                   <td className="border border-gray-300 px-3 py-1.5 text-left">
+                    <input
+                      type="checkbox"
+                      aria-label={`Compare to ${teamName(team)}`}
+                      checked={team.id === baselineTeamId}
+                      onChange={(e) => onSetBaseline?.(e.target.checked ? team.id : null)}
+                      className={`mr-2 align-middle ${showCheckbox ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+                    />
                     <span
                       aria-hidden
                       className="mr-2 inline-block h-2.5 w-2.5 rounded-full align-middle"
@@ -318,16 +371,18 @@ export function PoolSummary({
                   {categories.flatMap((c, k) =>
                     c.scores.map((score, j) => (
                       <td key={`${k}-${j}`} className={cell}>
-                        {score === null ? dash : score}
+                        {compareRow ? scoreDelta(score, compareRow.categories[k].scores[j]) : score === null ? dash : score}
                       </td>
                     ))
                   )}
                   {categories.map((c, k) => (
                     <td key={`total-${k}`} className={`${cell} font-semibold`}>
-                      {c.total === null ? dash : c.total}
+                      {compareRow ? scoreDelta(c.total, compareRow.categories[k].total) : c.total === null ? dash : c.total}
                     </td>
                   ))}
-                  <td className={`${cell} font-semibold`}>{total === null ? dash : total}</td>
+                  <td className={`${cell} font-semibold`}>
+                    {compareRow ? scoreDelta(total, compareRow.total) : total === null ? dash : total}
+                  </td>
                   <td className={`${cell} font-semibold`}>{place ?? dash}</td>
                 </tr>
               );
@@ -346,7 +401,17 @@ export function PoolSummary({
 // the numberline's max was.
 const scaled = (position: number) => (position * 10).toFixed(1);
 
-export function DifficultyTable({ judges, result }: { judges: HeadJudgePool['judges']; result: TeamResult }) {
+export function DifficultyTable({
+  judges,
+  result,
+  baselineResult,
+}: {
+  judges: HeadJudgePool['judges'];
+  result: TeamResult;
+  // See NotesTable: undefined = no baseline picked (unchanged "Total" row),
+  // null = picked but that team has no result yet, an object = picked with data.
+  baselineResult?: TeamResult | null;
+}) {
   const round2 = (v: number) => Math.round(v * 100) / 100;
   const scores = judges.map((j) => result.judges[j.playerId]?.submitted?.score).filter((s): s is number => s !== undefined);
   const baselines = judges
@@ -355,6 +420,20 @@ export function DifficultyTable({ judges, result }: { judges: HeadJudgePool['jud
   const pointsTotal = round2(judges.reduce((sum, j) => sum + (result.judges[j.playerId]?.points ?? 0), 0));
   const notesTotal = judges.reduce((sum, j) => sum + (result.judges[j.playerId]?.moves?.length ?? 0), 0);
   const dash = <span className="font-normal text-gray-400">—</span>;
+  const comparing = baselineResult !== undefined;
+  const compareNotesTotal = baselineResult
+    ? judges.reduce((sum, j) => sum + (baselineResult.judges[j.playerId]?.moves?.length ?? 0), 0)
+    : null;
+  const baselineScores = baselineResult
+    ? judges.map((j) => baselineResult.judges[j.playerId]?.submitted?.score).filter((s): s is number => s !== undefined)
+    : [];
+  const scoreTotal = scores.length > 0 ? round2(scores.reduce((a, b) => a + b, 0)) : null;
+  const baselineScoreTotal = baselineScores.length > 0 ? round2(baselineScores.reduce((a, b) => a + b, 0)) : null;
+  const baselineTotal = baselines.length > 0 ? round2(baselines.reduce((a, b) => a + b, 0)) : null;
+  const compareBaselines = baselineResult
+    ? judges.map((j) => baselineResult.judges[j.playerId]?.submitted?.baseline).filter((b): b is number => b !== undefined)
+    : [];
+  const compareBaselineTotal = compareBaselines.length > 0 ? round2(compareBaselines.reduce((a, b) => a + b, 0)) : null;
 
   return (
     <div className="overflow-x-auto">
@@ -398,11 +477,13 @@ export function DifficultyTable({ judges, result }: { judges: HeadJudgePool['jud
         </tbody>
         <tfoot>
           <tr className="bg-gray-50 font-semibold dark:bg-transparent">
-            <td className="border border-gray-300 px-3 py-1.5 text-left">Total</td>
-            <td className="border border-gray-300 px-2 py-1.5 text-left">{notesTotal} notes</td>
+            <td className="border border-gray-300 px-3 py-1.5 text-left">{comparing ? 'Delta' : 'Total'}</td>
+            <td className="border border-gray-300 px-2 py-1.5 text-left">
+              {comparing ? scoreDelta(notesTotal, compareNotesTotal) : notesTotal} notes
+            </td>
             <td className={cell}>{pointsTotal}</td>
-            <td className={cell}>{baselines.length > 0 ? round2(baselines.reduce((a, b) => a + b, 0)) : dash}</td>
-            <td className={cell}>{scores.length > 0 ? round2(scores.reduce((a, b) => a + b, 0)) : dash}</td>
+            <td className={cell}>{comparing ? scoreDelta(baselineTotal, compareBaselineTotal) : (baselineTotal ?? dash)}</td>
+            <td className={cell}>{comparing ? scoreDelta(scoreTotal, baselineScoreTotal) : (scoreTotal ?? dash)}</td>
           </tr>
         </tfoot>
       </table>
@@ -414,12 +495,14 @@ export function NotesTable({
   category,
   judges,
   result,
+  baselineResult,
 }: {
   category: NoteCategory;
   judges: HeadJudgePool['judges'];
   result: TeamResult;
+  baselineResult?: TeamResult | null;
 }) {
-  if (category === 'Diff') return <DifficultyTable judges={judges} result={result} />;
+  if (category === 'Diff') return <DifficultyTable judges={judges} result={result} baselineResult={baselineResult} />;
   const groups = noteGroups(category);
   const hasHeadings = groups.some((g) => g.heading !== null);
   const notes = CATEGORY_NOTES[category];
@@ -434,6 +517,21 @@ export function NotesTable({
     .filter((b): b is number => b !== undefined);
   const baselineTotal = Math.round(baselines.reduce((a, b) => a + b, 0) * 100) / 100;
   const dash = <span className="font-normal text-gray-400">—</span>;
+  const comparing = baselineResult !== undefined;
+  const compareScores = baselineResult
+    ? judges.map((j) => baselineResult.judges[j.playerId]?.submitted?.score).filter((s): s is number => s !== undefined)
+    : [];
+  const compareScoreTotal = compareScores.length > 0 ? Math.round(compareScores.reduce((a, b) => a + b, 0) * 100) / 100 : null;
+  // One per note type, matching `totals`' order - null (not 0) when the
+  // baseline team has no result yet, so that column shows a dash instead of
+  // a misleading "scored zero of everything" delta.
+  const compareTotals = notes.map((note) =>
+    baselineResult ? judges.reduce((sum, j) => sum + (baselineResult.judges[j.playerId]?.counts[note.type] ?? 0), 0) : null
+  );
+  const compareBaselines = baselineResult
+    ? judges.map((j) => baselineResult.judges[j.playerId]?.submitted?.baseline).filter((b): b is number => b !== undefined)
+    : [];
+  const compareBaselineTotal = compareBaselines.length > 0 ? Math.round(compareBaselines.reduce((a, b) => a + b, 0) * 100) / 100 : null;
 
   return (
     <div className="overflow-x-auto">
@@ -495,14 +593,22 @@ export function NotesTable({
         </tbody>
         <tfoot>
           <tr className="bg-gray-50 font-semibold dark:bg-transparent">
-            <td className="border border-gray-300 px-3 py-1.5 text-left">Total</td>
+            <td className="border border-gray-300 px-3 py-1.5 text-left">{comparing ? 'Delta' : 'Total'}</td>
             {totals.map((total, i) => (
               <td key={notes[i].type} className={cell}>
-                {total}
+                {comparing ? scoreDelta(total, compareTotals[i]) : total}
               </td>
             ))}
-            <td className={cell}>{baselines.length > 0 ? baselineTotal : dash}</td>
-            <td className={cell}>{scores.length > 0 ? scoreTotal : dash}</td>
+            <td className={cell}>
+              {comparing
+                ? scoreDelta(baselines.length > 0 ? baselineTotal : null, compareBaselineTotal)
+                : baselines.length > 0
+                  ? baselineTotal
+                  : dash}
+            </td>
+            <td className={cell}>
+              {comparing ? scoreDelta(scores.length > 0 ? scoreTotal : null, compareScoreTotal) : scores.length > 0 ? scoreTotal : dash}
+            </td>
           </tr>
         </tfoot>
       </table>

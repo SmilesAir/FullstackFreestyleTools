@@ -299,6 +299,8 @@ export type TeamRow = {
   place: number | null;
   // Order the team plays within its pool; NULL until someone arranges the pool.
   play_order: number | null;
+  // Seconds left when each time call is made (0 = "Time"); NULL = the default.
+  timecalls: number[] | null;
   players: PlayerRef[];
   points: number;
 };
@@ -313,6 +315,7 @@ export async function getTeams(divisionId: string, divisionName: string): Promis
     pool_id: string;
     place: number | null;
     play_order: number | null;
+    timecalls: number[] | null;
     player_id: string | null;
     first_name: string | null;
     last_name: string | null;
@@ -321,7 +324,7 @@ export async function getTeams(divisionId: string, divisionName: string): Promis
     open_points: string | null;
     women_points: string | null;
   }>(
-    `SELECT t.id AS team_id, t.round_number, t.pool_id, t.place, t.play_order,
+    `SELECT t.id AS team_id, t.round_number, t.pool_id, t.place, t.play_order, t.timecalls,
             p.id AS player_id, p.first_name, p.last_name, p.country, p.gender,
             (SELECT max(r.points) FROM rankings r WHERE r.player_id = p.id AND r.category = 'ranking-open') AS open_points,
             (SELECT max(r.points) FROM rankings r WHERE r.player_id = p.id AND r.category = 'ranking-women') AS women_points
@@ -343,6 +346,7 @@ export async function getTeams(divisionId: string, divisionName: string): Promis
         pool_id: r.pool_id,
         place: r.place,
         play_order: r.play_order,
+        timecalls: r.timecalls,
         players: [],
         points: 0,
       };

@@ -3,21 +3,24 @@
 // as the graph does on the judge's screen (judge/_components/noteScores.ts),
 // so the number the judge saw is the number that is stored.
 
-import { notePoints } from './judging';
-import { baselineEstimate } from './score-curve';
+import { notePoints, type NoteCategory } from './judging';
+import { baselineEstimate, noteSum } from './score-curve';
 
 export function estimateFromNotes(
   notes: readonly { noteType: string; notedAt: number; lineValue?: number | null; multiplier?: number | null }[],
   routineStartedAt: number,
   routineSeconds: number,
   noteWeights: Record<string, number>,
-  estimate: { areaScale: number; power: number }
+  estimate: { areaScale: number; power: number },
+  category: NoteCategory
 ): number {
   const points = notes.map((n) => ({
     t: Math.max(0, (n.notedAt - routineStartedAt) / 1000),
     s: notePoints(n, noteWeights),
   }));
-  return baselineEstimate(points, routineSeconds, estimate);
+  // Execution/Artistic Impression: the notes' weights added straight up.
+  // Difficulty: still the area-under-the-curve estimate - timing matters there.
+  return category === 'Diff' ? baselineEstimate(points, routineSeconds, estimate) : noteSum(points);
 }
 
 // The final score: the baseline with the judge's percentage change, to 2 decimals

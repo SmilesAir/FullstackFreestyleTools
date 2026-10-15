@@ -5,7 +5,7 @@ import { CATEGORY_NOTES, noteGroups, type JudgeNote, type JudgeState, type NoteC
 import { elapsedMs, formatElapsed } from '@/lib/head-judge-state';
 import type { SaveStatus } from '@/app/judge/_components/useJudgeNotes';
 import { NOTE_STYLE, NOTE_TINT } from './noteStyles';
-import { baselineEstimate } from '@/lib/score-curve';
+import { baselineEstimate, noteSum } from '@/lib/score-curve';
 import { graphDuration, noteScores } from './noteScores';
 import { DifficultyPlay } from './DifficultyPlay';
 import { ScoreDialog } from './ScoreDialog';
@@ -94,7 +94,8 @@ export function NotesPlay({
   const { scores, estimate } = useMemo(() => {
     if (!atLength || state.routineStartedAt === null) return { scores: [], estimate: 0 };
     const points = noteScores(state.notes, state.noteWeights, state.routineStartedAt, category);
-    return { scores: points, estimate: baselineEstimate(points, state.routineSeconds, state.estimate) };
+    const estimate = category === 'Diff' ? baselineEstimate(points, state.routineSeconds, state.estimate) : noteSum(points);
+    return { scores: points, estimate };
   }, [atLength, category, state.notes, state.noteWeights, state.routineStartedAt, state.routineSeconds, state.estimate]);
 
   // Seven rows (Artistic Impression) get a lower floor than five, so they fit a phone.

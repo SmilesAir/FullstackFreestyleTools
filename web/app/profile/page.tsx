@@ -10,6 +10,7 @@ import { SignInMethods } from './_components/SignInMethods';
 import { PulseOnce } from './_components/PulseOnce';
 import { getLogins } from '@/lib/auth-logins';
 import { SHOW_GOOGLE } from '@/lib/login-options';
+import { HOME_PATH } from '@/lib/site';
 import type { Metadata } from 'next';
 import { toolTitle } from '@/lib/tools';
 
@@ -28,8 +29,8 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   // that account gets created) - nothing to show, so send them back through sign-in.
   if (!profile) redirect('/login');
   // Every sign-in lands here (?welcome=1). With a player already linked there's nothing to
-  // do on Profile, so go on to the Control Panel; otherwise stay and highlight Linked player.
-  if (welcome === '1' && profile.player) redirect('/control-panel');
+  // do on Profile, so go on to the home page; otherwise stay and highlight Linked player.
+  if (welcome === '1' && profile.player) redirect(HOME_PATH);
 
   return (
     <main className="mx-auto flex max-w-sm flex-col gap-8 px-4 py-10">
@@ -52,7 +53,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       </div>
 
       {/* Flashes once right after signing in (?welcome=1). A signed-in person with a player
-          already linked was sent on to the Control Panel above, so this is always the
+          already linked was sent on to the home page above, so this is always the
           "link your player" case. */}
       <PulseOnce id="linked-player" active={welcome === '1' && !profile.player}>
         <h2 className="mb-2 text-sm font-medium text-gray-700">Linked player</h2>

@@ -425,6 +425,10 @@ ALTER TABLE divisions ADD COLUMN IF NOT EXISTS routine_seconds integer NOT NULL 
 -- Separate from place, which is the result after the pool has played.
 ALTER TABLE teams ADD COLUMN IF NOT EXISTS play_order integer;
 
+-- The time calls the team asked for, set by the Head Judge: seconds left in the
+-- routine when each is called out (0 = "Time"). NULL means the default, {0}.
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS timecalls integer[];
+
 -- Whether the event is being judged right now. Only playing events list their
 -- judges on the public landing page; toggled in the Event Creator's Events tab.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS is_playing boolean NOT NULL DEFAULT false;

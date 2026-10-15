@@ -104,6 +104,15 @@ export function baselineEstimate(
   return Math.round(value * 10) / 10 || 0;
 }
 
+// The simplest possible baseline: the notes' weights added straight up, no
+// smoothing or timing - "how many points worth of notes did the judge take",
+// not an estimate of where the curve would land. Used for Execution/Artistic
+// Impression instead of baselineEstimate's area-under-the-curve (Difficulty
+// still uses that - its notes' timing genuinely matters to the routine).
+export function noteSum(scores: readonly CurveScore[]): number {
+  return Math.round(scores.reduce((sum, s) => sum + s.s, 0) * 10) / 10 || 0;
+}
+
 // A value with its sign spelled out ("+12.3" / "−4.5"), for graph labels.
 export const signed = (v: number) => `${v < 0 ? '−' : '+'}${Math.abs(v).toFixed(1)}`;
 

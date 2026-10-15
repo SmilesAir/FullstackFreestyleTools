@@ -4,7 +4,9 @@ import { ROUNDS } from './event-creator';
 // `place` is the recorded final result for this team (NULL until the pool has
 // played) - threaded through by getHeadJudgePools for the Event Editor's detail
 // panel; Head Judge's own UI uses live derived standings instead and ignores it.
-export type HeadJudgeTeam = { id: string; players: string[]; place: number | null };
+// `timecalls` (seconds left when each time call is made, 0 = "Time") is only
+// filled in for the Head Judge's own pools.
+export type HeadJudgeTeam = { id: string; players: string[]; place: number | null; timecalls?: number[] };
 export type HeadJudgeJudge = { playerId: string; name: string; categoryType: string };
 
 // One pool of one round of one division, with its teams (in play order) and judges.
@@ -43,4 +45,43 @@ export const teamName = (team: HeadJudgeTeam) => team.players.join(' / ') || '(n
 
 export function flattenPools(divisions: HeadJudgeDivision[]): HeadJudgePool[] {
   return divisions.flatMap((d) => d.rounds.flatMap((r) => r.pools));
+}
+
+// Time calls: seconds left in the routine when each is called out (0 = "Time").
+// A team that never set any gets DEFAULT_TIMECALLS; the presets always have a
+// button, other values only while they are on.
+export const DEFAULT_TIMECALLS = [0];
+export const PRESET_TIMECALLS = [0, 10, 15, 30];
+export const MAX_TIMECALL_SECONDS = 3600;
+
+// "Time", "10 s", "1:30"
+export function timecallLabel(seconds: number): string {
+  if (seconds === 0) return 'Time';
+  if (seconds < 60) return `${seconds} s`;
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+// What is said out loud: "Time", "10 seconds", "1 minute", "1 minute 30 seconds".
+export function timecallSpeech(seconds: number): string {
+  if (seconds === 0) return 'Time';
+  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  if (minutes === 0) return plural(rest, 'second');
+  return rest === 0 ? plural(minutes, 'minute') : `${plural(minutes, 'minute')} ${plural(rest, 'second')}`;
+}
+
+// A list of time calls as saved (no repeats, longest first), or null when a
+// value isn't a whole number of seconds in range.
+export function cleanTimecalls(seconds: unknown): number[] | null {
+  if (!Array.isArray(seconds)) return null;
+  if (!seconds.every((s) => Number.isInteger(s) && s >= 0 && s <= MAX_TIMECALL_SECONDS)) return null;
+  return [...new Set(seconds as number[])].sort((a, b) => b - a);
+}
+
+// "1:30" or "90" as seconds; null when it isn't a time.
+export function parseTimecall(text: string): number | null {
+  const m = text.trim().match(/^(?:(\d+):([0-5]\d)|(\d+))$/);
+  if (!m) return null;
+  return m[3] !== undefined ? Number(m[3]) : Number(m[1]) * 60 + Number(m[2]);
 }

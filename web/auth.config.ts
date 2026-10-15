@@ -1,6 +1,6 @@
 import type { NextAuthConfig } from 'next-auth';
 
-const PROTECTED_PREFIXES = ['/players', '/permissions', '/control-panel', '/profile', '/settings'];
+const PROTECTED_PREFIXES = ['/players', '/permissions', '/control-panel', '/profile', '/activity', '/settings'];
 
 export const authConfig = {
   pages: {

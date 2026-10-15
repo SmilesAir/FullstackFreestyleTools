@@ -3,6 +3,7 @@
 import { requirePermission } from './authz';
 import { pool } from './db';
 import { POOL_LETTERS, poolId } from './event-creator';
+import { cleanTimecalls } from './head-judge';
 import { cancelRoutineRow, finishRoutineRow, restoreRoutineRow, startRoutineRow } from './head-judge-routines';
 import { isPoolLocked, setPoolLockedRow, POOL_LOCKED_ERROR } from './pool-locks';
 import { postPoolResults, type PostOutcome } from './discord-posts';
@@ -116,6 +117,24 @@ export async function restoreRoutine(eventId: string, routineId: string): Promis
   await guard();
   if (!UUID.test(eventId) || !UUID.test(routineId)) return BAD_ID;
   return restoreRoutineRow(eventId, routineId);
+}
+
+// Sets the time calls a team asked for (seconds left when each is called out,
+// 0 = "Time"). Refused while the team's pool is locked.
+export async function setTeamTimecalls(teamId: string, seconds: number[]): Promise<PlayActionResult> {
+  await guard();
+  if (!UUID.test(teamId)) return BAD_ID;
+  const values = cleanTimecalls(seconds);
+  if (!values) return { error: 'Bad time call' };
+  const team = await pool.query<{ division_id: string; round_number: number; pool_id: string }>(
+    'SELECT division_id, round_number, pool_id FROM teams WHERE id = $1',
+    [teamId]
+  );
+  const row = team.rows[0];
+  if (!row) return BAD_ID;
+  if (await isPoolLocked(row.division_id, row.round_number, row.pool_id)) return { error: POOL_LOCKED_ERROR };
+  await pool.query('UPDATE teams SET timecalls = $2 WHERE id = $1', [teamId, values]);
+  return { error: null };
 }
 
 // Locks or unlocks a pool: while locked, its scores, teams and judges can't be

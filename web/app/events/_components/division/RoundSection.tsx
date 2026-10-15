@@ -160,7 +160,7 @@ export function RoundSection({
 
     // The new row doesn't exist yet, so the team list entry's id stands in for
     // it until the server answers (and the refresh brings the real row).
-    const next = insertPoolTeam(layout, { ...added, round_number: roundNumber, pool_id: poolId(letter), place: null, play_order: null }, letter, index);
+    const next = insertPoolTeam(layout, { ...added, round_number: roundNumber, pool_id: poolId(letter), place: null, play_order: null, timecalls: null }, letter, index);
     setOptimistic({ forTeams: teams, forCount: poolCount, layout: next });
     startTransition(async () => {
       const result = await addTeamToRound(divisionId, roundNumber, added.id, layoutIds(next));

@@ -3,10 +3,14 @@ import { auth, signOut } from '@/auth';
 import { seatPath } from '@/lib/judging';
 import { getJudgingEvents } from '@/lib/judging-queries';
 import { HOME_PATH } from '@/lib/site';
+import { SignedInHome } from './SignedInHome';
 
-// The app's home page: sign-in, and every judging event's seat buttons.
+// The app's home page. Signed out: sign-in, and every judging event's seat
+// buttons. Signed in: the events running now and the user's own pools in them
+// instead of the seat buttons.
 export async function HomePage() {
-  const [session, judgingEvents] = await Promise.all([auth(), getJudgingEvents()]);
+  const session = await auth();
+  const judgingEvents = session?.user ? [] : await getJudgingEvents();
 
   return (
     <>
@@ -35,10 +39,11 @@ export async function HomePage() {
         )}
       </header>
 
-      {judgingEvents.length > 0 && (
-        <main className="mx-auto flex max-w-2xl flex-col gap-8 px-4 py-8">
+      {(session?.user?.id || judgingEvents.length > 0) && (
+        <main className="mx-auto flex max-w-4xl flex-col gap-8 px-4 py-8">
+          {session?.user?.id && <SignedInHome userId={session.user.id} />}
           {judgingEvents.map((event) => (
-            <section key={event.eventId} className="flex flex-col gap-3">
+            <section key={event.eventId} className="mx-auto flex w-full max-w-2xl flex-col gap-3">
               <h2 className="text-center text-sm font-medium text-gray-600">{event.eventName}</h2>
               <div className="grid grid-cols-2 gap-3">
                 {event.judges.map((judge) => (

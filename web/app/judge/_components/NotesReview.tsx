@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import type { JudgedRoutine, JudgeHistory, JudgeState, NoteCategory, OtherCurve, UpcomingTeam } from '@/lib/judging';
 import { graphExtent, ScoreGraph } from '@/app/judge/_components/ScoreGraph';
-import { baselineEstimate, type CurveScore } from '@/lib/score-curve';
+import { baselineEstimate, noteSum, type CurveScore } from '@/lib/score-curve';
 import { graphDuration, noteScores } from './noteScores';
 import { OthersLegend } from './OthersLegend';
 import { ScoreCard } from './ScoreCard';
@@ -246,8 +246,8 @@ function PastRoutine({
     [routine.notes, routine.noteWeights, routine.startedAt, category]
   );
   const estimate = useMemo(
-    () => baselineEstimate(scores, routine.routineSeconds, routine.estimate),
-    [scores, routine.routineSeconds, routine.estimate]
+    () => (category === 'Diff' ? baselineEstimate(scores, routine.routineSeconds, routine.estimate) : noteSum(scores)),
+    [scores, routine.routineSeconds, routine.estimate, category]
   );
   // A routine without a score can be scored from here (the backup).
   const { percent, changed, failed, adjust } = useScoreAdjust({
@@ -317,8 +317,9 @@ function CurrentRoutine({
   );
 
   const estimate = useMemo(
-    () => (routine ? baselineEstimate(scores, routine.routineSeconds, state.estimate) : 0),
-    [scores, routine, state.estimate]
+    () =>
+      !routine ? 0 : category === 'Diff' ? baselineEstimate(scores, routine.routineSeconds, state.estimate) : noteSum(scores),
+    [scores, routine, state.estimate, category]
   );
 
   if (!routine) {

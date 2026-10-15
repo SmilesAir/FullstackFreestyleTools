@@ -8,7 +8,7 @@ import { getPoolJudges, getTeams, listDivisions } from './event-creator-queries'
 import { getRoutineCurves } from './judging-queries';
 import { getLockedPoolKeys } from './pool-locks';
 import { getPublishedPoolKeys } from './pool-publish';
-import { poolKey, roundName, type HeadJudgeDivision, type HeadJudgePool } from './head-judge';
+import { DEFAULT_TIMECALLS, poolKey, roundName, type HeadJudgeDivision, type HeadJudgePool } from './head-judge';
 import { combineTeamRoutines, type PoolResultsData, type TeamResult } from './head-judge-results';
 import { NO_PLAY_STATE, type PlayResponse } from './head-judge-state';
 
@@ -169,7 +169,12 @@ export async function getHeadJudgePools(eventId: string): Promise<HeadJudgeDivis
             roundNumber: number,
             roundName: roundName(number),
             letter,
-            teams: sortPoolTeams(inPool).map((t) => ({ id: t.id, players: t.players.map((p) => p.name), place: t.place })),
+            teams: sortPoolTeams(inPool).map((t) => ({
+              id: t.id,
+              players: t.players.map((p) => p.name),
+              place: t.place,
+              timecalls: t.timecalls ?? DEFAULT_TIMECALLS,
+            })),
             routineSeconds: division.routine_seconds,
             locked: locked.has(`${number}:${letter}`),
             resultsPublished: published.has(`${number}:${letter}`),

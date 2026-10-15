@@ -49,6 +49,10 @@ export const JUDGE_CATEGORY_LABELS: Record<string, string> = {
   GoeDiff: 'Diff',
   GoeTech: 'Tech',
   GoeSub: 'Sub',
+  // The old FPA Judging System's Fpa2020 categories, kept as-is on judging history
+  // imported from it (scripts/import-legacy-judges.mjs).
+  ExAi: 'Ex/AI',
+  Variety: 'Variety',
 };
 
 // A player judging one pool (stored in pool_judges).

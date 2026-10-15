@@ -80,6 +80,12 @@ export const ALWAYS_AVAILABLE_TOOLS: ToolInfo[] = [
     description: 'View your account details.',
     href: '/profile',
   },
+  {
+    label: 'Player Activity',
+    description:
+      'Every pool you played in or judged, newest first: results once a pool has played, the play order (and judges, when you judge) before.',
+    href: '/activity',
+  },
 ];
 
 // The browser tab title for a tool's pages: its name in the Control Panel.

@@ -14,6 +14,7 @@ export const config = {
     '/permissions/:path*',
     '/control-panel/:path*',
     '/profile/:path*',
+    '/activity/:path*',
     '/settings/:path*',
   ],
 };
