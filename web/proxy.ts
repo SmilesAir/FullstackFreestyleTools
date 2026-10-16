@@ -10,6 +10,7 @@ export const config = {
     '/players/:path*',
     '/events/:path*',
     '/head-judge/:path*',
+    '/event-music/:path*',
     '/backups/:path*',
     '/permissions/:path*',
     '/control-panel/:path*',

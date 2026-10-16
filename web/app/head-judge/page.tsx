@@ -1,6 +1,7 @@
 import { getEvent, listEvents } from '@/lib/event-creator-queries';
 import { getHeadJudgePools, getPlayState } from '@/lib/head-judge-queries';
 import { getEventSettings, getEventSystems, listPresets } from '@/lib/judging-settings-store';
+import { AnnouncerLinkButton } from './_components/AnnouncerLinkButton';
 import { EventsTab } from './_components/EventsTab';
 import { HeadJudgeShell } from './_components/HeadJudgeShell';
 import { SettingsTab } from './_components/SettingsTab';
@@ -39,8 +40,11 @@ export default async function HeadJudgePage({
       <div>
         <h1 className="text-xl font-semibold">Head Judge</h1>
         {selected && (
-          <div className="mt-1 text-xs text-gray-500">
-            Event: <span className="font-medium text-gray-700">{selected.event_name}</span>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+            <span>
+              Event: <span className="font-medium text-gray-700">{selected.event_name}</span>
+            </span>
+            <AnnouncerLinkButton eventId={selected.id} />
           </div>
         )}
       </div>

@@ -1,6 +1,7 @@
 import 'server-only';
 import { pool } from './db';
-import { DEFAULT_TIMECALLS } from './head-judge';
+import { DEFAULT_TIMECALLS, cleanTimecalls } from './head-judge';
+import { isPoolLocked, POOL_LOCKED_ERROR } from './pool-locks';
 import { ALL_ROUNDS, type TeamMusicByRound } from './team-music-links';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -93,6 +94,25 @@ export async function saveTeamTimecalls(teamId: string, values: number[]): Promi
     [teamId, values]
   );
   return result.rowCount ?? 0;
+}
+
+// Sets the time calls a team asked for (seconds left when each is called out,
+// 0 = "Time") from the Event Music screen, whose caller has
+// already checked the permission. Refused while the team's pool is locked.
+export async function setTeamTimecallsChecked(teamId: string, seconds: number[]): Promise<{ error: string | null }> {
+  if (!UUID.test(teamId)) return { error: 'Unknown team' };
+  const values = cleanTimecalls(seconds);
+  if (!values) return { error: 'Bad time call' };
+  const team = await pool.query<{ division_id: string; round_number: number; pool_id: string }>(
+    'SELECT division_id, round_number, pool_id FROM teams WHERE id = $1',
+    [teamId]
+  );
+  const row = team.rows[0];
+  if (!row) return { error: 'Unknown team' };
+  if (await isPoolLocked(row.division_id, row.round_number, row.pool_id)) return { error: POOL_LOCKED_ERROR };
+  // Saved for the team's other pools still to come too.
+  await saveTeamTimecalls(teamId, values);
+  return { error: null };
 }
 
 // One of the player's teams: one per division they are entered in.

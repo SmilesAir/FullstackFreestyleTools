@@ -439,6 +439,12 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS is_playing boolean NOT NULL DEFAULT 
 ALTER TABLE events ADD COLUMN IF NOT EXISTS discord_channel_id text;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS discord_thread_id text;
 
+-- The event's unlisted Announcer link (/a/<code>), handed out by the Head
+-- Judge's "Copy announcer link". A lookup key, not a secret: the page only
+-- shows the pools and who is up.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS announcer_code text;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_events_announcer_code ON events(announcer_code) WHERE announcer_code IS NOT NULL;
+
 -- The head judge's tunables for the event, keyed by judging system (rules id)
 -- and then category, e.g. {"Fpa2027": {"Ex": {"noteWeights": {"large_error": -3}}}}.
 -- Anything missing falls back to the defaults in code.

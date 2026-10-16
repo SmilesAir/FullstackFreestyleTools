@@ -4,6 +4,7 @@ export const PERMISSIONS = [
   { key: 'event_creator', label: 'Event Creator' },
   { key: 'event_editor', label: 'Event Editor' },
   { key: 'head_judge', label: 'Head Judge' },
+  { key: 'event_music', label: 'Event Music' },
   { key: 'rankings_generator', label: 'Rankings Generator' },
   { key: 'results_parser', label: 'Results Parser' },
 ] as const;

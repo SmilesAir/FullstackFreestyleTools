@@ -5,6 +5,10 @@ import { ROUNDS } from './event-creator';
 // round_number 0: the song for every round without one of its own.
 export const ALL_ROUNDS = 0;
 
+// ALL_ROUNDS or one of ROUNDS.
+export const isMusicRound = (round: number) =>
+  Number.isInteger(round) && (round === ALL_ROUNDS || ROUNDS.some((r) => r.number === round));
+
 export const MAX_MUSIC_BYTES = 15 * 1024 * 1024;
 
 export type TeamMusic = {

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { upload } from '@vercel/blob/client';
+import { MusicEmbed } from '@/app/_components/MusicEmbed';
 import { clearMyTeamMusic, setMyTeamMusicFile, setMyTeamMusicLink, type MusicActionResult } from '@/lib/player-music-actions';
 import {
   ALL_ROUNDS,
@@ -17,6 +18,21 @@ const BUTTON = 'cursor-pointer rounded border px-3 py-1.5 text-sm disabled:curso
 const PLAIN = `${BUTTON} border-gray-300 bg-background hover:bg-gray-50`;
 const GREEN = `${BUTTON} border-green-600 bg-green-600 font-semibold text-white hover:bg-green-700`;
 
+// How the dialog saves: a player's own team by default.
+export type MusicSaveActions = {
+  setFile: (teamId: string, round: number, url: string, fileName: string) => Promise<MusicActionResult>;
+  setLink: (teamId: string, round: number, link: string) => Promise<MusicActionResult>;
+  clear: (teamId: string, round: number, which: 'file' | 'link') => Promise<MusicActionResult>;
+  // Tells the upload route which check applies (app/api/team-music/upload).
+  uploadAs?: 'event-music';
+};
+
+const MY_TEAM_ACTIONS: MusicSaveActions = {
+  setFile: setMyTeamMusicFile,
+  setLink: setMyTeamMusicLink,
+  clear: clearMyTeamMusic,
+};
+
 // Choosing one of the team's rounds (or All rounds), then an MP3 and/or a
 // YouTube or Spotify link for it, each playable here to check it.
 export function MusicDialog({
@@ -27,6 +43,8 @@ export function MusicDialog({
   openRounds,
   music,
   onChange,
+  actions = MY_TEAM_ACTIONS,
+  subtitle,
 }: {
   dialog: RefObject<HTMLDialogElement | null>;
   teamId: string;
@@ -36,6 +54,9 @@ export function MusicDialog({
   openRounds: number[];
   music: TeamMusicByRound;
   onChange: (music: TeamMusicByRound) => void;
+  actions?: MusicSaveActions;
+  // Shown under the title (the team's names, where it isn't obvious).
+  subtitle?: string;
 }) {
   const [round, setRound] = useState(ALL_ROUNDS);
   // The chosen file, not uploaded yet, and its local preview address.
@@ -103,11 +124,11 @@ export function MusicDialog({
       const blob = await upload(`${teamMusicPathPrefix(divisionId)}${safe}.mp3`, file, {
         access: 'private',
         handleUploadUrl: '/api/team-music/upload',
-        clientPayload: JSON.stringify({ teamId, round }),
+        clientPayload: JSON.stringify({ teamId, round, as: actions.uploadAs }),
         contentType: 'audio/mpeg',
         onUploadProgress: (p) => setProgress(p.percentage),
       });
-      return setMyTeamMusicFile(teamId, round, blob.url, file.name);
+      return actions.setFile(teamId, round, blob.url, file.name);
     });
     if (saved) setFile(null);
   };
@@ -121,6 +142,7 @@ export function MusicDialog({
         <div className="flex items-start justify-between gap-2">
           <div>
             <h3 className="text-lg font-semibold">Music</h3>
+            {subtitle && <p className="font-medium">{subtitle}</p>}
             <p className="text-sm text-gray-500">
               All rounds plays in every round, unless a round has its own.
             </p>
@@ -200,7 +222,7 @@ export function MusicDialog({
             {own?.fileUrl && (
               <button
                 type="button"
-                onClick={() => run(() => clearMyTeamMusic(teamId, round, 'file'))}
+                onClick={() => run(() => actions.clear(teamId, round, 'file'))}
                 disabled={busy || locked}
                 className={PLAIN}
               >
@@ -224,7 +246,7 @@ export function MusicDialog({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => run(() => setMyTeamMusicLink(teamId, round, linkText))}
+              onClick={() => run(() => actions.setLink(teamId, round, linkText))}
               disabled={!parsed || parsed.link === own?.link || busy || locked}
               className={GREEN}
             >
@@ -234,7 +256,7 @@ export function MusicDialog({
               <button
                 type="button"
                 onClick={async () => {
-                  if (await run(() => clearMyTeamMusic(teamId, round, 'link'))) setLinkText('');
+                  if (await run(() => actions.clear(teamId, round, 'link'))) setLinkText('');
                 }}
                 disabled={busy || locked}
                 className={PLAIN}
@@ -252,24 +274,5 @@ export function MusicDialog({
         {error && <p className="text-sm font-medium text-red-700">{error}</p>}
       </div>
     </dialog>
-  );
-}
-
-function MusicEmbed({ embedUrl, kind }: { embedUrl: string; kind: 'youtube' | 'spotify' }) {
-  return kind === 'youtube' ? (
-    <iframe
-      src={embedUrl}
-      title="YouTube player"
-      allow="autoplay; encrypted-media; picture-in-picture"
-      allowFullScreen
-      className="aspect-video w-full rounded border-0"
-    />
-  ) : (
-    <iframe
-      src={embedUrl}
-      title="Spotify player"
-      allow="autoplay; clipboard-write; encrypted-media"
-      className="h-20 w-full rounded-xl border-0"
-    />
   );
 }

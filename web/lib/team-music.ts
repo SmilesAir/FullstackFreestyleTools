@@ -1,7 +1,7 @@
 import 'server-only';
 import { del } from '@vercel/blob';
 import { pool } from './db';
-import type { TeamMusic, TeamMusicByRound } from './team-music-links';
+import { teamMusicPathPrefix, type TeamMusic, type TeamMusicByRound } from './team-music-links';
 
 export { teamMusicPathPrefix } from './team-music-links';
 
@@ -43,6 +43,39 @@ export async function saveTeamMusic(team: TeamKey, round: number, changes: Parti
   }
 
   if (before.fileUrl && before.fileUrl !== after.fileUrl) await deleteIfUnused(before.fileUrl);
+}
+
+// A team row's music key: its division and sorted player ids; null for an
+// unknown team or one without players.
+export async function getTeamKey(teamId: string): Promise<TeamKey | null> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(teamId)) return null;
+  const result = await pool.query<{ division_id: string; player_ids: string[] | null }>(
+    `SELECT t.division_id,
+            (SELECT array_agg(tp.player_id ORDER BY tp.player_id) FROM team_players tp WHERE tp.team_id = t.id) AS player_ids
+     FROM teams t WHERE t.id = $1`,
+    [teamId]
+  );
+  const row = result.rows[0];
+  return row?.player_ids ? { divisionId: row.division_id, playerIds: row.player_ids } : null;
+}
+
+// The address to save for an MP3 the browser uploaded for this division
+// (without the query string), or null when it isn't one of ours.
+export function cleanMusicFileUrl(url: string, divisionId: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (
+    parsed.protocol !== 'https:' ||
+    !parsed.hostname.endsWith('.blob.vercel-storage.com') ||
+    !parsed.pathname.startsWith(`/${teamMusicPathPrefix(divisionId)}`)
+  ) {
+    return null;
+  }
+  return `${parsed.origin}${parsed.pathname}`;
 }
 
 export async function isTeamMusicFile(url: string): Promise<boolean> {

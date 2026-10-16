@@ -32,6 +32,12 @@ const TOOL_INFO: Record<PermissionKey, ToolInfo> = {
     description: 'Run an event day: see every pool with its teams and judges, choose the playing pool, and follow results.',
     href: '/head-judge',
   },
+  event_music: {
+    label: 'Event Music',
+    description:
+      "Play each team's song at an event: pools with how many songs are missing, every team's song to test, a player that always has the team that's up, and their time calls.",
+    href: '/event-music',
+  },
   rankings_generator: {
     label: 'Rankings Generator',
     description:

@@ -3,13 +3,14 @@
 import { requirePermission } from './authz';
 import { pool } from './db';
 import { POOL_LETTERS, poolId } from './event-creator';
-import { cleanTimecalls } from './head-judge';
 import { cancelRoutineRow, finishRoutineRow, restoreRoutineRow, startRoutineRow } from './head-judge-routines';
-import { saveTeamTimecalls } from './team-timecalls';
 import { isPoolLocked, setPoolLockedRow, POOL_LOCKED_ERROR } from './pool-locks';
 import { postPoolResults, type PostOutcome } from './discord-posts';
 import { isPoolResultsPublished, setPoolResultsPublishedRow } from './pool-publish';
 import { getOrCreateShortCode } from './pool-shortlink';
+import { getOrCreateAnnouncerCode } from './announcer-link';
+import { relayPlayState } from './play-state-relay';
+import { getMode } from './db-mode';
 
 const guard = () => requirePermission('head_judge');
 
@@ -52,7 +53,9 @@ export async function setPlayingPool(
      WHERE event_play_state.routine_started_at IS NULL`,
     [eventId, divisionId, roundNumber, poolId(letter)]
   );
-  return saved.rowCount === 0 ? { error: RUNNING_ERROR('pool') } : { error: null };
+  if (saved.rowCount === 0) return { error: RUNNING_ERROR('pool') };
+  relayPlayState(eventId);
+  return { error: null };
 }
 
 // Sets the team that is up; it must be in the playing pool. Refused while a
@@ -71,7 +74,10 @@ export async function setPlayingTeam(eventId: string, teamId: string): Promise<P
        )`,
     [eventId, teamId]
   );
-  if (updated.rowCount !== 0) return { error: null };
+  if (updated.rowCount !== 0) {
+    relayPlayState(eventId);
+    return { error: null };
+  }
 
   const running = await pool.query('SELECT 1 FROM event_play_state WHERE event_id = $1 AND routine_started_at IS NOT NULL', [
     eventId,
@@ -91,7 +97,9 @@ export async function startRoutine(
   if (!UUID.test(eventId)) return BAD_ID;
   if (!Number.isFinite(clickedAt)) return { error: 'Bad click time' };
 
-  return startRoutineRow(eventId, clickedAt);
+  const result = await startRoutineRow(eventId, clickedAt);
+  if (!result.error) relayPlayState(eventId);
+  return result;
 }
 
 // Ends the running routine as played (not cancelled) and puts the next team up.
@@ -101,6 +109,7 @@ export async function finishRoutine(eventId: string, nextTeamId: string | null):
   await guard();
   if (!UUID.test(eventId) || (nextTeamId !== null && !UUID.test(nextTeamId))) return BAD_ID;
   await finishRoutineRow(eventId, nextTeamId);
+  relayPlayState(eventId);
   return { error: null };
 }
 
@@ -109,6 +118,7 @@ export async function cancelRoutine(eventId: string): Promise<PlayActionResult> 
   await guard();
   if (!UUID.test(eventId)) return BAD_ID;
   await cancelRoutineRow(eventId);
+  relayPlayState(eventId);
   return { error: null };
 }
 
@@ -117,26 +127,9 @@ export async function cancelRoutine(eventId: string): Promise<PlayActionResult> 
 export async function restoreRoutine(eventId: string, routineId: string): Promise<PlayActionResult> {
   await guard();
   if (!UUID.test(eventId) || !UUID.test(routineId)) return BAD_ID;
-  return restoreRoutineRow(eventId, routineId);
-}
-
-// Sets the time calls a team asked for (seconds left when each is called out,
-// 0 = "Time"). Refused while the team's pool is locked.
-export async function setTeamTimecalls(teamId: string, seconds: number[]): Promise<PlayActionResult> {
-  await guard();
-  if (!UUID.test(teamId)) return BAD_ID;
-  const values = cleanTimecalls(seconds);
-  if (!values) return { error: 'Bad time call' };
-  const team = await pool.query<{ division_id: string; round_number: number; pool_id: string }>(
-    'SELECT division_id, round_number, pool_id FROM teams WHERE id = $1',
-    [teamId]
-  );
-  const row = team.rows[0];
-  if (!row) return BAD_ID;
-  if (await isPoolLocked(row.division_id, row.round_number, row.pool_id)) return { error: POOL_LOCKED_ERROR };
-  // Saved for the team's other pools still to come too (see team-timecalls.ts).
-  await saveTeamTimecalls(teamId, values);
-  return { error: null };
+  const result = await restoreRoutineRow(eventId, routineId);
+  if (!result.error) relayPlayState(eventId);
+  return result;
 }
 
 // Locks or unlocks a pool: while locked, its scores, teams and judges can't be
@@ -188,4 +181,21 @@ export async function ensurePoolLink(
   if (!Number.isInteger(roundNumber) || roundNumber < 1) return { error: 'Unknown round' };
   const code = await getOrCreateShortCode(divisionId, roundNumber, poolId(letter));
   return { error: null, code };
+}
+
+// The event's unlisted Announcer link code (/a/<code>), made on first use.
+export async function ensureAnnouncerLink(eventId: string): Promise<PlayActionResult & { code?: string }> {
+  await guard();
+  if (!UUID.test(eventId)) return BAD_ID;
+  try {
+    const code = await getOrCreateAnnouncerCode(eventId);
+    return code ? { error: null, code } : { error: 'Unknown event' };
+  } catch {
+    return {
+      error:
+        getMode() === 'local'
+          ? "Couldn't reach the online database. Get the announcer link while the laptop is online."
+          : 'Could not get a link',
+    };
+  }
 }

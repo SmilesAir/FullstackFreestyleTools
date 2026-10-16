@@ -12,7 +12,8 @@ import { pool } from './db';
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const LENGTH = 8;
 
-function randomCode(): string {
+// Also used for the event's Announcer link (announcer-link.ts).
+export function randomCode(): string {
   let out = '';
   for (let i = 0; i < LENGTH; i++) out += ALPHABET[crypto.randomInt(ALPHABET.length)];
   return out;

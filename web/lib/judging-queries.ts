@@ -278,8 +278,9 @@ export async function getJudgeState(eventId: string, playerId: string, categoryT
 
 // The Review tab's list: every routine in the event (not cancelled) this judge
 // took notes on or scored in this category, and every routine of the pool they
-// are judging now (notes or not), in the order they were played, with their
-// notes and score; then that pool's teams that haven't played yet.
+// are judging now (notes or not), one per team (see getJudgedRoutines), in the
+// order they were played, with their notes and score; then that pool's teams
+// that haven't played yet.
 export async function getJudgeHistory(eventId: string, playerId: string, categoryType: string): Promise<JudgeHistory> {
   const judging = await getJudgingPool(eventId, playerId, categoryType);
   const [routines, upcoming] = await Promise.all([
@@ -496,18 +497,26 @@ async function getJudgedRoutines(
     division_name: string | null;
     round_number: number;
     pool_id: string;
+    division_id: string | null;
+    team_id: string | null;
     team_name: string | null;
     judging_settings: unknown;
     score: string | null;
     baseline_estimate: string | null;
     adjust_percent: string | null;
     score_settings: unknown;
+    has_notes: boolean;
+    running: boolean;
   }>(
     `SELECT r.id, extract(epoch FROM r.started_at)::float8 * 1000 AS started_ms,
             COALESCE(d.routine_seconds, 180) AS routine_seconds, d.rules_id, d.division_name,
-            r.round_number, r.pool_id,
+            r.round_number, r.pool_id, r.division_id, r.team_id,
             COALESCE(${routineNameSql('r.id')}, ${teamNameSql('r.team_id')}) AS team_name,
-            e.judging_settings, sc.score, sc.baseline_estimate, sc.adjust_percent, sc.settings AS score_settings
+            e.judging_settings, sc.score, sc.baseline_estimate, sc.adjust_percent, sc.settings AS score_settings,
+            EXISTS (SELECT 1 FROM fpa2027_judge_notes n
+                    WHERE n.routine_id = r.id AND n.player_id = $2 AND n.category_type = $3) AS has_notes,
+            EXISTS (SELECT 1 FROM event_play_state s
+                    WHERE s.event_id = r.event_id AND s.routine_id = r.id AND s.routine_started_at IS NOT NULL) AS running
      FROM routines r
      JOIN events e ON e.id = r.event_id
      LEFT JOIN divisions d ON d.id = r.division_id
@@ -522,14 +531,28 @@ async function getJudgedRoutines(
      ORDER BY r.started_at`,
     [eventId, playerId, categoryType, judging?.division_id ?? null, judging?.round_number ?? null, judging?.pool_id ?? null]
   );
-  if (routines.rows.length === 0) return [];
+
+  // A team can be run more than once in a pool (judges scoring it one at a
+  // time, a restart), but it is listed once: the run playing now, otherwise the
+  // newest the judge took notes on or scored (as the judge state's notesRoutine
+  // picks, so the Review tab's live graph is that same run), otherwise the newest.
+  const rank = (r: (typeof routines.rows)[number]) => (r.running ? 2 : r.score !== null || r.has_notes ? 1 : 0);
+  const chosen = new Map<string, (typeof routines.rows)[number]>();
+  for (const r of routines.rows) {
+    const key = r.team_id ? `${r.division_id}:${r.round_number}:${r.pool_id}:${r.team_id}` : r.id;
+    const kept = chosen.get(key);
+    // Oldest first, so a later run of the same rank replaces an earlier one.
+    if (!kept || rank(r) >= rank(kept)) chosen.set(key, r);
+  }
+  const rows = [...chosen.values()].sort((a, b) => a.started_ms - b.started_ms);
+  if (rows.length === 0) return [];
 
   const notes = await pool.query<NoteRow & { routine_id: string }>(
     `SELECT n.routine_id, ${NOTE_COLUMNS}
      FROM fpa2027_judge_notes n
      WHERE n.routine_id = ANY($1::uuid[]) AND n.player_id = $2 AND n.category_type = $3
      ORDER BY n.noted_at, n.id`,
-    [routines.rows.map((r) => r.id), playerId, categoryType]
+    [rows.map((r) => r.id), playerId, categoryType]
   );
   const notesByRoutine = new Map<string, JudgeNote[]>();
   for (const n of notes.rows) {
@@ -538,7 +561,7 @@ async function getJudgedRoutines(
     notesByRoutine.set(n.routine_id, list);
   }
 
-  return routines.rows.map((r) => {
+  return rows.map((r) => {
     // The settings the score was made with; otherwise the event's current ones.
     const snapshot = r.score_settings as { rulesId?: unknown } | null;
     const settings =
