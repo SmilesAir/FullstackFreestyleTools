@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { requirePermission } from '@/lib/authz';
+import { isSupportChatAvailable } from '@/lib/support-chat-limits';
+import { SupportChat } from '../_components/SupportChat';
 import type { Metadata } from 'next';
 import { toolTitle } from '@/lib/tools';
 
@@ -14,6 +16,7 @@ export default async function EventsLayout({ children }: { children: React.React
         ← Control Panel
       </Link>
       {children}
+      {(await isSupportChatAvailable()) && <SupportChat page="events" />}
     </div>
   );
 }

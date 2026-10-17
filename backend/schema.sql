@@ -394,6 +394,26 @@ CREATE TABLE IF NOT EXISTS claude_usage (
   user_id       uuid
 );
 CREATE INDEX IF NOT EXISTS idx_claude_usage_created_at ON claude_usage(created_at);
+-- Prompt caching (the support chat): tokens read from and written to the cache,
+-- billed at their own rates (see web/lib/claude-pricing.ts).
+ALTER TABLE claude_usage ADD COLUMN IF NOT EXISTS cache_read_tokens integer NOT NULL DEFAULT 0;
+ALTER TABLE claude_usage ADD COLUMN IF NOT EXISTS cache_write_tokens integer NOT NULL DEFAULT 0;
+
+-- The support chat's conversations (Head Judge and Event Creator), kept 90 days
+-- so admins can see what people ask (Settings). Rows older than that are
+-- deleted as new ones arrive. Left out of backups, like claude_usage.
+CREATE TABLE IF NOT EXISTS support_chat_messages (
+  id              bigserial PRIMARY KEY,
+  conversation_id uuid NOT NULL,
+  user_id         uuid,
+  page            text NOT NULL,
+  role            text NOT NULL CHECK (role IN ('user', 'assistant')),
+  content         text NOT NULL,
+  stop_reason     text,
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_support_chat_created_at ON support_chat_messages(created_at);
+CREATE INDEX IF NOT EXISTS idx_support_chat_conversation ON support_chat_messages(conversation_id);
 
 -- Metadata for full-database backups; the actual gzipped dump lives in Vercel
 -- Blob (blob_url), not here. Deliberately has NO foreign key to any other

@@ -50,6 +50,14 @@ export async function saveSetting(key: string, _prevState: ActionState, formData
     }
   }
 
+  if (key === 'support_chat_per_user_hour' || key === 'support_chat_per_user_day' || key === 'support_chat_all_users_day') {
+    if (!/^\d+$/.test(value)) return { error: 'Must be a whole number (0 turns the chat off).' };
+  }
+
+  if (key === 'support_chat_monthly_budget_usd') {
+    if (!/^\d+(\.\d{1,2})?$/.test(value)) return { error: 'Must be an amount in dollars, like 20 or 12.50 (0 turns the chat off).' };
+  }
+
   await pool.query(
     `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2, now())
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,

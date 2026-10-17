@@ -1,5 +1,6 @@
 import { DIVISION_NAMES } from './event-creator';
 import { ROUND_NAMES } from './results-parser/build';
+import { SUPPORT_GUIDE } from './support-guide';
 
 // Every prompt the app sends to Claude, in one place: the code that makes the calls and the
 // Settings page that lists them both read from here, so what an admin sees is what is sent.
@@ -7,7 +8,7 @@ import { ROUND_NAMES } from './results-parser/build';
 
 export const CLAUDE_MODEL = 'claude-opus-5';
 
-export type ClaudePromptId = 'roster-division' | 'roster-event' | 'results';
+export type ClaudePromptId = 'roster-division' | 'roster-event' | 'results' | 'support-chat';
 
 export type ClaudePrompt = {
   id: ClaudePromptId;
@@ -56,6 +57,20 @@ Rules:
 - Return the event name and its start and end dates (YYYY-MM-DD) only when the text states them; otherwise null.
 - If a line looks like a result but you cannot tell how to place it, put that line verbatim in "unparsed". Put lines that are clearly not results (titles, judges, notes) there too.`;
 
+// The support chat answers event staff's how-to questions from the guide. The
+// whole text is fixed, so it is cached between questions.
+const SUPPORT_CHAT_SYSTEM = `You are the tech support helper for a set of web tools used to run freestyle frisbee tournaments: the Event Creator, the Head Judge screen, the judges' screens, Event Music, the Announcer page and running offline on a laptop. The people asking are event staff (head judges, organisers, volunteers), often in the middle of an event, so they need quick, practical answers.
+
+How to answer:
+- Answer from the guide below. Use the exact names of buttons and tabs it gives, so people can find them on screen.
+- Keep it short: a sentence or two, or a few numbered steps. Ask one short question back if you can't tell what they mean.
+- Write plain text only, with no markdown: no asterisks, no "#" headings, no tables. Numbered steps on their own lines are fine.
+- If the guide doesn't cover it, or something seems broken, say you aren't sure and suggest asking the site admin. Never guess at buttons, settings or steps that aren't in the guide.
+- Only help with these tools and running an event with them. Politely decline anything else (general chat, other software, writing or coding tasks).
+- Never ask for or repeat passwords, API keys or other secrets.
+
+${SUPPORT_GUIDE}`;
+
 export const CLAUDE_PROMPTS: readonly ClaudePrompt[] = [
   {
     id: 'roster-division',
@@ -87,6 +102,16 @@ export const CLAUDE_PROMPTS: readonly ClaudePrompt[] = [
     outputSummary:
       "The event name and dates if stated, then per division its rounds, pools and teams with the finishing place and the players' names, plus any lines it could not place.",
     system: RESULTS_SYSTEM,
+  },
+  {
+    id: 'support-chat',
+    name: 'Support chat',
+    usedIn: 'The chat button on Head Judge and Event Creator',
+    model: 'claude-opus-5-5',
+    effort: 'low',
+    maxTokens: 8000,
+    outputSummary: "A short plain-text answer to the user's question, from the guide in the prompt. The conversation so far is sent with each question.",
+    system: SUPPORT_CHAT_SYSTEM,
   },
 ];
 

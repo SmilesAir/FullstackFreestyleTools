@@ -1,11 +1,13 @@
 import { getClaudeUsage } from '@/lib/claude-usage';
 import { getAllSettings } from '@/lib/settings-queries';
+import { getSupportChatLog } from '@/lib/support-chat-queries';
 import { SETTINGS, SETTING_SECTIONS } from '@/lib/settings';
 import { ClaudeSection } from './_components/ClaudeSection';
+import { SupportChatLog } from './_components/SupportChatLog';
 import { SettingForm } from '../_components/SettingForm';
 
 export default async function SettingsPage() {
-  const [current, usage] = await Promise.all([getAllSettings(), getClaudeUsage()]);
+  const [current, usage, chats] = await Promise.all([getAllSettings(), getClaudeUsage(), getSupportChatLog()]);
 
   return (
     <main className="flex flex-col gap-8">
@@ -21,6 +23,8 @@ export default async function SettingsPage() {
           <section key={section.id} className="flex flex-col gap-4">
             <h2 className="text-lg font-semibold">{section.title}</h2>
             {forms}
+            {/* What people have asked the chat, under its limits. */}
+            {section.id === 'support' && <SupportChatLog conversations={chats} />}
           </section>
         );
       })}

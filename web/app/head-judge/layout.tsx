@@ -1,6 +1,8 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { requirePermission } from '@/lib/authz';
+import { isSupportChatAvailable } from '@/lib/support-chat-limits';
+import { SupportChat } from '../_components/SupportChat';
 import { DbStatus } from './_components/DbStatus';
 import type { Metadata } from 'next';
 import { toolTitle } from '@/lib/tools';
@@ -22,6 +24,7 @@ export default async function HeadJudgeLayout({ children }: { children: React.Re
         </Link>
       </div>
       {children}
+      {(await isSupportChatAvailable()) && <SupportChat page="head-judge" />}
     </div>
   );
 }

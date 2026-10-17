@@ -7,7 +7,12 @@ import { isMissingTable } from './db-errors';
 // A log of every Claude call that was billed (tokens from the API's own usage report,
 // cost worked out at the time so a later price change never rewrites history).
 
-type Usage = { input_tokens?: number | null; output_tokens?: number | null };
+type Usage = {
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  cache_read_input_tokens?: number | null;
+  cache_creation_input_tokens?: number | null;
+};
 
 // Never throws: bookkeeping must not make a parse fail, and an older database (or a
 // local one made before this table existed) may not have the table yet.
@@ -21,11 +26,23 @@ export async function recordClaudeUsage(entry: {
   try {
     const input = entry.usage?.input_tokens ?? 0;
     const output = entry.usage?.output_tokens ?? 0;
-    await pool.query(
-      `INSERT INTO claude_usage (feature, model, input_tokens, output_tokens, cost_usd, stop_reason, user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [entry.feature, entry.model, input, output, costUsd(entry.model, input, output), entry.stopReason ?? null, entry.userId]
-    );
+    const cacheRead = entry.usage?.cache_read_input_tokens ?? 0;
+    const cacheWrite = entry.usage?.cache_creation_input_tokens ?? 0;
+    const cost = costUsd(entry.model, input, output, cacheRead, cacheWrite);
+    if (cacheRead === 0 && cacheWrite === 0) {
+      // Works on a database without the cache columns yet, for the calls that don't cache.
+      await pool.query(
+        `INSERT INTO claude_usage (feature, model, input_tokens, output_tokens, cost_usd, stop_reason, user_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [entry.feature, entry.model, input, output, cost, entry.stopReason ?? null, entry.userId]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO claude_usage (feature, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd, stop_reason, user_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [entry.feature, entry.model, input, output, cacheRead, cacheWrite, cost, entry.stopReason ?? null, entry.userId]
+      );
+    }
   } catch (err) {
     if (!isMissingTable(err)) console.error('Could not log the Claude usage', err);
   }

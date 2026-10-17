@@ -2,6 +2,7 @@
 export const SETTING_SECTIONS = [
   { id: 'discord', title: 'Discord' },
   { id: 'claude', title: 'Claude integration' },
+  { id: 'support', title: 'Support chat' },
   { id: 'api', title: 'Public API' },
 ] as const;
 export type SettingSection = (typeof SETTING_SECTIONS)[number]['id'];
@@ -42,8 +43,42 @@ export const SETTINGS: SettingDef[] = [
     section: 'claude',
     label: 'Anthropic API key',
     description:
-      'Used to parse pasted text with Claude: the Event Creator (teams for one or several divisions) and the Results Parser. Create one at console.anthropic.com → API keys. Usage is billed to that account.',
+      'Used to parse pasted text with Claude (the Event Creator and the Results Parser) and for the support chat on Head Judge and Event Creator. Create one at console.anthropic.com → API keys. Usage is billed to that account.',
     type: 'password',
+  },
+  {
+    key: 'support_chat_per_user_hour',
+    section: 'support',
+    label: 'Questions per person per hour',
+    description:
+      'How many questions one person can ask the support chat (Head Judge and Event Creator) in an hour. 0 turns the chat off.',
+    type: 'number',
+    default: '20',
+  },
+  {
+    key: 'support_chat_per_user_day',
+    section: 'support',
+    label: 'Questions per person per day',
+    description: 'How many questions one person can ask in 24 hours. 0 turns the chat off.',
+    type: 'number',
+    default: '60',
+  },
+  {
+    key: 'support_chat_all_users_day',
+    section: 'support',
+    label: 'Questions per day, everyone',
+    description: 'How many questions everyone together can ask in 24 hours. 0 turns the chat off.',
+    type: 'number',
+    default: '300',
+  },
+  {
+    key: 'support_chat_monthly_budget_usd',
+    section: 'support',
+    label: 'Monthly budget (US dollars)',
+    description:
+      "The chat stops for the rest of the calendar month once its estimated cost reaches this (a question costs about one to three cents). 0 turns the chat off.",
+    type: 'number',
+    default: '20',
   },
   {
     key: 'api_rate_limit_requests',
