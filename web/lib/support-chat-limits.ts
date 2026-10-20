@@ -5,9 +5,10 @@ import { SETTINGS } from './settings';
 import { getSettings } from './settings-queries';
 
 // The support chat's limits (Settings → Support chat), counted from the Claude
-// usage log: one row per question answered (feature 'support-chat').
+// usage log: one row per question answered (feature 'support-chat', or
+// 'judging-trainer' for the Judging Trainer's chat, which shares the limits).
 
-const FEATURE = 'support-chat';
+const FEATURES = ['support-chat', 'judging-trainer'];
 const KEYS = {
   perUserHour: 'support_chat_per_user_hour',
   perUserDay: 'support_chat_per_user_day',
@@ -74,8 +75,8 @@ export async function checkSupportChatLimits(userId: string): Promise<string | n
          COALESCE(sum(cost_usd) FILTER (WHERE created_at >= date_trunc('month', now())), 0) AS month_cost,
          extract(epoch FROM now())::float8 * 1000 AS now_ms
        FROM claude_usage
-       WHERE feature = $1 AND created_at >= LEAST(now() - interval '1 day', date_trunc('month', now()))`,
-      [FEATURE, userId]
+       WHERE feature = ANY($1::text[]) AND created_at >= LEAST(now() - interval '1 day', date_trunc('month', now()))`,
+      [FEATURES, userId]
     );
     row = result.rows[0];
   } catch (err) {

@@ -168,6 +168,9 @@ export type JudgeState = {
   noteWeights: Record<string, number>;
   // How the baseline estimate is made from the notes' curve (same source).
   estimate: { areaScale: number; power: number };
+  // How many seconds of the routine each counted positive note takes (0 = no
+  // limit; see limitScores in score-curve.ts).
+  secondsPerScore: number;
   // The numberline of a Difficulty judge (null for the other categories).
   line: DifficultyLine | null;
   // Which database answered: the screens ask every second from the local one.
@@ -212,6 +215,7 @@ export type JudgedRoutine = {
   submitted: SubmittedScore | null;
   noteWeights: Record<string, number>;
   estimate: { areaScale: number; power: number };
+  secondsPerScore: number;
   // The other categories' judges, averaged per category.
   others: OtherCurve[];
 };

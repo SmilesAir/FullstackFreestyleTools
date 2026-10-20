@@ -6,8 +6,10 @@ type Message = { role: 'user' | 'assistant'; content: string };
 type Position = { x: number; y: number };
 
 // The conversation and whether the box is open, kept for this browser tab so
-// moving between Head Judge and the Event Creator keeps the chat going.
+// moving between Head Judge and the Event Creator keeps the chat going. The
+// Judging Trainer's chat is about something else, so it keeps its own.
 const CHAT_KEY = 'support-chat';
+const TRAINER_CHAT_KEY = 'support-chat:judging-trainer';
 // Where the box was dragged to, kept on this device.
 const POSITION_KEY = 'support-chat-position';
 // What the server takes: the latest questions and answers, starting with a question.
@@ -36,7 +38,24 @@ function writeJson(storage: () => Storage, key: string, value: unknown) {
 // The tech support chat: a button in the corner that opens a box to ask Claude
 // how to use the tools. The box can be dragged by its title bar and stays inside
 // the window. Answers stream in as they are written.
-export function SupportChat({ page }: { page: 'head-judge' | 'events' }) {
+// What the box says on each page: the Judging Trainer's chat explains judging
+// rather than the tools.
+const TEXT = {
+  support: {
+    title: 'Tech support',
+    intro:
+      'Ask how to do something with these tools or how to run your event. For example: “How do I publish a pool’s results?” or “A judge’s screen isn’t updating.”',
+  },
+  trainer: {
+    title: 'Fpa2027 help',
+    intro:
+      'Ask how Fpa2027 judging and scoring work. For example: “How is the Difficulty baseline worked out?” or “What does +10% do to my score?”',
+  },
+};
+
+export function SupportChat({ page }: { page: 'head-judge' | 'events' | 'judging-trainer' }) {
+  const chatKey = page === 'judging-trainer' ? TRAINER_CHAT_KEY : CHAT_KEY;
+  const text = page === 'judging-trainer' ? TEXT.trainer : TEXT.support;
   const [open, setOpen] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -66,7 +85,7 @@ export function SupportChat({ page }: { page: 'head-judge' | 'events' }) {
   // What was kept in this tab and on this device (read after the first render).
   useEffect(() => {
     const read = setTimeout(() => {
-      const saved = readJson<{ conversationId: string; messages: Message[]; open: boolean }>(() => sessionStorage, CHAT_KEY);
+      const saved = readJson<{ conversationId: string; messages: Message[]; open: boolean }>(() => sessionStorage, chatKey);
       if (saved && Array.isArray(saved.messages)) {
         setConversationId(saved.conversationId);
         setMessages(saved.messages);
@@ -78,11 +97,11 @@ export function SupportChat({ page }: { page: 'head-judge' | 'events' }) {
       setLoaded(true);
     }, 0);
     return () => clearTimeout(read);
-  }, []);
+  }, [chatKey]);
 
   useEffect(() => {
-    if (loaded && conversationId) writeJson(() => sessionStorage, CHAT_KEY, { conversationId, messages, open });
-  }, [loaded, conversationId, messages, open]);
+    if (loaded && conversationId) writeJson(() => sessionStorage, chatKey, { conversationId, messages, open });
+  }, [loaded, chatKey, conversationId, messages, open]);
 
   // Opening: put the box where it was (or the bottom-right corner), inside the window.
   useEffect(() => {
@@ -199,8 +218,8 @@ export function SupportChat({ page }: { page: 'head-judge' | 'events' }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Tech support"
-        title="Tech support"
+        aria-label={text.title}
+        title={text.title}
         className="fixed bottom-4 right-4 z-50 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 print:hidden"
       >
         <svg aria-hidden viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -216,7 +235,7 @@ export function SupportChat({ page }: { page: 'head-judge' | 'events' }) {
     <div
       ref={panel}
       role="dialog"
-      aria-label="Tech support chat"
+      aria-label={`${text.title} chat`}
       onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
       style={position ? { left: position.x, top: position.y } : { right: 16, bottom: 16 }}
       className="fixed z-50 flex h-[min(34rem,calc(100dvh-1rem))] w-[min(24rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-lg border border-gray-300 bg-background shadow-2xl print:hidden"
@@ -228,7 +247,7 @@ export function SupportChat({ page }: { page: 'head-judge' | 'events' }) {
         onPointerCancel={endDrag}
         className="flex cursor-move touch-none select-none items-center gap-2 bg-blue-600 px-3 py-2 text-white"
       >
-        <span className="font-semibold">Tech support</span>
+        <span className="font-semibold">{text.title}</span>
         <button
           type="button"
           onClick={newChat}
@@ -249,10 +268,7 @@ export function SupportChat({ page }: { page: 'head-judge' | 'events' }) {
 
       <div ref={list} className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 py-3 text-sm">
         {messages.length === 0 && (
-          <p className="text-gray-500">
-            Ask how to do something with these tools or how to run your event. For example: &ldquo;How do I publish a
-            pool&apos;s results?&rdquo; or &ldquo;A judge&apos;s screen isn&apos;t updating.&rdquo;
-          </p>
+          <p className="text-gray-500">{text.intro}</p>
         )}
         {messages.map((m, i) => (
           <div

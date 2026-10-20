@@ -11,11 +11,13 @@ export const config = {
     '/events/:path*',
     '/head-judge/:path*',
     '/event-music/:path*',
+    '/pool-review/:path*',
     '/backups/:path*',
     '/permissions/:path*',
     '/control-panel/:path*',
     '/profile/:path*',
     '/activity/:path*',
+    '/judging-trainer/:path*',
     '/settings/:path*',
   ],
 };

@@ -3,7 +3,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import type { JudgedRoutine, JudgeHistory, JudgeState, NoteCategory, OtherCurve, UpcomingTeam } from '@/lib/judging';
 import { graphExtent, ScoreGraph } from '@/app/judge/_components/ScoreGraph';
-import { baselineEstimate, noteSum, type CurveScore } from '@/lib/score-curve';
+import { estimatesOf } from '@/lib/judging-estimate';
+import type { CurveScore } from '@/lib/score-curve';
 import { graphDuration, noteScores } from './noteScores';
 import { OthersLegend } from './OthersLegend';
 import { ScoreCard } from './ScoreCard';
@@ -29,6 +30,7 @@ export function NotesReview({
   onSubmit,
   onSubmitBackup,
   submitting,
+  history: givenHistory,
 }: {
   category: NoteCategory;
   eventId: string;
@@ -38,8 +40,11 @@ export function NotesReview({
   // The backup score for a team that hasn't played (the server makes its routine).
   onSubmitBackup: (adjustPercent: number, teamId: string) => Promise<boolean>;
   submitting: boolean;
+  // The list, when the caller has it (the Judging Trainer); otherwise it is
+  // read from the server.
+  history?: JudgeHistory;
 }) {
-  const [history, setHistory] = useState<JudgeHistory>({ routines: [], upcoming: [] });
+  const [fetchedHistory, setHistory] = useState<JudgeHistory>({ routines: [], upcoming: [] });
   const [historyError, setHistoryError] = useState(false);
   // Counts the changes made to earlier scores, so the list is read again.
   const [changes, setChanges] = useState(0);
@@ -56,6 +61,7 @@ export function NotesReview({
     changes,
   ].join(':');
   useEffect(() => {
+    if (givenHistory) return;
     let current = true;
     const query = new URLSearchParams({ event: eventId, player: playerId, category });
     fetch(`/api/judge/history?${query}`, { cache: 'no-store' })
@@ -72,7 +78,8 @@ export function NotesReview({
     return () => {
       current = false;
     };
-  }, [eventId, playerId, category, latestKey]);
+  }, [eventId, playerId, category, latestKey, givenHistory]);
+  const history = givenHistory ?? fetchedHistory;
 
   const currentId = state.notesRoutine?.id;
   const earlier = useMemo(() => history.routines.filter((r) => r.id !== currentId), [history.routines, currentId]);
@@ -91,11 +98,16 @@ export function NotesReview({
       all.max = Math.max(all.max, e.max);
       all.min = Math.min(all.min, e.min);
     };
-    for (const r of earlier) add(noteScores(r.notes, r.noteWeights, r.startedAt, category), r.routineSeconds, r.others);
+    for (const r of earlier) {
+      add(noteScores(r.notes, r.noteWeights, r.startedAt, category, r.routineSeconds, r.secondsPerScore), r.routineSeconds, r.others);
+    }
     const now = state.notesRoutine;
-    if (now) add(noteScores(state.notes, state.noteWeights, now.startedAt, category), now.routineSeconds, currentOthers);
+    if (now) {
+      const scores = noteScores(state.notes, state.noteWeights, now.startedAt, category, now.routineSeconds, state.secondsPerScore);
+      add(scores, now.routineSeconds, currentOthers);
+    }
     return all;
-  }, [earlier, state.notesRoutine, state.notes, state.noteWeights, category, currentOthers]);
+  }, [earlier, state.notesRoutine, state.notes, state.noteWeights, state.secondsPerScore, category, currentOthers]);
 
   // The key covers every category that has a line on any graph.
   const legend = useMemo(() => [...earlier.flatMap((r) => r.others), ...currentOthers], [earlier, currentOthers]);
@@ -242,11 +254,11 @@ function PastRoutine({
   onSubmit: SubmitFn;
 }) {
   const scores = useMemo(
-    () => noteScores(routine.notes, routine.noteWeights, routine.startedAt, category),
-    [routine.notes, routine.noteWeights, routine.startedAt, category]
+    () => noteScores(routine.notes, routine.noteWeights, routine.startedAt, category, routine.routineSeconds, routine.secondsPerScore),
+    [routine.notes, routine.noteWeights, routine.startedAt, category, routine.routineSeconds, routine.secondsPerScore]
   );
-  const estimate = useMemo(
-    () => (category === 'Diff' ? baselineEstimate(scores, routine.routineSeconds, routine.estimate) : noteSum(scores)),
+  const { baseline: estimate, unrestricted } = useMemo(
+    () => estimatesOf(scores, routine.routineSeconds, routine.estimate, category),
     [scores, routine.routineSeconds, routine.estimate, category]
   );
   // A routine without a score can be scored from here (the backup).
@@ -270,6 +282,7 @@ function PastRoutine({
         aside={
           <ScoreCard
             estimate={estimate}
+            unrestricted={routine.secondsPerScore > 0 ? unrestricted : null}
             submitted={routine.submitted}
             percent={percent}
             status={changed ? (failed ? 'Not saved' : 'Saving…') : null}
@@ -312,13 +325,15 @@ function CurrentRoutine({
   });
 
   const scores = useMemo<CurveScore[]>(
-    () => (routine ? noteScores(state.notes, state.noteWeights, routine.startedAt, category) : []),
-    [state.notes, state.noteWeights, routine, category]
+    () =>
+      routine
+        ? noteScores(state.notes, state.noteWeights, routine.startedAt, category, routine.routineSeconds, state.secondsPerScore)
+        : [],
+    [state.notes, state.noteWeights, routine, category, state.secondsPerScore]
   );
 
-  const estimate = useMemo(
-    () =>
-      !routine ? 0 : category === 'Diff' ? baselineEstimate(scores, routine.routineSeconds, state.estimate) : noteSum(scores),
+  const { baseline: estimate, unrestricted } = useMemo(
+    () => (!routine ? { baseline: 0, unrestricted: 0 } : estimatesOf(scores, routine.routineSeconds, state.estimate, category)),
     [scores, routine, state.estimate, category]
   );
 
@@ -341,6 +356,7 @@ function CurrentRoutine({
         aside={
           <ScoreCard
             estimate={estimate}
+            unrestricted={state.secondsPerScore > 0 ? unrestricted : null}
             submitted={state.submitted}
             percent={percent}
             status={changed ? (failed ? 'Not saved' : 'Saving…') : null}

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getEvent, getEventPlayers, listDivisions, listEvents } from '@/lib/event-creator-queries';
+import { getEvent, getEventCommittee, getEventPlayers, listDivisions, listEvents } from '@/lib/event-creator-queries';
 import { DIVISION_NAMES } from '@/lib/event-creator';
 import { NewEventForm } from './_components/NewEventForm';
 import { NewDivisionForm } from './_components/NewDivisionForm';
@@ -7,6 +7,7 @@ import { EventPlayingToggle } from './_components/EventPlayingToggle';
 import { EventRosterPasteForm } from './_components/EventRosterPasteForm';
 import { Collapsible } from './_components/Collapsible';
 import { EventDiscordSettings } from './_components/EventDiscordSettings';
+import { EventCommitteeSettings } from './_components/EventCommitteeSettings';
 import { getEventDiscordStatus } from '@/lib/discord';
 import { Tabs, type Tab } from '../_components/Tabs';
 import { DivisionView } from './_components/division/DivisionView';
@@ -19,12 +20,13 @@ export default async function EventsPage({
   const { event: eventParam, division: divisionParam } = await searchParams;
 
   // Independent queries run together (each DB round trip is ~100ms).
-  const [events, selected, unsortedDivisions, players, discord] = await Promise.all([
+  const [events, selected, unsortedDivisions, players, discord, committee] = await Promise.all([
     listEvents(),
     eventParam ? getEvent(eventParam) : null,
     eventParam ? listDivisions(eventParam) : [],
     eventParam ? getEventPlayers(eventParam) : [],
     eventParam ? getEventDiscordStatus(eventParam) : null,
+    eventParam ? getEventCommittee(eventParam) : null,
   ]);
   const divisions = selected
     ? unsortedDivisions.sort(
@@ -59,6 +61,16 @@ export default async function EventsPage({
             <EventDiscordSettings eventId={selected.id} status={discord!} />
           </Collapsible>
 
+          <Collapsible title={`Committee (${committee!.members.length})`} variant="card" defaultOpen={false}>
+            <EventCommitteeSettings
+              // Remounts after a save's refresh, so the list starts from what was stored.
+              key={committee!.members.map((m) => m.id).join()}
+              eventId={selected.id}
+              members={committee!.members}
+              error={committee!.error}
+            />
+          </Collapsible>
+
           <Collapsible title="Add teams to several divisions with Claude" variant="card" defaultOpen={false}>
             <EventRosterPasteForm eventId={selected.id} existing={divisions.map((d) => d.division_name)} />
           </Collapsible>
@@ -73,6 +85,7 @@ export default async function EventsPage({
                     <span>
                       {p.name}
                       {p.country && <span className="ml-1 text-xs text-gray-500">{p.country}</span>}
+                      <span className="ml-1 text-xs text-gray-500">{Math.round(p.points)} pts</span>
                     </span>
                     <span className="text-xs text-gray-500">{p.divisions.join(', ')}</span>
                   </li>

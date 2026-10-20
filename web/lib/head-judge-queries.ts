@@ -9,7 +9,15 @@ import { getRoutineCurves } from './judging-queries';
 import { getLockedPoolKeys } from './pool-locks';
 import { getPublishedPoolKeys } from './pool-publish';
 import { DEFAULT_TIMECALLS, poolKey, roundName, type HeadJudgeDivision, type HeadJudgePool } from './head-judge';
-import { combineTeamRoutines, type PoolResultsData, type TeamResult } from './head-judge-results';
+import {
+  combineTeamRoutines,
+  judgeResultFromNotes,
+  type PoolResultsData,
+  type ResultNote,
+  type TeamResult,
+} from './head-judge-results';
+import { noteCategoryOf } from './judging';
+import { categorySettings, resolveEventSettings, scoreLimitOf, snapshotCategorySettings } from './judging-settings';
 import { NO_PLAY_STATE, type PlayResponse } from './head-judge-state';
 
 // A fingerprint of everything the Head Judge screen shows that the Event Creator
@@ -75,6 +83,18 @@ export async function getPlayState(eventId: string): Promise<PlayResponse> {
     presence,
     mode,
   };
+}
+
+// The Head Judge's playing pool if it is in this division, as a "round:LETTER"
+// key like getLockedPoolKeys gives, for the Event Creator's round headings.
+export async function getPlayingPoolKey(divisionId: string): Promise<string | null> {
+  const result = await pool.query<{ round_number: number; pool_id: string }>(
+    `SELECT round_number, pool_id FROM event_play_state
+     WHERE division_id = $1 AND round_number IS NOT NULL AND pool_id IS NOT NULL`,
+    [divisionId]
+  );
+  const row = result.rows[0];
+  return row ? `${row.round_number}:${row.pool_id.replace(/^pool/i, '').toUpperCase()}` : null;
 }
 
 // Seconds since each judge's screen last polled the server, by player id, on the
@@ -203,9 +223,19 @@ export async function getPoolResults(
 ): Promise<PoolResultsData> {
   // Every run of each team's routine that wasn't cancelled, oldest first: judges may score
   // a team one at a time, so the team's result is combined over all of them below.
-  const routines = await pool.query<{ id: string; team_id: string }>(
-    `SELECT r.id, r.team_id
+  const routines = await pool.query<{
+    id: string;
+    team_id: string;
+    started_ms: number;
+    routine_seconds: number;
+    rules_id: string | null;
+    judging_settings: unknown;
+  }>(
+    `SELECT r.id, r.team_id, extract(epoch FROM r.started_at)::float8 * 1000 AS started_ms,
+            COALESCE(d.routine_seconds, 180) AS routine_seconds, d.rules_id, e.judging_settings
      FROM routines r
+     JOIN events e ON e.id = r.event_id
+     LEFT JOIN divisions d ON d.id = r.division_id
      WHERE r.event_id = $1 AND r.division_id = $2 AND r.round_number = $3 AND r.pool_id = $4
        AND r.status <> 'cancelled' AND r.team_id IS NOT NULL
      ORDER BY r.team_id, r.started_at`,
@@ -214,59 +244,86 @@ export async function getPoolResults(
   if (routines.rows.length === 0) return {};
   const ids = routines.rows.map((r) => r.id);
 
-  const [counts, scores, moves, curves] = await Promise.all([
-    pool.query<{ routine_id: string; judge_player_id: string; note_type: string; n: string; points: string }>(
-      `SELECT routine_id, judge_player_id, note_type, n, points
-       FROM fpa2027_judge_note_counts WHERE routine_id = ANY($1::uuid[])`,
+  const [notes, scores, curves] = await Promise.all([
+    pool.query<{
+      routine_id: string;
+      player_id: string;
+      category_type: string;
+      note_type: string;
+      noted_ms: number;
+      line_position: string | null;
+      line_value: string | null;
+      multiplier: string | null;
+    }>(
+      `SELECT routine_id, player_id, category_type, note_type,
+              extract(epoch FROM noted_at)::float8 * 1000 AS noted_ms, line_position, line_value, multiplier
+       FROM fpa2027_judge_notes
+       WHERE routine_id = ANY($1::uuid[])
+       ORDER BY noted_at, id`,
       [ids]
     ),
     pool.query<{
       routine_id: string;
       judge_player_id: string;
+      category_type: string;
       baseline_estimate: string;
       adjust_percent: string;
       score: string;
+      settings: unknown;
     }>(
-      `SELECT routine_id, judge_player_id, baseline_estimate, adjust_percent, score
+      `SELECT routine_id, judge_player_id, category_type, baseline_estimate, adjust_percent, score, settings
        FROM fpa2027_judge_scores WHERE routine_id = ANY($1::uuid[])`,
-      [ids]
-    ),
-    pool.query<{ routine_id: string; player_id: string; note_type: string; line_position: string }>(
-      `SELECT routine_id, player_id, note_type, line_position
-       FROM fpa2027_judge_notes
-       WHERE routine_id = ANY($1::uuid[]) AND category_type = 'Diff' AND line_position IS NOT NULL
-       ORDER BY noted_at, id`,
       [ids]
     ),
     getRoutineCurves(ids),
   ]);
 
+  // Each judge's notes and score per routine, then their result from them: the
+  // limit of positive notes from the settings the score was made with, or the
+  // event's current ones if there is no score yet.
+  const num = (v: string | null) => (v === null ? null : Number(v));
+  const key = (routineId: string, playerId: string, category: string) => `${routineId}:${playerId}:${category}`;
+  const notesByJudge = new Map<string, ResultNote[]>();
+  for (const n of notes.rows) {
+    const k = key(n.routine_id, n.player_id, n.category_type);
+    const list = notesByJudge.get(k) ?? [];
+    list.push({
+      noteType: n.note_type,
+      notedAt: n.noted_ms,
+      linePosition: num(n.line_position),
+      lineValue: num(n.line_value),
+      multiplier: num(n.multiplier),
+    });
+    notesByJudge.set(k, list);
+  }
+  const scoreByJudge = new Map(scores.rows.map((s) => [key(s.routine_id, s.judge_player_id, s.category_type), s]));
+
   // Each routine's own result first (team id -> its routines, oldest first).
   const byTeam = new Map<string, TeamResult[]>();
-  const byRoutine = new Map<string, TeamResult>();
   for (const r of routines.rows) {
     const entry: TeamResult = { routineId: r.id, judges: {}, curves: curves[r.id] ?? [] };
     byTeam.set(r.team_id, [...(byTeam.get(r.team_id) ?? []), entry]);
-    byRoutine.set(r.id, entry);
-  }
-  const judge = (routineId: string, playerId: string) => {
-    const entry = byRoutine.get(routineId)!;
-    return (entry.judges[playerId] ??= { counts: {}, points: 0, moves: [], submitted: null });
-  };
-  for (const c of counts.rows) {
-    const j = judge(c.routine_id, c.judge_player_id);
-    j.counts[c.note_type] = Number(c.n);
-    j.points += Number(c.points);
-  }
-  for (const m of moves.rows) {
-    judge(m.routine_id, m.player_id).moves.push({ position: Number(m.line_position), rating: m.note_type });
-  }
-  for (const s of scores.rows) {
-    judge(s.routine_id, s.judge_player_id).submitted = {
-      score: Number(s.score),
-      baseline: Number(s.baseline_estimate),
-      adjustPercent: Number(s.adjust_percent),
-    };
+    const eventSettings = resolveEventSettings(r.rules_id ?? 'Fpa2020', r.judging_settings);
+    const prefix = `${r.id}:`;
+    const judgeKeys = new Set(
+      [...notesByJudge.keys(), ...scoreByJudge.keys()].filter((k) => k.startsWith(prefix))
+    );
+    for (const k of judgeKeys) {
+      const [, playerId, category] = k.split(':');
+      const noteCategory = noteCategoryOf(category);
+      if (!noteCategory) continue;
+      const s = scoreByJudge.get(k);
+      const current = categorySettings(eventSettings, category);
+      const snapshot = s ? snapshotCategorySettings(s.settings, category, scoreLimitOf(current)) : null;
+      const settings = snapshot !== null ? snapshot : current;
+      entry.judges[playerId] = judgeResultFromNotes(
+        notesByJudge.get(k) ?? [],
+        { startedAt: r.started_ms, routineSeconds: r.routine_seconds },
+        settings,
+        noteCategory,
+        s ? { score: Number(s.score), baseline: Number(s.baseline_estimate), adjustPercent: Number(s.adjust_percent) } : null
+      );
+    }
   }
 
   const data: PoolResultsData = {};

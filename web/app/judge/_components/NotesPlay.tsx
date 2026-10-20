@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CATEGORY_NOTES, noteGroups, type JudgeNote, type JudgeState, type NoteCategory } from '@/lib/judging';
+import { CATEGORY_NOTES, noteGroups, type JudgeNote, type JudgeState, type NoteCategory, type OtherCurve } from '@/lib/judging';
 import { elapsedMs, formatElapsed } from '@/lib/head-judge-state';
 import type { SaveStatus } from '@/app/judge/_components/useJudgeNotes';
 import { NOTE_STYLE, NOTE_TINT } from './noteStyles';
-import { baselineEstimate, noteSum } from '@/lib/score-curve';
+import { estimatesOf } from '@/lib/judging-estimate';
 import { graphDuration, noteScores } from './noteScores';
 import { DifficultyPlay } from './DifficultyPlay';
 import { ScoreDialog } from './ScoreDialog';
@@ -30,6 +30,8 @@ export function NotesPlay({
   onDelete,
   onSubmit,
   submitting,
+  others: givenOthers,
+  canEnterScore = true,
 }: {
   eventId: string;
   playerId: string;
@@ -51,6 +53,12 @@ export function NotesPlay({
   // Saves the score with the judge's change in percent; says whether it worked.
   onSubmit: (adjustPercent: number) => Promise<boolean>;
   submitting: boolean;
+  // The other judges' curves, when the caller has them (the Judging Trainer);
+  // otherwise they are read from the server while the dialog is open.
+  others?: OtherCurve[];
+  // Whether this judge is offered Enter Score once the routine is over (the
+  // Judging Trainer leaves it out for a judge who took no notes on the run).
+  canEnterScore?: boolean;
 }) {
   const running = state.routineStartedAt !== null;
 
@@ -76,7 +84,8 @@ export function NotesPlay({
   const [dialogFor, setDialogFor] = useState<number | null>(null);
   const dialogOpen = atLength && dialogFor === state.routineStartedAt;
   // The other categories' judges, averaged, drawn under the graph in the dialog.
-  const others = useOtherCurves(eventId, playerId, category, state.routineId, dialogOpen);
+  const fetchedOthers = useOtherCurves(eventId, playerId, category, state.routineId, dialogOpen && !givenOthers);
+  const others = givenOthers ?? fetchedOthers;
   const submitted = running && state.submitted !== null && state.notesRoutine?.id === state.routineId;
   // The judge's change to the baseline estimate, in percent, for one routine.
   const [adjust, setAdjust] = useState<{ for: number | null; percent: number }>({ for: null, percent: 0 });
@@ -91,12 +100,28 @@ export function NotesPlay({
 
   // The notes as graph points and the baseline estimate from them, worked out
   // only once it is time to score (and not on every tick of the timer).
-  const { scores, estimate } = useMemo(() => {
-    if (!atLength || state.routineStartedAt === null) return { scores: [], estimate: 0 };
-    const points = noteScores(state.notes, state.noteWeights, state.routineStartedAt, category);
-    const estimate = category === 'Diff' ? baselineEstimate(points, state.routineSeconds, state.estimate) : noteSum(points);
-    return { scores: points, estimate };
-  }, [atLength, category, state.notes, state.noteWeights, state.routineStartedAt, state.routineSeconds, state.estimate]);
+  const { scores, estimate, unrestricted } = useMemo(() => {
+    if (!atLength || state.routineStartedAt === null) return { scores: [], estimate: 0, unrestricted: 0 };
+    const points = noteScores(
+      state.notes,
+      state.noteWeights,
+      state.routineStartedAt,
+      category,
+      state.routineSeconds,
+      state.secondsPerScore
+    );
+    const { baseline, unrestricted } = estimatesOf(points, state.routineSeconds, state.estimate, category);
+    return { scores: points, estimate: baseline, unrestricted };
+  }, [
+    atLength,
+    category,
+    state.notes,
+    state.noteWeights,
+    state.routineStartedAt,
+    state.routineSeconds,
+    state.estimate,
+    state.secondsPerScore,
+  ]);
 
   // Seven rows (Artistic Impression) get a lower floor than five, so they fit a phone.
   const rowMinHeight = CATEGORY_NOTES[category].length > 5 ? 'min-h-14' : 'min-h-20';
@@ -188,12 +213,14 @@ export function NotesPlay({
       {atLength && state.routineStartedAt !== null && (
         <>
           {/* Fixed over the top of the screen (the tabs and team names), so it
-              takes no room from the note rows and can't be missed. */}
-          {!submitted && (
+              takes no room from the note rows and can't be missed. A page with
+              its own bar above the screen (the Judging Trainer) sets
+              --judge-top-offset so the button sits below that bar. */}
+          {!submitted && canEnterScore && (
             <button
               type="button"
               onClick={() => setDialogFor(state.routineStartedAt)}
-              className="attention-pulse fixed inset-x-0 top-0 z-30 h-28 cursor-pointer rounded-b-2xl bg-blue-600 text-3xl font-bold text-white"
+              className="attention-pulse fixed inset-x-0 top-(--judge-top-offset,0px) z-30 h-28 cursor-pointer rounded-b-2xl bg-blue-600 text-3xl font-bold text-white"
             >
               Enter Score
             </button>
@@ -210,6 +237,7 @@ export function NotesPlay({
             duration={graphDuration(state.routineSeconds, scores)}
             routineSeconds={state.routineSeconds}
             estimate={estimate}
+            unrestricted={state.secondsPerScore > 0 ? unrestricted : null}
             adjustPercent={adjustPercent}
             onAdjust={(step) => setAdjust({ for: state.routineStartedAt, percent: adjustPercent + step })}
             elapsedSeconds={elapsedNow / 1000}

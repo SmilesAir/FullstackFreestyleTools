@@ -1,6 +1,8 @@
 import { getDivision, getPoolJudges, getTeams } from '@/lib/event-creator-queries';
 import { syncRosterFromRounds } from '@/lib/event-creator-sync';
+import { getPlayingPoolKey } from '@/lib/head-judge-queries';
 import { getLockedPoolKeys } from '@/lib/pool-locks';
+import { getPublishedPoolKeys } from '@/lib/pool-publish';
 import {
   DIVISION_NAMES,
   JUDGE_CATEGORIES,
@@ -33,11 +35,13 @@ export async function DivisionView({
   siblings: { id: string; division_name: string }[];
 }) {
   // getTeams only needs the name, so it runs alongside getDivision.
-  const [division, loadedTeams, poolJudges, lockedPoolKeys, discord] = await Promise.all([
+  const [division, loadedTeams, poolJudges, lockedPoolKeys, publishedPoolKeys, playingPoolKey, discord] = await Promise.all([
     getDivision(divisionId),
     getTeams(divisionId, divisionName),
     getPoolJudges(divisionId),
     getLockedPoolKeys(divisionId),
+    getPublishedPoolKeys(divisionId),
+    getPlayingPoolKey(divisionId),
     getEventDiscord(eventId),
   ]);
   // Rounds offer "Post play order to Discord" once the event has a channel.
@@ -120,6 +124,8 @@ export async function DivisionView({
               judges={judgesByRound[round.number] ?? {}}
               rosterCount={roster.length}
               lockedPoolKeys={lockedPoolKeys}
+              publishedPoolKeys={publishedPoolKeys}
+              playingPoolKey={playingPoolKey}
               discordReady={discordReady}
             />
           ))}

@@ -42,16 +42,6 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
         <p className="text-sm text-gray-600">Username: {profile.email}</p>
       </div>
 
-      <div>
-        <h2 className="mb-2 text-sm font-medium text-gray-700">Sign-in methods</h2>
-        <SignInMethods
-          logins={signIns.logins}
-          hasPassword={signIns.hasPassword}
-          notice={connect ?? null}
-          showGoogle={SHOW_GOOGLE}
-        />
-      </div>
-
       {/* Flashes once right after signing in (?welcome=1). A signed-in person with a player
           already linked was sent on to the home page above, so this is always the
           "link your player" case. */}
@@ -73,6 +63,16 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
         <h2 className="text-sm font-medium text-gray-700">Discord ID</h2>
         <DiscordIdForm initialValue={profile.discordId} />
         <TestDmButton disabled={!profile.discordId} />
+      </div>
+
+      <div>
+        <h2 className="mb-2 text-sm font-medium text-gray-700">Sign-in methods</h2>
+        <SignInMethods
+          logins={signIns.logins}
+          hasPassword={signIns.hasPassword}
+          notice={connect ?? null}
+          showGoogle={SHOW_GOOGLE}
+        />
       </div>
     </main>
   );

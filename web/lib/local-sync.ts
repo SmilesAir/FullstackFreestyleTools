@@ -44,6 +44,7 @@ const EVENT_PLAYERS = `
   SELECT tp.player_id FROM team_players tp JOIN teams t ON t.id = tp.team_id JOIN divisions d ON d.id = t.division_id WHERE d.event_id = $1
   UNION SELECT pj.player_id FROM pool_judges pj JOIN divisions d ON d.id = pj.division_id WHERE d.event_id = $1
   UNION SELECT d.head_judge_player_id FROM divisions d WHERE d.event_id = $1 AND d.head_judge_player_id IS NOT NULL
+  UNION SELECT unnest(e.committee_player_ids) FROM events e WHERE e.id = $1
   UNION SELECT rp.player_id FROM routine_players rp JOIN routines r ON r.id = rp.routine_id WHERE r.event_id = $1
   UNION SELECT n.player_id FROM fpa2027_judge_notes n WHERE n.event_id = $1
   UNION SELECT sc.judge_player_id FROM fpa2027_judge_scores sc JOIN routines r ON r.id = sc.routine_id WHERE r.event_id = $1`;

@@ -14,7 +14,7 @@ export const maxDuration = 120;
 // each question sends it all, and Claude reads the earlier turns from its cache.
 const Body = z.object({
   conversationId: z.string().uuid(),
-  page: z.enum(['head-judge', 'events']),
+  page: z.enum(['head-judge', 'events', 'judging-trainer']),
   messages: z
     .array(
       z.object({
@@ -31,6 +31,7 @@ const MAX_QUESTION = 2000;
 const PAGE_NOTE: Record<SupportPage, string> = {
   'head-judge': 'The person asking is on the Head Judge page.',
   events: 'The person asking is on the Event Creator page.',
+  'judging-trainer': 'The person asking is on the Judging Trainer page.',
 };
 
 const json = (body: unknown, status: number) =>
@@ -48,13 +49,14 @@ function apiErrorMessage(err: unknown): string {
 export async function POST(request: Request) {
   const access = await getCurrentUserAccess();
   if (!access) return json({ error: 'Sign in to use the support chat.' }, 401);
-  if (!access.permissions.has('head_judge') && !access.permissions.has('event_creator')) {
-    return json({ error: "You don't have access to the support chat." }, 403);
-  }
 
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return json({ error: 'That message could not be sent.' }, 400);
   const { conversationId, page, messages } = parsed.data;
+  // The Judging Trainer is for every signed-in user, and so is its chat.
+  if (page !== 'judging-trainer' && !access.permissions.has('head_judge') && !access.permissions.has('event_creator')) {
+    return json({ error: "You don't have access to the support chat." }, 403);
+  }
   // Questions and answers take turns, starting and ending with a question.
   if (messages.some((m, i) => m.role !== (i % 2 === 0 ? 'user' : 'assistant')) || messages.length % 2 === 0) {
     return json({ error: 'That message could not be sent.' }, 400);
@@ -69,7 +71,7 @@ export async function POST(request: Request) {
   const apiKey = await getSetting('anthropic_api_key');
   if (!apiKey) return json({ error: "The support chat isn't set up yet." }, 503);
 
-  const prompt = promptById('support-chat');
+  const prompt = promptById(page === 'judging-trainer' ? 'judging-trainer' : 'support-chat');
   const client = new Anthropic({ apiKey });
   const stream = client.beta.messages.stream({
     model: prompt.model,

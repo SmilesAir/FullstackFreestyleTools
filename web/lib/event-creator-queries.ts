@@ -49,7 +49,8 @@ export async function getEvent(id: string) {
   return result.rows[0] ?? null;
 }
 
-export type EventPlayer = { id: string; name: string; country: string | null; divisions: string[] };
+// points: the player's open ranking points (0 when unranked).
+export type EventPlayer = { id: string; name: string; country: string | null; points: number; divisions: string[] };
 
 // Every player on any team in the event, once each, with the divisions they're in.
 export async function getEventPlayers(eventId: string): Promise<EventPlayer[]> {
@@ -58,25 +59,30 @@ export async function getEventPlayers(eventId: string): Promise<EventPlayer[]> {
     first_name: string;
     last_name: string;
     country: string | null;
+    open_points: string | null;
     divisions: string[];
   }>(
     `SELECT p.id, p.first_name, p.last_name, p.country,
+            (SELECT max(r.points) FROM rankings r WHERE r.player_id = p.id AND r.category = 'ranking-open') AS open_points,
             array_agg(DISTINCT d.division_name ORDER BY d.division_name) AS divisions
      FROM divisions d
      JOIN teams t ON t.division_id = d.id
      JOIN team_players tp ON tp.team_id = t.id
      JOIN players p ON p.id = tp.player_id
      WHERE d.event_id = $1
-     GROUP BY p.id
-     ORDER BY p.last_name, p.first_name`,
+     GROUP BY p.id`,
     [eventId]
   );
-  return result.rows.map((r) => ({
-    id: r.id,
-    name: `${r.first_name} ${r.last_name}`,
-    country: r.country,
-    divisions: r.divisions,
-  }));
+  // Alphabetical by the name as shown (first name first), ignoring case and accents.
+  return result.rows
+    .map((r) => ({
+      id: r.id,
+      name: `${r.first_name} ${r.last_name}`,
+      country: r.country,
+      points: Number(r.open_points ?? 0),
+      divisions: r.divisions,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 }
 
 export type DivisionListItem = {
@@ -278,6 +284,26 @@ export async function getDivision(id: string): Promise<DivisionDetail | null> {
     head_judge: row.head_judge_player_id ? (players.get(row.head_judge_player_id) ?? null) : null,
     directors: row.director_player_ids.map((pid) => players.get(pid)).filter((p): p is PlayerRef => !!p),
   };
+}
+
+// The event's committee, in the order they were added. An error when the
+// database doesn't have the column yet (backend/schema.sql hasn't been re-run).
+export async function getEventCommittee(eventId: string): Promise<{ error: string | null; members: PlayerRef[] }> {
+  let ids: string[];
+  try {
+    const result = await pool.query<{ committee_player_ids: string[] }>(
+      'SELECT committee_player_ids FROM events WHERE id = $1',
+      [eventId]
+    );
+    ids = result.rows[0]?.committee_player_ids ?? [];
+  } catch (err) {
+    if ((err as { code?: string }).code === '42703') {
+      return { error: "This database doesn't have the committee yet: run the new lines of backend/schema.sql on it.", members: [] };
+    }
+    throw err;
+  }
+  const players = await getPlayerRefs(ids);
+  return { error: null, members: ids.map((pid) => players.get(pid)).filter((p): p is PlayerRef => !!p) };
 }
 
 export async function getPlayerRefs(ids: string[]): Promise<Map<string, PlayerRef>> {

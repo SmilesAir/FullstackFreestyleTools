@@ -1,6 +1,10 @@
 import type { SupportConversation } from '@/lib/support-chat-queries';
 
-const PAGE_NAMES: Record<string, string> = { 'head-judge': 'Head Judge', events: 'Event Creator' };
+const PAGE_NAMES: Record<string, string> = {
+  'head-judge': 'Head Judge',
+  events: 'Event Creator',
+  'judging-trainer': 'Judging Trainer',
+};
 
 const when = (iso: string) =>
   new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });

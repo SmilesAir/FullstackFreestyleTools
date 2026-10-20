@@ -1,7 +1,15 @@
 'use client';
 
 import { noteGroups, type NoteCategory } from '@/lib/judging';
-import { AREA_SCALE_STEP, POWER_STEP, weightRange, weightStep, type SystemSettings } from '@/lib/judging-settings';
+import {
+  AREA_SCALE_STEP,
+  hasScoreLimit,
+  POWER_STEP,
+  SECONDS_PER_SCORE_STEP,
+  weightRange,
+  weightStep,
+  type SystemSettings,
+} from '@/lib/judging-settings';
 import { NOTE_STYLE } from '@/app/judge/_components/noteStyles';
 import { fieldKey, rangeOf, validText, type Draft } from './settingsDraft';
 
@@ -112,6 +120,64 @@ export function CategoryForm({
           );
         })}
       </ul>
+
+      {hasScoreLimit(category) && (
+        <ScoreLimitField category={category} title={title} draft={draft} defaults={defaults} onEdit={onEdit} />
+      )}
     </section>
+  );
+}
+
+// How many positive notes count toward the baseline: one per this many seconds
+// of the routine; the most valuable are kept, the rest are grayed out.
+function ScoreLimitField({
+  category,
+  title,
+  draft,
+  defaults,
+  onEdit,
+}: {
+  category: NoteCategory;
+  title: string;
+  draft: Draft;
+  defaults: SystemSettings;
+  onEdit: (key: string, text: string) => void;
+}) {
+  const key = fieldKey(category, 'secondsPerScore');
+  const invalid = !validText(draft, key);
+  const [min, max] = rangeOf(key);
+  const seconds = Number(draft[key]);
+  const perMinute = !invalid && seconds > 0 ? Math.round((60 / seconds) * 100) / 100 : null;
+  return (
+    <>
+      <h4 className="mt-2 font-medium">{title} score limit</h4>
+      <p className="text-sm text-gray-500">
+        Only so many positive notes count toward the baseline: one per this many seconds of the routine, anywhere in it.
+        The most valuable count; the rest are grayed out on the graph. Negative notes always count. 0 = no limit.
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="w-52 text-sm font-medium">Seconds per score</span>
+        <input
+          type="number"
+          inputMode="decimal"
+          step={SECONDS_PER_SCORE_STEP}
+          min={min}
+          max={max}
+          value={draft[key]}
+          onChange={(e) => onEdit(key, e.target.value)}
+          aria-label={`${title} seconds per score`}
+          aria-invalid={invalid}
+          className={`w-28 rounded border bg-transparent px-2 py-1 ${invalid ? 'border-red-500' : 'border-gray-300'}`}
+        />
+        <span className="text-sm text-gray-500">
+          {perMinute !== null
+            ? `${perMinute} per minute (${Math.floor(180 / seconds)} in a 3:00 routine) · `
+            : !invalid
+              ? 'no limit · '
+              : ''}
+          default {defaults[category].secondsPerScore}, range {min} to {max}
+        </span>
+      </div>
+    </>
   );
 }

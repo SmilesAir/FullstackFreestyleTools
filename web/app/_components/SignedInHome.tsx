@@ -26,6 +26,17 @@ export async function SignedInHome({ userId }: { userId: string }) {
 
   return (
     <>
+      {!player && (
+        // ?welcome=1 makes Profile flash its Linked player section.
+        <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Your account isn&apos;t linked to a player yet. Set it under{' '}
+          <Link href="/profile?welcome=1" className="font-medium underline">
+            Profile → Linked player
+          </Link>{' '}
+          to see your pools, teams and activity here.
+        </p>
+      )}
+
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">Active events</h2>
         {events.length === 0 ? (

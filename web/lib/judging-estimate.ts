@@ -4,7 +4,33 @@
 // so the number the judge saw is the number that is stored.
 
 import { notePoints, type NoteCategory } from './judging';
-import { baselineEstimate, noteSum } from './score-curve';
+import { baselineEstimate, countedScores, limitScores, noteSum, type CurveScore } from './score-curve';
+
+// The estimate from these points: Execution/Artistic Impression add the notes'
+// weights straight up; Difficulty is the area-under-the-curve estimate (timing
+// matters there).
+export function estimateFromScores(
+  scores: readonly CurveScore[],
+  routineSeconds: number,
+  estimate: { areaScale: number; power: number },
+  category: NoteCategory
+): number {
+  return category === 'Diff' ? baselineEstimate(scores, routineSeconds, estimate) : noteSum(scores);
+}
+
+// The baseline counts only the notes within the routine's limit of positive
+// notes (see limitScores); `unrestricted` is what it would be with every note.
+export function estimatesOf(
+  scores: readonly CurveScore[],
+  routineSeconds: number,
+  estimate: { areaScale: number; power: number },
+  category: NoteCategory
+): { baseline: number; unrestricted: number } {
+  return {
+    baseline: estimateFromScores(countedScores(scores), routineSeconds, estimate, category),
+    unrestricted: estimateFromScores(scores, routineSeconds, estimate, category),
+  };
+}
 
 export function estimateFromNotes(
   notes: readonly { noteType: string; notedAt: number; lineValue?: number | null; multiplier?: number | null }[],
@@ -12,15 +38,14 @@ export function estimateFromNotes(
   routineSeconds: number,
   noteWeights: Record<string, number>,
   estimate: { areaScale: number; power: number },
-  category: NoteCategory
-): number {
+  category: NoteCategory,
+  secondsPerScore: number
+): { baseline: number; unrestricted: number } {
   const points = notes.map((n) => ({
     t: Math.max(0, (n.notedAt - routineStartedAt) / 1000),
     s: notePoints(n, noteWeights),
   }));
-  // Execution/Artistic Impression: the notes' weights added straight up.
-  // Difficulty: still the area-under-the-curve estimate - timing matters there.
-  return category === 'Diff' ? baselineEstimate(points, routineSeconds, estimate) : noteSum(points);
+  return estimatesOf(limitScores(points, routineSeconds, secondsPerScore), routineSeconds, estimate, category);
 }
 
 // The final score: the baseline with the judge's percentage change, to 2 decimals

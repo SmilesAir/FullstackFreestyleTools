@@ -26,6 +26,9 @@ type Props = {
   duration: number;
   routineSeconds: number;
   estimate: number;
+  // The baseline with every note counted, when the category limits its
+  // positive notes (null = no limit): shown as Baseline / Unrestricted.
+  unrestricted: number | null;
   // The judge's change to the estimate in percent (0 = as the computer made it),
   // and a step to add to it.
   adjustPercent: number;
@@ -84,6 +87,7 @@ function Body({
   duration,
   routineSeconds,
   estimate,
+  unrestricted,
   adjustPercent,
   onAdjust,
   elapsedSeconds,
@@ -202,8 +206,11 @@ function Body({
 
       <div className="flex shrink-0 items-center justify-between gap-3 rounded border border-gray-300 px-4 py-3">
         <div className="flex min-w-0 flex-col">
-          <span className="text-sm leading-tight">Baseline Estimate</span>
-          <span className="font-mono text-4xl font-bold leading-tight tabular-nums">{estimate}</span>
+          <span className="text-sm leading-tight">{unrestricted === null ? 'Baseline Estimate' : 'Baseline / Unrestricted'}</span>
+          <span className="font-mono text-4xl font-bold leading-tight tabular-nums">
+            {estimate}
+            {unrestricted !== null && <span className="text-2xl font-normal text-gray-500"> / {unrestricted}</span>}
+          </span>
         </div>
         <ScoreAdjuster onAdjust={onAdjust}>
           <div className="flex min-w-[4ch] flex-col items-center">

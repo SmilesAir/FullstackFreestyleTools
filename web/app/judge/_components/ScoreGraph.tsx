@@ -17,6 +17,8 @@ import { OTHER_COLOR } from './noteStyles';
 
 const POS = '#16a34a';
 const NEG = '#dc2626';
+// A positive score past the routine's limit (it doesn't count toward the baseline).
+const UNUSED = '#9ca3af';
 const FULL_MARGIN = { l: 38, r: 12, t: 24, b: 30 };
 // Lists of graphs: just room for the title and small axis labels.
 const COMPACT_MARGIN = { l: 30, r: 6, t: 15, b: 14 };
@@ -461,11 +463,12 @@ export function ScoreGraph({
                 cx={x(score.t)}
                 cy={zeroY}
                 r={dotRadius(score)}
-                fill={score.color ?? (score.s < 0 ? NEG : POS)}
+                fill={score.unused ? UNUSED : (score.color ?? (score.s < 0 ? NEG : POS))}
+                fillOpacity={score.unused ? 0.6 : 1}
                 stroke="var(--background)"
                 strokeWidth="1.5"
               >
-                <title>{`${mmss(score.t)}  ${score.label ?? signed(score.s)}`}</title>
+                <title>{`${mmss(score.t)}  ${score.label ?? signed(score.s)}${score.unused ? ' · not counted' : ''}`}</title>
               </circle>
             ))}
 

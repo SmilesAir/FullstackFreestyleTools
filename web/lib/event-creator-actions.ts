@@ -26,7 +26,7 @@ import { seedRound } from './event-creator-seeding';
 import { teamKey } from './event-creator-layout';
 import { applyRoundLayout, insertTeam } from './event-creator-layout-apply';
 import { describeChannel, getEventDiscord, parseChannelInput, postToEventThread, type ChannelInfo } from './discord';
-import { postRoundPlayOrder } from './discord-posts';
+import { postRoundPlayOrder, sendRoundForReview } from './discord-posts';
 import { insertPlayerByName } from './player-match';
 import { isPoolLocked, isRoundLocked, POOL_LOCKED_ERROR } from './pool-locks';
 
@@ -127,6 +127,15 @@ export async function setEventPlaying(eventId: string, playing: boolean): Promis
   await guard();
   if (!UUID.test(eventId)) return { error: 'Unknown event' };
   const result = await pool.query('UPDATE events SET is_playing = $2 WHERE id = $1', [eventId, playing]);
+  return result.rowCount === 0 ? { error: 'Unknown event' } : { error: null };
+}
+
+// Replaces the event's committee (the people who review its pools and results).
+export async function setEventCommittee(eventId: string, playerIds: string[]): Promise<ActionState> {
+  await guard();
+  if (!UUID.test(eventId)) return { error: 'Unknown event' };
+  if (!playerIds.every((id) => UUID.test(id))) return { error: 'Unknown player' };
+  const result = await pool.query('UPDATE events SET committee_player_ids = $2 WHERE id = $1', [eventId, [...new Set(playerIds)]]);
   return result.rowCount === 0 ? { error: 'Unknown event' } : { error: null };
 }
 
@@ -578,4 +587,28 @@ export async function postRoundPlayOrderToDiscord(divisionId: string, roundNumbe
   if (!Number.isInteger(roundNumber) || roundNumber < 1) return { error: 'Unknown round' };
   const outcome = await postRoundPlayOrder(divisionId, roundNumber);
   return { error: outcome.status === 'failed' ? outcome.error : null };
+}
+
+// DMs the division's directors and the event's committee a Pool Review link for
+// the round. `summary` says who got it and who couldn't be reached.
+export async function sendRoundForReviewOnDiscord(
+  divisionId: string,
+  roundNumber: number
+): Promise<ActionState & { summary?: string }> {
+  await guard();
+  if (!UUID.test(divisionId)) return { error: 'Unknown division' };
+  if (!Number.isInteger(roundNumber) || roundNumber < 1) return { error: 'Unknown round' };
+  const outcome = await sendRoundForReview(divisionId, roundNumber);
+  if (outcome.status === 'failed') return { error: outcome.error };
+
+  const { sent, noDiscord, failed } = outcome;
+  // Nobody reached: the reason is the first failure (a missing bot token reads best on its own).
+  if (sent.length === 0) {
+    if (failed.length > 0) return { error: `Couldn't send any review DMs: ${failed[0].error}` };
+    return { error: `None of the directors or committee have a linked Discord account: ${noDiscord.join(', ')}.` };
+  }
+  const parts = [`Sent for review to ${sent.join(', ')}.`];
+  if (noDiscord.length > 0) parts.push(`No linked Discord: ${noDiscord.join(', ')}.`);
+  if (failed.length > 0) parts.push(`Couldn't DM (they may not share a server with the bot, or block DMs): ${failed.map((f) => f.name).join(', ')}.`);
+  return { error: null, summary: parts.join(' ') };
 }

@@ -407,3 +407,6 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
     },
   };
 }
+
+// What a judge's screen works from (see NotesJudgeView).
+export type JudgeNotesApi = ReturnType<typeof useJudgeNotes>;

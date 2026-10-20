@@ -5,6 +5,7 @@ import { signOut } from '@/auth';
 import { getCurrentUserAccess } from '@/lib/authz';
 import { HOME_PATH } from '@/lib/site';
 import { pool } from '@/lib/db';
+import { getPoolReviewScope, hasPoolReviewAccess } from '@/lib/pool-review-queries';
 import { FLAGGED_TOOLS, ADMIN_ONLY_TOOLS, ALWAYS_AVAILABLE_TOOLS } from '@/lib/tools';
 
 export const metadata: Metadata = { title: 'Control Panel' };
@@ -13,9 +14,13 @@ export default async function ControlPanelPage() {
   const access = await getCurrentUserAccess();
   if (!access) redirect('/login');
 
+  // Pool Review also shows for an event's committee and a division's directors.
+  const autoPoolReview = hasPoolReviewAccess(await getPoolReviewScope(access));
   const tools = [
     ...ALWAYS_AVAILABLE_TOOLS,
-    ...FLAGGED_TOOLS.filter((t) => access.isAdmin || access.permissions.has(t.key)),
+    ...FLAGGED_TOOLS.filter(
+      (t) => access.isAdmin || access.permissions.has(t.key) || (t.key === 'pool_review' && autoPoolReview)
+    ),
     ...(access.isAdmin ? ADMIN_ONLY_TOOLS : []),
   ];
 

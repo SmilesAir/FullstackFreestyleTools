@@ -5,8 +5,38 @@
 // A score `s` at `t` seconds into the routine. `color` is the colour of its dot
 // on the graph (green or red by sign if not given) and `dotScale` makes that
 // dot bigger or smaller than its size for the score (1 if not given). An `id`
-// lets the graph say which dot was picked, and a `label` names it.
-export type CurveScore = { id?: string; label?: string; t: number; s: number; color?: string; dotScale?: number };
+// lets the graph say which dot was picked, and a `label` names it. An `unused`
+// score is past the routine's limit of positive scores (see limitScores): it is
+// still drawn, but grayed out and left out of the baseline.
+export type CurveScore = {
+  id?: string;
+  label?: string;
+  t: number;
+  s: number;
+  color?: string;
+  dotScale?: number;
+  unused?: boolean;
+};
+
+// How many positive scores a routine may count: one per `secondsPerScore` of
+// its length (15 = 4 a minute, 12 in a 3:00 routine). 0 means no limit.
+export const scoreLimit = (routineSeconds: number, secondsPerScore: number): number =>
+  secondsPerScore > 0 ? Math.floor(routineSeconds / secondsPerScore) : Infinity;
+
+// The scores with the ones past the limit marked unused: the most valuable
+// positive scores count (equal ones: the earlier first), wherever in the
+// routine they are; negative scores always count.
+export function limitScores<T extends CurveScore>(scores: readonly T[], routineSeconds: number, secondsPerScore: number): T[] {
+  const limit = scoreLimit(routineSeconds, secondsPerScore);
+  const positive = scores.map((s, i) => ({ s, i })).filter(({ s }) => s.s > 0);
+  if (positive.length <= limit) return [...scores];
+  positive.sort((a, b) => b.s.s - a.s.s || a.s.t - b.s.t || a.i - b.i);
+  const dropped = new Set(positive.slice(limit).map(({ i }) => i));
+  return scores.map((s, i) => (dropped.has(i) ? { ...s, unused: true } : s));
+}
+
+// The scores that count toward the baseline.
+export const countedScores = <T extends CurveScore>(scores: readonly T[]): T[] => scores.filter((s) => !s.unused);
 
 // 'smooth': the bump is centred on the score (reviewing a finished routine).
 // 'fade': the score jumps the line and its effect fades (looks back only).
@@ -90,16 +120,26 @@ export function curveArea(
   return area;
 }
 
-// The score the computer suggests from the notes: the area under the curve over
-// the routine (from the timer starting to its length), with heights raised to
-// `power`, times `areaScale`. Dividing by spread x sqrt(2 pi) makes an isolated
-// note count about its own weight when power is 1. Rounded to 1 decimal.
+// How far past the first and last note the area is measured: by 4 spreads a
+// bump is down to 0.03% of its height, so every note's bump counts in full.
+const AREA_MARGIN = 4 * CURVE_SPREAD;
+
+// The score the computer suggests from the notes: the area under the whole
+// curve, with heights raised to `power`, times `areaScale`. The area runs past
+// the routine's start and end (and any note after its length), so when a note
+// was taken doesn't change what it is worth: at power 1 the estimate is the
+// notes' points added up. Above 1, notes close together (a tall hill) count for
+// more. Dividing by spread x sqrt(2 pi) makes a note count its own weight.
+// Rounded to 1 decimal.
 export function baselineEstimate(
   scores: readonly CurveScore[],
   routineSeconds: number,
   { areaScale, power }: { areaScale: number; power: number }
 ): number {
-  const area = curveArea(scores, { shape: CURVE_SHAPE, spread: CURVE_SPREAD, from: 0, to: routineSeconds, power });
+  const times = scores.map((s) => s.t);
+  const from = Math.min(0, ...times) - AREA_MARGIN;
+  const to = Math.max(routineSeconds, ...times) + AREA_MARGIN;
+  const area = curveArea(scores, { shape: CURVE_SHAPE, spread: CURVE_SPREAD, from, to, power });
   const value = (areaScale * area) / (CURVE_SPREAD * Math.sqrt(2 * Math.PI));
   return Math.round(value * 10) / 10 || 0;
 }

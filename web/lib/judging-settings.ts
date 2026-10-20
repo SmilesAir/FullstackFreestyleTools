@@ -18,11 +18,14 @@ export type EstimateSettings = { areaScale: number; power: number };
 
 // One category's tunables: what each of its notes is worth (for Difficulty, the
 // multiplier of each rating), and its estimate. Difficulty also has its
-// numberline: how long it is and the moves named on it.
+// numberline: how long it is and the moves named on it. Execution and
+// Difficulty also limit how many positive notes count toward the baseline: one
+// per `secondsPerScore` of the routine (0 = no limit; see score-curve.ts).
 export type CategorySettings = {
   noteWeights: Record<string, number>;
   estimate: EstimateSettings;
   line?: DifficultyLine;
+  secondsPerScore?: number;
 };
 
 // One system's settings, all categories that take notes.
@@ -61,6 +64,19 @@ export const MIN_POWER = 0.5;
 export const MAX_POWER = 3;
 export const POWER_STEP = 0.1;
 
+export const MIN_SECONDS_PER_SCORE = 0;
+export const MAX_SECONDS_PER_SCORE = 600;
+export const SECONDS_PER_SCORE_STEP = 1;
+
+// The categories with a limit of positive notes.
+export const hasScoreLimit = (category: NoteCategory): boolean => category === 'Ex' || category === 'Diff';
+
+// A category's seconds per counted positive note (0 = no limit).
+export const scoreLimitOf = (settings: CategorySettings | undefined): number => settings?.secondsPerScore ?? 0;
+
+// 15 seconds per score: 4 positive notes a minute.
+const DEFAULT_SECONDS_PER_SCORE = 15;
+
 // Power 1 is the plain area: no extra credit for clusters until it is raised.
 const DEFAULT_ESTIMATE: EstimateSettings = { areaScale: 1, power: 1 };
 
@@ -97,9 +113,14 @@ const DEFAULT_LINE: DifficultyLine = {
 };
 
 const DEFAULT_SYSTEM: SystemSettings = {
-  Ex: { noteWeights: DEFAULT_WEIGHTS.Ex, estimate: DEFAULT_ESTIMATE },
+  Ex: { noteWeights: DEFAULT_WEIGHTS.Ex, estimate: DEFAULT_ESTIMATE, secondsPerScore: DEFAULT_SECONDS_PER_SCORE },
   AI: { noteWeights: DEFAULT_WEIGHTS.AI, estimate: DEFAULT_ESTIMATE },
-  Diff: { noteWeights: DEFAULT_WEIGHTS.Diff, estimate: DEFAULT_ESTIMATE, line: DEFAULT_LINE },
+  Diff: {
+    noteWeights: DEFAULT_WEIGHTS.Diff,
+    estimate: DEFAULT_ESTIMATE,
+    line: DEFAULT_LINE,
+    secondsPerScore: DEFAULT_SECONDS_PER_SCORE,
+  },
 };
 
 // The systems that have tunables, with their defaults. Each is free to differ
@@ -123,6 +144,7 @@ const clone = (s: SystemSettings): SystemSettings =>
         noteWeights: { ...s[c].noteWeights },
         estimate: { ...s[c].estimate },
         ...(s[c].line ? { line: cloneLine(s[c].line) } : {}),
+        ...(s[c].secondsPerScore !== undefined ? { secondsPerScore: s[c].secondsPerScore } : {}),
       },
     ])
   ) as SystemSettings;
@@ -148,6 +170,7 @@ const validMoveName = (v: unknown): v is string =>
   typeof v === 'string' && v.trim().length > 0 && v.trim().length <= MAX_MOVE_NAME;
 const validAreaScale = (v: unknown): v is number => inRange(v, MIN_AREA_SCALE, MAX_AREA_SCALE);
 const validPower = (v: unknown): v is number => inRange(v, MIN_POWER, MAX_POWER);
+const validSecondsPerScore = (v: unknown): v is number => inRange(v, MIN_SECONDS_PER_SCORE, MAX_SECONDS_PER_SCORE);
 
 // One system's stored settings over its defaults; invalid entries are ignored.
 export function resolveSettings(rulesId: string, stored: unknown): SystemSettings {
@@ -162,6 +185,9 @@ export function resolveSettings(rulesId: string, stored: unknown): SystemSetting
     const estimate = isObject(part.estimate) ? part.estimate : {};
     if (validAreaScale(estimate.areaScale)) settings[category].estimate.areaScale = estimate.areaScale;
     if (validPower(estimate.power)) settings[category].estimate.power = estimate.power;
+    if (hasScoreLimit(category) && validSecondsPerScore(part.secondsPerScore)) {
+      settings[category].secondsPerScore = part.secondsPerScore;
+    }
 
     const line = settings[category].line;
     if (line && isObject(part.line)) {
@@ -184,6 +210,25 @@ export function resolveEventSettings(rulesId: string, eventBlob: unknown): Syste
   return resolveSettings(rulesId, stored);
 }
 
+// The settings of one category from a score's stored snapshot ({ rulesId,
+// <category>: settings }), or null if it isn't one. A score made before the
+// limit of positive notes existed has none stored: it is shown with
+// `currentSecondsPerScore` (the event's limit now), so its results still say
+// which notes are over the limit; its stored baseline is unchanged.
+export function snapshotCategorySettings(
+  snapshot: unknown,
+  categoryType: string,
+  currentSecondsPerScore: number
+): CategorySettings | undefined | null {
+  if (!isObject(snapshot) || typeof snapshot.rulesId !== 'string') return null;
+  const own = categorySettings(resolveSettings(snapshot.rulesId, snapshot), categoryType);
+  const stored = snapshot[categoryType];
+  if (own && own.secondsPerScore !== undefined && !(isObject(stored) && stored.secondsPerScore !== undefined)) {
+    return { ...own, secondsPerScore: currentSecondsPerScore };
+  }
+  return own;
+}
+
 // For saving: every value of every category must be present and valid, and
 // nothing unknown is allowed. Values are rounded to 2 decimals.
 export function validateSettings(rulesId: string, input: unknown): { error: string } | { settings: SystemSettings } {
@@ -195,8 +240,9 @@ export function validateSettings(rulesId: string, input: unknown): { error: stri
   for (const category of NOTE_CATEGORIES) {
     const part = input[category];
     if (!isObject(part) || !isObject(part.noteWeights) || !isObject(part.estimate)) return unreadable;
-    if (Object.keys(part).some((k) => k !== 'noteWeights' && k !== 'estimate' && k !== 'line')) return unreadable;
+    if (Object.keys(part).some((k) => !['noteWeights', 'estimate', 'line', 'secondsPerScore'].includes(k))) return unreadable;
     if ((category === 'Diff') !== (part.line !== undefined)) return unreadable;
+    if (hasScoreLimit(category) !== (part.secondsPerScore !== undefined)) return unreadable;
     const known = new Set(CATEGORY_NOTES[category].map((n) => n.type));
     if (Object.keys(part.noteWeights).some((k) => !known.has(k))) return unreadable;
     if (Object.keys(part.estimate).some((k) => k !== 'areaScale' && k !== 'power')) return unreadable;
@@ -217,6 +263,14 @@ export function validateSettings(rulesId: string, input: unknown): { error: stri
     }
     settings[category].estimate.areaScale = Math.round(part.estimate.areaScale * 100) / 100;
     settings[category].estimate.power = Math.round(part.estimate.power * 100) / 100;
+    if (hasScoreLimit(category)) {
+      if (!validSecondsPerScore(part.secondsPerScore)) {
+        return {
+          error: `The seconds per score must be a number from ${MIN_SECONDS_PER_SCORE} to ${MAX_SECONDS_PER_SCORE}`,
+        };
+      }
+      settings[category].secondsPerScore = Math.round(part.secondsPerScore * 100) / 100;
+    }
 
     if (category === 'Diff') {
       const line = part.line;
@@ -246,6 +300,7 @@ export function sameSettings(a: SystemSettings, b: SystemSettings): boolean {
       CATEGORY_NOTES[c].every((n) => a[c].noteWeights[n.type] === b[c].noteWeights[n.type]) &&
       a[c].estimate.areaScale === b[c].estimate.areaScale &&
       a[c].estimate.power === b[c].estimate.power &&
+      a[c].secondsPerScore === b[c].secondsPerScore &&
       JSON.stringify(a[c].line ?? null) === JSON.stringify(b[c].line ?? null)
   );
 }

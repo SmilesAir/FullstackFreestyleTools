@@ -2,14 +2,13 @@ import 'server-only';
 import { pool } from './db';
 import { getMode } from './db-mode';
 import { roundName } from './head-judge';
-import { categorySettings, resolveEventSettings, resolveSettings } from './judging-settings';
-import { CURVE_SHAPE, CURVE_SPREAD, scoreCurve, type CurveScore } from './score-curve';
+import { categorySettings, resolveEventSettings, scoreLimitOf, snapshotCategorySettings } from './judging-settings';
+import { averageRoutineCurves, type CurveNote } from './judging-curves';
 import {
   JUDGING_CATEGORIES,
   JUDGING_RULES_ID,
   NOTE_CATEGORIES,
   categoryByType,
-  notePoints,
   type JudgedRoutine,
   type OtherCurve,
   type JudgeHistory,
@@ -271,6 +270,7 @@ export async function getJudgeState(eventId: string, playerId: string, categoryT
     notes,
     noteWeights,
     estimate,
+    secondsPerScore: scoreLimitOf(own),
     line: own?.line ?? null,
     mode: getMode(),
   };
@@ -352,8 +352,6 @@ async function getUpcomingTeams(eventId: string, at: JudgingPool): Promise<Upcom
 }
 
 // The spacing of an averaged curve's samples, in seconds.
-const OTHER_STEP = 0.5;
-
 // What the judges of the other note-taking categories made of each routine,
 // averaged per category, for drawing under this judge's own graph. Only
 // routines of the event that weren't cancelled and that this judge took notes
@@ -440,44 +438,22 @@ async function averagedCurves(
   const result: Record<string, OtherCurve[]> = {};
   for (const routine of routines) {
     const settings = resolveEventSettings(routine.rules_id ?? DEFAULT_RULES_ID, routine.judging_settings);
-    // category -> judge -> that judge's points
-    const points = new Map<string, Map<string, CurveScore[]>>();
-    let latest = 0;
-    for (const n of notes.rows) {
-      if (n.routine_id !== routine.id) continue;
-      const t = Math.max(0, (n.noted_ms - routine.started_ms) / 1000);
-      latest = Math.max(latest, t);
-      const weights = categorySettings(settings, n.category_type)?.noteWeights ?? {};
-      const judges = points.get(n.category_type) ?? new Map<string, CurveScore[]>();
-      const list = judges.get(n.player_id) ?? [];
-      list.push({
-        t,
-        s: notePoints(
-          { noteType: n.note_type, lineValue: n.line_value === null ? null : Number(n.line_value), multiplier: n.multiplier === null ? null : Number(n.multiplier) },
-          weights
-        ),
-      });
-      judges.set(n.player_id, list);
-      points.set(n.category_type, judges);
-    }
-
-    const duration = Math.max(30, Math.ceil(Math.max(routine.routine_seconds, latest) / 30) * 30);
-    const curves: OtherCurve[] = [];
-    for (const category of categories) {
-      const judges = points.get(category);
-      if (!judges || judges.size === 0) continue;
-      let sum: number[] | null = null;
-      for (const scores of judges.values()) {
-        const { ys } = scoreCurve(scores, { duration, spread: CURVE_SPREAD, shape: CURVE_SHAPE, step: OTHER_STEP });
-        sum = sum ? sum.map((v, i) => v + ys[i]) : ys;
-      }
-      curves.push({
-        category,
-        judges: judges.size,
-        step: OTHER_STEP,
-        ys: sum!.map((v) => Math.round((v / judges.size) * 100) / 100),
-      });
-    }
+    const routineNotes: CurveNote[] = notes.rows
+      .filter((n) => n.routine_id === routine.id)
+      .map((n) => ({
+        playerId: n.player_id,
+        categoryType: n.category_type,
+        noteType: n.note_type,
+        notedAt: n.noted_ms,
+        lineValue: n.line_value === null ? null : Number(n.line_value),
+        multiplier: n.multiplier === null ? null : Number(n.multiplier),
+      }));
+    const curves = averageRoutineCurves(
+      { startedAt: routine.started_ms, routineSeconds: routine.routine_seconds },
+      routineNotes,
+      settings,
+      categories
+    );
     if (curves.length > 0) result[routine.id] = curves;
   }
   return result;
@@ -563,11 +539,9 @@ async function getJudgedRoutines(
 
   return rows.map((r) => {
     // The settings the score was made with; otherwise the event's current ones.
-    const snapshot = r.score_settings as { rulesId?: unknown } | null;
-    const settings =
-      typeof snapshot?.rulesId === 'string'
-        ? resolveSettings(snapshot.rulesId, snapshot)
-        : resolveEventSettings(r.rules_id ?? DEFAULT_RULES_ID, r.judging_settings);
+    const current = categorySettings(resolveEventSettings(r.rules_id ?? DEFAULT_RULES_ID, r.judging_settings), categoryType);
+    const snapshot = snapshotCategorySettings(r.score_settings, categoryType, scoreLimitOf(current));
+    const own = snapshot !== null ? snapshot : current;
     return {
       id: r.id,
       startedAt: Math.round(r.started_ms),
@@ -579,8 +553,9 @@ async function getJudgedRoutines(
         r.score === null
           ? null
           : { score: Number(r.score), baseline: Number(r.baseline_estimate), adjustPercent: Number(r.adjust_percent) },
-      noteWeights: categorySettings(settings, categoryType)?.noteWeights ?? {},
-      estimate: categorySettings(settings, categoryType)?.estimate ?? DEFAULT_ESTIMATE,
+      noteWeights: own?.noteWeights ?? {},
+      estimate: own?.estimate ?? DEFAULT_ESTIMATE,
+      secondsPerScore: scoreLimitOf(own),
     };
   });
 }

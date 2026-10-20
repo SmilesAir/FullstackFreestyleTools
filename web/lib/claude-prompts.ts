@@ -1,6 +1,7 @@
 import { DIVISION_NAMES } from './event-creator';
 import { ROUND_NAMES } from './results-parser/build';
 import { SUPPORT_GUIDE } from './support-guide';
+import { FPA2027_GUIDE } from './judging-trainer-guide';
 
 // Every prompt the app sends to Claude, in one place: the code that makes the calls and the
 // Settings page that lists them both read from here, so what an admin sees is what is sent.
@@ -8,7 +9,7 @@ import { SUPPORT_GUIDE } from './support-guide';
 
 export const CLAUDE_MODEL = 'claude-opus-5';
 
-export type ClaudePromptId = 'roster-division' | 'roster-event' | 'results' | 'support-chat';
+export type ClaudePromptId = 'roster-division' | 'roster-event' | 'results' | 'support-chat' | 'judging-trainer';
 
 export type ClaudePrompt = {
   id: ClaudePromptId;
@@ -71,6 +72,21 @@ How to answer:
 
 ${SUPPORT_GUIDE}`;
 
+// The Judging Trainer's chat explains the Fpa2027 judging system to anyone
+// learning it, from the guide. Fixed text, so cached like the support chat.
+const JUDGING_TRAINER_SYSTEM = `You are the helper inside the Judging Trainer, a practice tool for the Fpa2027 freestyle frisbee judging system. The people asking are learning to judge (or to understand their scores): they want to know how notes turn into scores, what the buttons do, and how results and places are worked out.
+
+How to answer:
+- Answer from the guide below. Use the exact names of buttons and notes it gives, so people can find them on screen.
+- Keep it short and clear: a few sentences, or a few numbered steps. A small worked example with numbers helps when the question is about scoring.
+- Write plain text only, with no markdown: no asterisks, no "#" headings, no tables. Numbered steps on their own lines are fine.
+- The guide's numbers are the defaults. Say so if it matters, since a real event can use different ones.
+- If the guide doesn't cover it (for example what counts as a "clean completion" on the field, or official rulebook wording), say this guide only covers how the tools score and suggest asking a head judge. Never invent rules, numbers or buttons.
+- Only help with Fpa2027 judging and these tools. Politely decline anything else (general chat, other software, writing or coding tasks).
+- Never ask for or repeat passwords, API keys or other secrets.
+
+${FPA2027_GUIDE}`;
+
 export const CLAUDE_PROMPTS: readonly ClaudePrompt[] = [
   {
     id: 'roster-division',
@@ -112,6 +128,17 @@ export const CLAUDE_PROMPTS: readonly ClaudePrompt[] = [
     maxTokens: 8000,
     outputSummary: "A short plain-text answer to the user's question, from the guide in the prompt. The conversation so far is sent with each question.",
     system: SUPPORT_CHAT_SYSTEM,
+  },
+  {
+    id: 'judging-trainer',
+    name: 'Judging Trainer chat',
+    usedIn: 'The chat button on the Judging Trainer',
+    model: 'claude-opus-5-5',
+    effort: 'low',
+    maxTokens: 8000,
+    outputSummary:
+      "A short plain-text answer about how Fpa2027 judging and scoring work, from the guide in the prompt. The conversation so far is sent with each question.",
+    system: JUDGING_TRAINER_SYSTEM,
   },
 ];
 

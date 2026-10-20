@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Tabs, type Tab } from '@/app/_components/Tabs';
-import type { JudgeState, NoteCategory } from '@/lib/judging';
-import { IDLE_MS, useJudgeNotes } from '@/app/judge/_components/useJudgeNotes';
+import type { JudgeHistory, JudgeState, NoteCategory, OtherCurve } from '@/lib/judging';
+import { IDLE_MS, useJudgeNotes, type JudgeNotesApi } from '@/app/judge/_components/useJudgeNotes';
 import { NotesPlay } from './NotesPlay';
 import { NotesReview } from './NotesReview';
 
@@ -31,12 +31,55 @@ export function NotesJudge({
   onSaveStatus?: (saved: boolean) => void;
 }) {
   const judge = useJudgeNotes(eventId, playerId, category, initial);
-  const { state } = judge;
 
   const allSaved = judge.status === 'saved' && !judge.submitting;
   useEffect(() => {
     onSaveStatus?.(allSaved);
   }, [allSaved, onSaveStatus]);
+
+  return (
+    <NotesJudgeView
+      judge={judge}
+      category={category}
+      eventId={eventId}
+      playerId={playerId}
+      judgeName={judgeName}
+      basePath={basePath}
+      initialTab={initialTab}
+    />
+  );
+}
+
+// The screen itself, from whatever owns the notes: the live hook above, or the
+// Judging Trainer's notes kept in the browser. The trainer also hands over the
+// other judges' curves and the Review tab's list (otherwise read from the
+// server) and its own badge in place of the Local/Online one.
+export function NotesJudgeView({
+  judge,
+  category,
+  eventId,
+  playerId,
+  judgeName,
+  basePath,
+  initialTab,
+  badge,
+  others,
+  history,
+  canEnterScore,
+}: {
+  judge: JudgeNotesApi;
+  category: NoteCategory;
+  eventId: string;
+  playerId: string;
+  judgeName: string;
+  basePath: string;
+  initialTab: string;
+  badge?: React.ReactNode;
+  others?: OtherCurve[];
+  history?: JudgeHistory;
+  canEnterScore?: boolean;
+}) {
+  const { state } = judge;
 
   // When a new routine starts, take the judge to the Play tab (they may be
   // reading Review). Only a change counts: opening the screen mid-routine, or a
@@ -72,6 +115,8 @@ export function NotesJudge({
           onDelete={judge.removeNote}
           onSubmit={judge.submit}
           submitting={judge.submitting}
+          others={others}
+          canEnterScore={canEnterScore}
         />
       ),
     },
@@ -88,6 +133,7 @@ export function NotesJudge({
           onSubmit={judge.submit}
           onSubmitBackup={judge.submitBackup}
           submitting={judge.submitting}
+          history={history}
         />
       ),
     },
@@ -130,10 +176,10 @@ export function NotesJudge({
             {judgeName}
             <span
               className={`ml-2 rounded px-1.5 py-0.5 text-[11px] font-medium ${
-                judge.mode === 'local' ? 'bg-teal-100 text-teal-900' : 'bg-gray-100 text-gray-600'
+                badge !== undefined ? 'bg-violet-100 text-violet-900' : judge.mode === 'local' ? 'bg-teal-100 text-teal-900' : 'bg-gray-100 text-gray-600'
               }`}
             >
-              {judge.mode === 'local' ? 'Local server' : 'Online'}
+              {badge ?? (judge.mode === 'local' ? 'Local server' : 'Online')}
             </span>
           </>
         }

@@ -12,6 +12,7 @@ export const SUPPORT_GUIDE = `# Freestyle judging tools: guide for event staff
 - Head Judge: run the event on the day: choose the pool on stage, start and stop each routine, watch the judges, see and publish results.
 - Judge screens: what each judge uses on their phone or tablet to score.
 - Event Music: the computer that plays each team's song, and where time calls are set.
+- Pool Review: for directors and the committee to check pools before they're played: every pool not yet published, with its teams in play order and its judges. A division's directors see it for their division and the event's committee for every division, without being given the tool (both are set in the Event Creator).
 - Announcer: a read-only page for the announcer, opened from a link the Head Judge copies. No sign-in needed.
 - Event Editor: a calendar of all events, where an event can be marked test or hidden, with shortcuts into the other tools.
 - Results Parser: enter results of events that ran outside this system.
@@ -42,6 +43,7 @@ Rounds, pools and play order
 - Seed from rankings fills the round's pools from the current rankings. Teams can also be dragged from the Teams list into a pool, and dragged within or between pools to change the play order. clear round empties the round.
 - The order of teams in a pool is the play order the Head Judge, the judges, Event Music and the Announcer all follow.
 - Post Play Order/Judges to Discord posts the round to the event's Discord thread (when a channel is set).
+- Send for Review DMs the division's directors and the event's committee on Discord, saying which division and round is ready, with a link to Pool Review. Only people whose account has a linked Discord get it; the message after sending names anyone who couldn't be reached.
 
 Judges
 - Each pool needs its judges: use Set Judges on the pool and pick players for each category (Difficulty, Execution, Artistic Impression). Simple Ranking pools have none.
@@ -71,7 +73,28 @@ Play tab (running each routine)
 - Time calls: the playing team's time calls show on the Play tab (set them in Event Music).
 
 Results tab and public links
-- Choose a pool to see its results: each judge's score, the totals and the places. A Simple Ranking pool shows how many judges sent a ranking, each team's places, its total and final place, and Clear rankings.
+- Choose a pool to see its results. They update live (every few seconds, and at once when a judge finishes). The page has a Summary table, a combined graph, then a box per team (in play order) with its graph and a table per judge category. A Simple Ranking pool has its own table (see Simple Ranking divisions below).
+- Summary table: one row per team.
+  - Team: the team, with its colour dot (the same colour as its line in the combined graph) and a number: its play order, or its place when sorted By place. Play order / By place switch the row order.
+  - Difficulty, Execution, Artistic Impression: one column per judge (by name; "Difficulty #1" and so on on the public link), showing the score that judge submitted for the team. A dash means no score from that judge yet.
+  - Totals: each category's judges' scores added up.
+  - Team total: every submitted score added up (all categories).
+  - Place: the team's place in the pool by Team total, highest first. Equal totals share a place. A team with no score yet has no total or place.
+  - Hovering a row highlights that team's line in the combined graph. Ticking the box at the start of a row compares every other team to that team: all the numbers on the page (Summary and the tables below) become differences from it, green when higher and red when lower, and the total rows read Delta. Untick it to go back.
+- Combined graph (under the Summary): one line per team, its judges' notes averaged over the routine, in the team's colour.
+- Each team's box: its name, "X of Y judges finished" (or Not played yet), a graph with one averaged line per judge category over the routine, then a table per category with a row per judge and a Total row (all the judges added up).
+- Execution table: a column per note (Large Error, Medium Error, Minor Error, Average Completion, Clean Completion) with how many of that note the judge took. Then Baseline and Score (below).
+- Artistic Impression table: the notes under their area headings, Teamwork (Great, Decent, Minor), Music (Great, Decent) and Form (Good, Bad), with how many of each the judge took. Then Baseline and Score.
+- Difficulty table:
+  - Notes (numberline / rating): every move the judge noted, in order: where they placed it on the numberline, shown from 0 to 10, and its rating (Good, Average or Bad).
+  - Raw Points: what the judge's counted moves add up to (each move's numberline value times its rating's multiplier).
+  - Then Baseline and Score.
+- Baseline: the score the computer worked out from the judge's notes (from the area under their line in the graph).
+- Score: the score the judge submitted: the baseline after the judge's own adjustment up or down (in percent) on the scoring screen. This is the number that counts in the Summary.
+- Limit on positive notes: Execution and Difficulty count at most one positive note per so many seconds of routine (by default 15 seconds, so 12 in a 3-minute routine; set on the Settings tab). The most valuable ones count wherever they fall; negative notes always count. When a judge went over the limit:
+  - a note column reads "counted / taken" (for example 12 / 15),
+  - Difficulty moves that didn't count are greyed and struck through, the counted ones are ringed, and "X of Y counted" shows under them,
+  - the baseline column is headed Baseline / Unrestricted and shows both: the baseline from the counted notes, and what it would have been with every note counted.
 - Every pool has a public link (no login), with Copy link. Before the pool is published, the link shows only the teams in play order and the judges' names. After Publish results, it shows the full results, with judges never named (only "Difficulty #1" and so on). Publishing also posts the results to the event's Discord thread if a channel is set. Unpublish hides them again.
 
 Settings tab
@@ -87,6 +110,7 @@ Settings tab
 - No assigned judges: anyone can rank the playing pool from the Judge button on the main landing page while the event is playing.
 - Each judge puts the teams in order from best to worst with the up and down arrows; Submit unlocks once every team has a rank. Sending again replaces that browser's ranking.
 - Best team gets 1 point, the next 2, and so on. Fewest points wins; a tie goes to the team that plays later ("won on seed").
+- The results table (Head Judge's Results tab) has a row per team. Team: its name and play order. 1st, 2nd, 3rd...: how many judges ranked the team in that place. Total: its points (fewest is best). Place: its final place, marked "(tie, won on seed)" when a tie was broken by play order. Above the table: how many judges sent a ranking, and Clear rankings.
 
 ## Event Music
 - For the computer that plays the songs. It lists the playing events and picks the only one by itself.

@@ -5,7 +5,7 @@ import { isMissingTable } from './db-errors';
 // The support chat's conversations, kept 90 days so admins can see what people
 // ask and improve the guide (lib/support-guide.ts).
 
-export type SupportPage = 'head-judge' | 'events';
+export type SupportPage = 'head-judge' | 'events' | 'judging-trainer';
 
 // Saves one question and its answer, and deletes what is older than 90 days.
 // Never throws: the answer has already been shown, and keeping it is bookkeeping.

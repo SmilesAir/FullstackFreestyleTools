@@ -5,16 +5,19 @@ import {
   MAX_MOVES,
   MAX_MOVE_NAME,
   MAX_POWER,
+  MAX_SECONDS_PER_SCORE,
   MIN_AREA_SCALE,
   MIN_LINE_MAX,
   MIN_POWER,
+  MIN_SECONDS_PER_SCORE,
+  hasScoreLimit,
   weightRange,
   type SystemSettings,
 } from '@/lib/judging-settings';
 
 // Every field of the Settings form is text while it is being edited. Its key is
 // the category and the field: "Ex.large_error", "AI.form_bad", "Ex.areaScale",
-// "AI.power"; for Difficulty's numberline "Diff.lineMax", and each move
+// "AI.power", "Ex.secondsPerScore"; for Difficulty's numberline "Diff.lineMax", and each move
 // "Diff.move.<n>.name" / "Diff.move.<n>.position" with "Diff.moves" holding how
 // many there are.
 export type Draft = Record<string, string>;
@@ -33,7 +36,9 @@ export const rangeOf = (key: string): [number, number] => {
       ? [MIN_POWER, MAX_POWER]
       : field === 'lineMax'
         ? [MIN_LINE_MAX, MAX_LINE_MAX]
-        : weightRange(category as NoteCategory);
+        : field === 'secondsPerScore'
+          ? [MIN_SECONDS_PER_SCORE, MAX_SECONDS_PER_SCORE]
+          : weightRange(category as NoteCategory);
 };
 
 export const moveCount = (draft: Draft) => Number(draft[MOVES_KEY] ?? 0);
@@ -55,6 +60,8 @@ export const toDraft = (s: SystemSettings): Draft => {
     }
     draft[fieldKey(category, 'areaScale')] = String(s[category].estimate.areaScale);
     draft[fieldKey(category, 'power')] = String(s[category].estimate.power);
+    const seconds = s[category].secondsPerScore;
+    if (seconds !== undefined) draft[fieldKey(category, 'secondsPerScore')] = String(seconds);
     const line = s[category].line;
     if (line) Object.assign(draft, movesToDraft(line));
   }
@@ -118,6 +125,11 @@ export function parseDraft(draft: Draft): SystemSettings | null {
     const power = fieldKey(category, 'power');
     if (!validText(draft, scale) || !validText(draft, power)) return null;
     settings[category] = { noteWeights, estimate: { areaScale: round2(draft, scale), power: round2(draft, power) } };
+    if (hasScoreLimit(category)) {
+      const seconds = fieldKey(category, 'secondsPerScore');
+      if (!validText(draft, seconds)) return null;
+      settings[category].secondsPerScore = round2(draft, seconds);
+    }
 
     if (category === 'Diff') {
       if (!validText(draft, LINE_MAX_KEY)) return null;

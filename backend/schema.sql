@@ -488,6 +488,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_judging_presets_name ON judging_presets(ru
 -- specific event, so nothing bidirectional happens until then.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS bridge_enabled boolean NOT NULL DEFAULT false;
 
+-- The event's committee: the people who review its pools and results. Set in the
+-- Event Creator's Events tab; one list for the whole event (directors are per division).
+ALTER TABLE events ADD COLUMN IF NOT EXISTS committee_player_ids uuid[] NOT NULL DEFAULT '{}';
+
 -- The bridge's own memory of what it last agreed between the two sides, per
 -- synced "thing" (an event's roster/division setup, or one round's pool
 -- layout, or one pool's finished result). Neither side has a reliable

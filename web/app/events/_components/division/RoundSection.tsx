@@ -6,6 +6,7 @@ import {
   addTeamToRound,
   clearRound,
   postRoundPlayOrderToDiscord,
+  sendRoundForReviewOnDiscord,
   removeTeamFromRound,
   seedRoundFromRankings,
   setRoundConfig,
@@ -37,6 +38,17 @@ import { PoolJudgeColumns } from './PoolJudgeColumns';
 // One shared empty list, so a pool with no judges keeps a stable identity.
 const NO_JUDGES: PoolJudgeView[] = [];
 
+// The Head Judge Pools tab's tags (PoolsTab.tsx), plus one for a pool that has results.
+function PoolStatusTags({ playing, results, published }: { playing: boolean; results: boolean; published: boolean }) {
+  return (
+    <>
+      {playing && <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-800">Playing</span>}
+      {results && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">Results</span>}
+      {published && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-800">📢 Published</span>}
+    </>
+  );
+}
+
 export function RoundSection({
   divisionId,
   roundNumber,
@@ -47,6 +59,8 @@ export function RoundSection({
   judges,
   rosterCount,
   lockedPoolKeys,
+  publishedPoolKeys,
+  playingPoolKey,
   discordReady,
 }: {
   divisionId: string;
@@ -60,6 +74,10 @@ export function RoundSection({
   rosterCount: number;
   // Every locked pool of the division, as "round:LETTER" keys.
   lockedPoolKeys: string[];
+  // Every pool of the division with its results published, as "round:LETTER" keys.
+  publishedPoolKeys: string[];
+  // The Head Judge's playing pool, as a "round:LETTER" key, if it's in this division.
+  playingPoolKey: string | null;
   // The event has a Discord channel, so the play order can be posted there.
   discordReady: boolean;
 }) {
@@ -180,8 +198,32 @@ export function RoundSection({
   // is refused (here and on the server) while any pool of the round is locked.
   const roundLocked = lockedPoolKeys.some((k) => k.startsWith(`${roundNumber}:`));
 
+  // Each pool's status, tagged like the Head Judge's Pools tab: playing, has a
+  // result (any team placed), results published.
+  const statusOf = (letter: string, poolTeams: TeamRow[]) => ({
+    playing: playingPoolKey === `${roundNumber}:${letter}`,
+    results: poolTeams.some((t) => t.place !== null),
+    published: publishedPoolKeys.includes(`${roundNumber}:${letter}`),
+  });
+  const headingPools = poolsWithTeams
+    .map(({ letter, teams: poolTeams }) => ({ letter, ...statusOf(letter, poolTeams) }))
+    .filter((s) => s.playing || s.results || s.published);
+  // With one pool the round's tags are that pool's, so the letter is left off.
+  const showLetters = poolsWithTeams.filter((p) => p.teams.length > 0).length > 1;
+  const title = (
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      {roundName}
+      {headingPools.map((s) => (
+        <span key={s.letter} className="flex items-center gap-1">
+          {showLetters && <span className="text-xs font-medium text-gray-500">Pool {s.letter}</span>}
+          <PoolStatusTags {...s} />
+        </span>
+      ))}
+    </span>
+  );
+
   return (
-    <Collapsible title={roundName} variant="card" defaultOpen={teams.length > 0} sectionRef={trackRef}>
+    <Collapsible title={title} variant="card" defaultOpen={teams.length > 0} sectionRef={trackRef}>
       <div className="flex flex-wrap items-end gap-3 text-sm">
         <label className="flex flex-col gap-1">
           Pools
@@ -224,15 +266,34 @@ export function RoundSection({
         {roundLocked && (
           <span className="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">🔒 Locked by the Head Judge</span>
         )}
-        {discordReady && teams.length > 0 && (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => run(() => postRoundPlayOrderToDiscord(divisionId, roundNumber), () => 'Play order and judges posted to Discord.')}
-            className="ml-auto rounded border border-indigo-300 px-3 py-1 text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
-          >
-            Post Play Order/Judges to Discord
-          </button>
+        {teams.length > 0 && (
+          <div className="ml-auto flex flex-wrap gap-2">
+            {discordReady && (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => run(() => postRoundPlayOrderToDiscord(divisionId, roundNumber), () => 'Play order and judges posted to Discord.')}
+                className="rounded border border-indigo-300 px-3 py-1 text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+              >
+                Post Play Order/Judges to Discord
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={pending}
+              title="DM the division's directors and the event's committee a Pool Review link for this round."
+              onClick={() =>
+                confirm(`Send ${roundName} to the directors and committee for review? They each get a Discord DM with a Pool Review link.`) &&
+                run(
+                  () => sendRoundForReviewOnDiscord(divisionId, roundNumber),
+                  (r: { summary?: string }) => r.summary ?? 'Sent for review.'
+                )
+              }
+              className="rounded border border-indigo-300 px-3 py-1 text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+            >
+              Send for Review
+            </button>
+          </div>
         )}
       </div>
       {rosterCount === 0 && <p className="text-xs text-gray-500">Add teams before seeding.</p>}
@@ -267,6 +328,9 @@ export function RoundSection({
             <div className="text-sm font-medium">
               Pool {letter} <span className="text-xs font-normal text-gray-500">({poolTeams.length} teams)</span>
               {poolLocked && <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-700">🔒 Locked</span>}
+              <span className="ml-2 inline-flex gap-1 align-middle">
+                <PoolStatusTags {...statusOf(letter, poolTeams)} />
+              </span>
             </div>
             <ol className="flex flex-col text-[18.2px]">
               {poolTeams.map((t, i) => (

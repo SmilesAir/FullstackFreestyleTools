@@ -4,7 +4,7 @@ import { JUDGE_CATEGORY_LABELS, POOL_LETTERS, poolId } from './event-creator';
 import { sortPoolTeams } from './event-creator-layout';
 import { getPoolJudges, getTeams } from './event-creator-queries';
 import { roundName, teamName } from './head-judge';
-import { getEventDiscord, postToEventThread } from './discord';
+import { getEventDiscord, postToEventThread, sendDiscordDM } from './discord';
 import { playOrderImage, resultsImage, type ResultsRow } from './discord-images';
 import { byPlace, poolStandings } from './pool-standings';
 import { getOrCreateShortCode } from './pool-shortlink';
@@ -163,5 +163,79 @@ export function postRoundPlayOrder(divisionId: string, roundNumber: number): Pro
       { users: [...tagged] }
     );
     return posted.ok ? { status: 'posted' } : { status: 'failed', error: posted.error };
+  });
+}
+
+export type ReviewRequestOutcome =
+  | { status: 'failed'; error: string }
+  | { status: 'sent'; sent: string[]; noDiscord: string[]; failed: { name: string; error: string }[] };
+
+// DMs the division's directors and the event's committee a link to Pool Review
+// for a round. Only those with a linked Discord account can be reached; the rest
+// are named back so they can be told another way.
+export function sendRoundForReview(divisionId: string, roundNumber: number): Promise<ReviewRequestOutcome> {
+  return (async (): Promise<ReviewRequestOutcome> => {
+    const result = await pool.query<{
+      event_id: string;
+      event_name: string;
+      division_name: string;
+      director_player_ids: string[];
+      committee_player_ids: string[];
+    }>(
+      `SELECT e.id AS event_id, e.event_name, d.division_name, d.director_player_ids, e.committee_player_ids
+       FROM divisions d JOIN events e ON e.id = d.event_id WHERE d.id = $1`,
+      [divisionId]
+    );
+    const row = result.rows[0];
+    if (!row) return { status: 'failed', error: 'Division not found' };
+    const ids = [...new Set([...row.director_player_ids, ...row.committee_player_ids])];
+    if (ids.length === 0) return { status: 'failed', error: 'This division has no directors and the event has no committee to send it to.' };
+
+    const letters = (
+      await pool.query<{ pool_id: string }>(
+        'SELECT DISTINCT pool_id FROM teams WHERE division_id = $1 AND round_number = $2 ORDER BY pool_id',
+        [divisionId, roundNumber]
+      )
+    ).rows.map((r) => r.pool_id.replace(/^pool/i, '').toUpperCase());
+    if (letters.length === 0) return { status: 'failed', error: 'This round has no teams yet.' };
+
+    const [names, discordIds] = await Promise.all([
+      pool
+        .query<{ id: string; name: string }>(
+          `SELECT id, first_name || ' ' || last_name AS name FROM players WHERE id = ANY($1::uuid[])`,
+          [ids]
+        )
+        .then((r) => new Map(r.rows.map((p) => [p.id, p.name]))),
+      discordIdsByPlayer(ids),
+    ]);
+    const nameOf = (id: string) => names.get(id) ?? 'Unknown player';
+
+    const site = ((await getSetting('public_site_url'))?.trim() || DEFAULT_SITE).replace(/\/+$/, '');
+    const title = `${row.division_name} · ${roundName(roundNumber)}`;
+    const message =
+      `**${row.event_name}: ${title}** is ready for review.\n` +
+      `${letters.length === 1 ? 'Pool' : 'Pools'} ${letters.join(', ')}: check the teams' play order and the judges before the round is played.\n` +
+      `<${site}/pool-review?event=${row.event_id}>`;
+
+    // One DM per Discord account (a player and their alias can share one).
+    const byAccount = new Map<string, string>();
+    const noDiscord: string[] = [];
+    for (const id of ids) {
+      const discordId = discordIds.get(id);
+      if (!discordId) noDiscord.push(nameOf(id));
+      else if (!byAccount.has(discordId)) byAccount.set(discordId, nameOf(id));
+    }
+
+    const sent: string[] = [];
+    const failed: { name: string; error: string }[] = [];
+    for (const [discordId, name] of byAccount) {
+      const dm = await sendDiscordDM(discordId, message).catch(() => ({ ok: false as const, error: 'Could not reach Discord.' }));
+      if (dm.ok) sent.push(name);
+      else failed.push({ name, error: dm.error });
+    }
+    return { status: 'sent', sent, noDiscord, failed };
+  })().catch((err) => {
+    console.error('Review request failed', err);
+    return { status: 'failed', error: 'Could not send the review request.' };
   });
 }

@@ -38,6 +38,12 @@ const TOOL_INFO: Record<PermissionKey, ToolInfo> = {
       "Play each team's song at an event: pools with how many songs are missing, every team's song to test, a player that always has the team that's up, and their time calls.",
     href: '/event-music',
   },
+  pool_review: {
+    label: 'Pool Review',
+    description:
+      "Check the pools before they're played: every unpublished pool's teams in play order and its judges. A division's directors see it without being given this tool, and an event's committee sees all its divisions.",
+    href: '/pool-review',
+  },
   rankings_generator: {
     label: 'Rankings Generator',
     description:
@@ -91,6 +97,12 @@ export const ALWAYS_AVAILABLE_TOOLS: ToolInfo[] = [
     description:
       'Every pool you played in or judged, newest first: results once a pool has played, the play order (and judges, when you judge) before.',
     href: '/activity',
+  },
+  {
+    label: 'Judging Trainer',
+    description:
+      'Practice Fpa2027 judging on a test pool of 8 teams: play every judge and the head judge, then see how the scores and places are worked out. Everything stays in your browser.',
+    href: '/judging-trainer',
   },
 ];
 
