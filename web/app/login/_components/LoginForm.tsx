@@ -3,9 +3,19 @@
 import { useActionState } from 'react';
 import { authenticate, signInWithGoogle, signInWithDiscord } from '../actions';
 
-// The sign-in options the login page offers (lib/login-options.ts decides which).
-export function LoginForm({ showGoogle, showPassword }: { showGoogle: boolean; showPassword: boolean }) {
+// The sign-in options the login page offers (lib/login-options.ts decides which). `next` is the
+// page that sent them here, which each form passes on so sign-in returns to it.
+export function LoginForm({
+  showGoogle,
+  showPassword,
+  next,
+}: {
+  showGoogle: boolean;
+  showPassword: boolean;
+  next: string | null;
+}) {
   const [state, formAction, pending] = useActionState(authenticate, { error: null });
+  const nextInput = next && <input type="hidden" name="next" value={next} />;
 
   return (
     <main className="mx-auto mt-24 max-w-sm px-4">
@@ -14,6 +24,7 @@ export function LoginForm({ showGoogle, showPassword }: { showGoogle: boolean; s
       <div className="mb-6 flex flex-col gap-2">
         {showGoogle && (
           <form action={signInWithGoogle}>
+            {nextInput}
             <button
               type="submit"
               className="w-full rounded border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50"
@@ -23,6 +34,7 @@ export function LoginForm({ showGoogle, showPassword }: { showGoogle: boolean; s
           </form>
         )}
         <form action={signInWithDiscord}>
+          {nextInput}
           <button
             type="submit"
             className="w-full rounded border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50"
@@ -41,6 +53,7 @@ export function LoginForm({ showGoogle, showPassword }: { showGoogle: boolean; s
           </div>
 
           <form action={formAction} className="flex flex-col gap-3">
+            {nextInput}
             <label className="flex flex-col gap-1 text-sm">
               Email
               <input name="email" type="email" required className="rounded border border-gray-300 px-3 py-2" />
