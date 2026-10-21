@@ -31,8 +31,12 @@ export type CategorySettings = {
 // One system's settings, all categories that take notes.
 export type SystemSettings = Record<NoteCategory, CategorySettings>;
 
-// A named copy of one system's settings.
-export type Preset = { id: string; rulesId: string; name: string; settings: SystemSettings };
+// A named copy of one system's settings. `eventId` is the event it is the event
+// preset of (null = shared across events).
+export type Preset = { id: string; rulesId: string; name: string; settings: SystemSettings; eventId: string | null };
+
+// The preset a new event's settings are copied from.
+export const OFFICIAL_PRESET = 'Fpa-Official';
 
 export const MIN_WEIGHT = -100;
 export const MAX_WEIGHT = 100;
@@ -104,7 +108,7 @@ const DEFAULT_WEIGHTS: Record<NoteCategory, Record<string, number>> = {
 // Three moves to start, at 0.2, 0.5 and 0.8 of the way up (on a line of 10 that is
 // Chair 2, Gitis 5, Double Barrell Gitis 8).
 const DEFAULT_LINE: DifficultyLine = {
-  max: 1,
+  max: 3,
   moves: [
     { name: 'Chair', position: 0.2 },
     { name: 'Gitis', position: 0.5 },
@@ -158,6 +162,19 @@ export function defaultSettings(rulesId: string): SystemSettings {
 export function categorySettings(settings: SystemSettings, categoryType: string): CategorySettings | undefined {
   const category = noteCategoryOf(categoryType);
   return category ? settings[category] : undefined;
+}
+
+// What a Difficulty note is made of under Difficulty's settings: the numberline
+// score (the position x the line's length) and the rating's multiplier.
+export function difficultyNoteValues(
+  diff: CategorySettings,
+  rating: string,
+  position: number
+): { lineValue: number; multiplier: number } {
+  return {
+    lineValue: Math.round(position * diff.line!.max * 10000) / 10000,
+    multiplier: diff.noteWeights[rating],
+  };
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);

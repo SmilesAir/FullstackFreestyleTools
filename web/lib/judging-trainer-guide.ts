@@ -21,7 +21,7 @@ Each routine is judged in three categories by separate judges: Difficulty (Diff)
 ## Execution (Ex)
 Five buttons, best at the top: Clean Completion, Average Completion, Minor Error, Medium Error, Large Error. Tap a button each time it happens; the minus button beside it removes the latest one of that kind.
 Default worth of each note: Clean Completion +2, Average Completion +1, Minor Error -1, Medium Error -2, Large Error -3.
-Baseline = the worth of every note added up (rounded to 1 decimal). Timing doesn't change an Ex baseline.
+Baseline = the worth of the counted notes added up (rounded to 1 decimal). Timing doesn't change an Ex baseline. Only 12 positive notes count in a 3:00 routine (see The limit on positive notes below); errors always count.
 
 ## Artistic Impression (AI)
 Three areas, each with its own levels:
@@ -31,15 +31,21 @@ Three areas, each with its own levels:
 Baseline = the worth of every note added up (rounded to 1 decimal), like Execution.
 
 ## Difficulty (Diff)
-- The Difficulty judge has a numberline instead of buttons: bottom is 0, top is the line's max (1 by default). Named moves are marked on it as guides: Chair at 0.2, Gitis at 0.5, Double Barrell Gitis at 0.8.
+- The Difficulty judge has a numberline instead of buttons: bottom is 0, top is the line's max (3 points by default). Named moves are marked on it as guides: Chair at 0.2, Gitis at 0.5, Double Barrell Gitis at 0.8.
 - To note a move: tap the numberline where the move's difficulty sits, then rate how well it was done: Good, Average or Bad. The note is timed at the tap.
-- A note's points = its numberline value x its rating's multiplier. Default multipliers: Good x2, Average x1, Bad x0.3. Example: a Gitis (0.5) done well is 0.5 x 2 = 1 point.
+- A note's points = its numberline value x its rating's multiplier. Default multipliers: Good x2, Average x1, Bad x0.3. Example: a Gitis sits halfway up, so its numberline value is 1.5; done well it is 1.5 x 2 = 3 points.
 - Notes show in a row under the line; tapping one lets the judge move it, re-rate it or delete it.
-- Baseline = the area under the Difficulty curve (see below). When a move happens doesn't change its worth.
+- Baseline = the area under the Difficulty curve of the counted moves (see below). When a move happens doesn't change its worth. Only 12 moves count in a 3:00 routine (see The limit on positive notes below).
+
+## The limit on positive notes
+- Execution and Difficulty count at most one positive note per 15 seconds of routine: 4 a minute, so 12 in a 3:00 routine. Artistic Impression has no limit.
+- If a judge takes more than that, the most valuable positive notes count, wherever they are in the routine (equal ones: the earlier first). The rest are dropped: still shown on the graph, but grayed out and left out of the baseline. Every Difficulty note is positive, even a Bad one, so Bad moves are usually the first dropped.
+- Negative notes (Execution's errors) always count.
+- So taking more notes than the limit doesn't raise a score. What raises it is better notes: harder moves done well, or clean completions instead of average ones.
 
 ## The curve and the Difficulty baseline
 - Every note adds a smooth bump at its moment (a bell shape about 4 seconds wide). The line on the graph is all the bumps added together, so notes close together stack into one tall hill and notes far apart stay separate. Green above zero, red below.
-- Difficulty's baseline is the area under the whole line, scaled so each note counts its own points. The area is measured past the routine's start and end, so a note right at the start, at the end or after the routine length counts in full: the baseline is the notes' points added up.
+- Difficulty's baseline is the area under the whole line, scaled so each note counts its own points. The area is measured past the routine's start and end, so a note right at the start, at the end or after the routine length counts in full: the baseline is the counted moves' points added up.
 - The baseline is rounded to 1 decimal.
 
 ## Your Score: the percent adjustment

@@ -16,6 +16,7 @@ import { NOTE_TINT, teamColorVar } from '@/app/judge/_components/noteStyles';
 import { OthersLegend } from '@/app/judge/_components/OthersLegend';
 import { graphExtent, ScoreGraph } from '@/app/judge/_components/ScoreGraph';
 import { byPlace, poolStandings } from '@/lib/pool-standings';
+import { askSupportChat, useSupportChatAvailable } from '@/app/_components/support-chat-ask';
 import { PoolOverviewGraph, type OverviewTeam } from './PoolOverviewGraph';
 import { PublicLinkControl } from './PublicLinkControl';
 import { SimpleRankingResults } from './SimpleRankingResults';
@@ -87,6 +88,7 @@ export function PoolResults({
 }) {
   const [data, setData] = useState<PoolResultsData | null>(null);
   const [failed, setFailed] = useState(false);
+  const chatAvailable = useSupportChatAvailable();
 
   useEffect(() => {
     // Simple Ranking has no note-taking judges; SimpleRankingResults polls its own endpoint below.
@@ -126,6 +128,21 @@ export function PoolResults({
   return (
     <div className="flex flex-col gap-4">
       <PublicLinkControl pool={pool} />
+      {chatAvailable && data !== null && Object.keys(data).length > 0 && (
+        <div>
+          <button
+            type="button"
+            onClick={() =>
+              askSupportChat(
+                `Explain the placements in ${pool.divisionName} ${pool.roundName} pool ${pool.letter}: why is each team where it is?`
+              )
+            }
+            className="rounded border border-gray-300 bg-white px-2 py-1 text-xs hover:bg-gray-100"
+          >
+            Explain these results
+          </button>
+        </div>
+      )}
       {failed && <p className="text-xs text-amber-700">Could not load the latest results. Trying again.</p>}
       <PoolResultsView pool={pool} data={data} />
     </div>

@@ -12,12 +12,19 @@ import { DEFAULT_TIMECALLS, poolKey, roundName, type HeadJudgeDivision, type Hea
 import {
   combineTeamRoutines,
   judgeResultFromNotes,
+  type JudgeResult,
   type PoolResultsData,
   type ResultNote,
   type TeamResult,
 } from './head-judge-results';
-import { noteCategoryOf } from './judging';
-import { categorySettings, resolveEventSettings, scoreLimitOf, snapshotCategorySettings } from './judging-settings';
+import { noteCategoryOf, type NoteCategory, type OtherCurve } from './judging';
+import {
+  categorySettings,
+  resolveEventSettings,
+  scoreLimitOf,
+  snapshotCategorySettings,
+  type CategorySettings,
+} from './judging-settings';
 import { NO_PLAY_STATE, type PlayResponse } from './head-judge-state';
 
 // A fingerprint of everything the Head Judge screen shows that the Event Creator
@@ -221,6 +228,48 @@ export async function getPoolResults(
   roundNumber: number,
   letter: string
 ): Promise<PoolResultsData> {
+  const routines = await getPoolRoutines(eventId, divisionId, roundNumber, letter);
+  const byTeam = new Map<string, TeamResult[]>();
+  for (const r of routines) {
+    const judges = Object.fromEntries(Object.entries(r.judges).map(([playerId, j]) => [playerId, j.result]));
+    byTeam.set(r.teamId, [...(byTeam.get(r.teamId) ?? []), { routineId: r.id, judges, curves: r.curves }]);
+  }
+  const data: PoolResultsData = {};
+  for (const [teamId, teamRoutines] of byTeam) {
+    const combined = combineTeamRoutines(teamRoutines);
+    if (combined) data[teamId] = combined;
+  }
+  return data;
+}
+
+// One judge's part of one routine: their notes (in the order taken), the
+// settings their result was worked out with, and that result.
+export type PoolRoutineJudge = {
+  category: NoteCategory;
+  notes: ResultNote[];
+  settings: CategorySettings | undefined;
+  result: JudgeResult;
+};
+
+// One run of a team's routine that wasn't cancelled.
+export type PoolRoutine = {
+  id: string;
+  teamId: string;
+  startedAt: number;
+  routineSeconds: number;
+  judges: Record<string, PoolRoutineJudge>;
+  curves: OtherCurve[];
+};
+
+// Every run of each team's routine in a pool that wasn't cancelled, by team and
+// then oldest first, with each judge's notes and result: what getPoolResults
+// combines, and what the support chat explains results from.
+export async function getPoolRoutines(
+  eventId: string,
+  divisionId: string,
+  roundNumber: number,
+  letter: string
+): Promise<PoolRoutine[]> {
   // Every run of each team's routine that wasn't cancelled, oldest first: judges may score
   // a team one at a time, so the team's result is combined over all of them below.
   const routines = await pool.query<{
@@ -241,7 +290,7 @@ export async function getPoolResults(
      ORDER BY r.team_id, r.started_at`,
     [eventId, divisionId, roundNumber, poolId(letter)]
   );
-  if (routines.rows.length === 0) return {};
+  if (routines.rows.length === 0) return [];
   const ids = routines.rows.map((r) => r.id);
 
   const [notes, scores, curves] = await Promise.all([
@@ -298,11 +347,15 @@ export async function getPoolResults(
   }
   const scoreByJudge = new Map(scores.rows.map((s) => [key(s.routine_id, s.judge_player_id, s.category_type), s]));
 
-  // Each routine's own result first (team id -> its routines, oldest first).
-  const byTeam = new Map<string, TeamResult[]>();
-  for (const r of routines.rows) {
-    const entry: TeamResult = { routineId: r.id, judges: {}, curves: curves[r.id] ?? [] };
-    byTeam.set(r.team_id, [...(byTeam.get(r.team_id) ?? []), entry]);
+  return routines.rows.map((r) => {
+    const entry: PoolRoutine = {
+      id: r.id,
+      teamId: r.team_id,
+      startedAt: r.started_ms,
+      routineSeconds: r.routine_seconds,
+      judges: {},
+      curves: curves[r.id] ?? [],
+    };
     const eventSettings = resolveEventSettings(r.rules_id ?? 'Fpa2020', r.judging_settings);
     const prefix = `${r.id}:`;
     const judgeKeys = new Set(
@@ -316,20 +369,20 @@ export async function getPoolResults(
       const current = categorySettings(eventSettings, category);
       const snapshot = s ? snapshotCategorySettings(s.settings, category, scoreLimitOf(current)) : null;
       const settings = snapshot !== null ? snapshot : current;
-      entry.judges[playerId] = judgeResultFromNotes(
-        notesByJudge.get(k) ?? [],
-        { startedAt: r.started_ms, routineSeconds: r.routine_seconds },
+      const judgeNotes = notesByJudge.get(k) ?? [];
+      entry.judges[playerId] = {
+        category: noteCategory,
+        notes: judgeNotes,
         settings,
-        noteCategory,
-        s ? { score: Number(s.score), baseline: Number(s.baseline_estimate), adjustPercent: Number(s.adjust_percent) } : null
-      );
+        result: judgeResultFromNotes(
+          judgeNotes,
+          { startedAt: r.started_ms, routineSeconds: r.routine_seconds },
+          settings,
+          noteCategory,
+          s ? { score: Number(s.score), baseline: Number(s.baseline_estimate), adjustPercent: Number(s.adjust_percent) } : null
+        ),
+      };
     }
-  }
-
-  const data: PoolResultsData = {};
-  for (const [teamId, teamRoutines] of byTeam) {
-    const combined = combineTeamRoutines(teamRoutines);
-    if (combined) data[teamId] = combined;
-  }
-  return data;
+    return entry;
+  });
 }

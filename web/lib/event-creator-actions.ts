@@ -29,6 +29,7 @@ import { describeChannel, getEventDiscord, parseChannelInput, postToEventThread,
 import { postRoundPlayOrder, sendRoundForReview } from './discord-posts';
 import { insertPlayerByName } from './player-match';
 import { isPoolLocked, isRoundLocked, POOL_LOCKED_ERROR } from './pool-locks';
+import { applyOfficialPreset } from './judging-settings-store';
 
 export type ActionState = { error: string | null };
 
@@ -53,6 +54,12 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
     eventId = result.rows[0].id;
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Failed to create event' };
+  }
+  // Starts on the Fpa-Official judging settings; the event is made either way.
+  try {
+    await applyOfficialPreset(eventId);
+  } catch (err) {
+    console.error('Could not apply the Fpa-Official preset to the new event', err);
   }
   // No divisions yet: the event's own tab offers "+ New division" for each type.
   redirect(`/events?event=${eventId}&division=new`);

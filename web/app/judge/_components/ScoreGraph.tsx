@@ -29,9 +29,9 @@ const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const dotRadius = (score: CurveScore) =>
   (score.dotScale ?? 1) * 2 * (2.5 + Math.min(4.5, Math.abs(score.s) * 0.6));
 
-// The highest and lowest values a graph of these scores reaches (the curve or a
-// dot), for drawing several graphs on one height axis. The averaged lines under
-// the graph count too.
+// The highest and lowest values a graph of these scores reaches, for drawing
+// several graphs on one height axis. The averaged lines under the graph count
+// too; the dots don't, as they sit on the zero line.
 export function graphExtent(
   scores: readonly CurveScore[],
   duration: number,
@@ -40,7 +40,7 @@ export function graphExtent(
   const { ys } = scoreCurve(scores, { duration, spread: CURVE_SPREAD, shape: CURVE_SHAPE });
   let max = 0;
   let min = 0;
-  for (const value of [...ys, ...scores.map((s) => s.s), ...underlays.flatMap((u) => u.ys)]) {
+  for (const value of [...ys, ...underlays.flatMap((u) => u.ys)]) {
     max = Math.max(max, value);
     min = Math.min(min, value);
   }
@@ -162,7 +162,7 @@ export function ScoreGraph({
     const { ys } = scoreCurve(scores, { duration, spread, shape });
     let maxY = yExtent?.max ?? 0;
     let minY = yExtent?.min ?? 0;
-    for (const value of [...ys, ...scores.map((s) => s.s), ...(underlays ?? []).flatMap((u) => u.ys)]) {
+    for (const value of [...ys, ...(underlays ?? []).flatMap((u) => u.ys)]) {
       maxY = Math.max(maxY, value);
       minY = Math.min(minY, value);
     }

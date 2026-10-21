@@ -25,7 +25,7 @@ export function ScoreCard({
   submitted: { baseline: number } | null;
   // The change in percent now shown (it may not be saved yet).
   percent: number;
-  // 'Saving…' or 'Not saved' while the change is on its way.
+  // 'Not saved' when a change failed to save (saving itself is silent).
   status: string | null;
   onAdjust: (step: number) => void;
   canEnter?: boolean;

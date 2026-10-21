@@ -74,6 +74,7 @@ Play tab (running each routine)
 
 Results tab and public links
 - Choose a pool to see its results. They update live (every few seconds, and at once when a judge finishes). The page has a Summary table, a combined graph, then a box per team (in play order) with its graph and a table per judge category. A Simple Ranking pool has its own table (see Simple Ranking divisions below).
+- Explain these results (above a judged pool's results, once a team has played) opens this chat with a question about why each team placed where it did. The chat reads the open event's results itself (every judge's score, notes, counted and dropped notes and percentage change), so it can also answer questions like "why are these two teams so close in Difficulty?" asked straight in the chat on the Head Judge page.
 - Summary table: one row per team.
   - Team: the team, with its colour dot (the same colour as its line in the combined graph) and a number: its play order, or its place when sorted By place. Play order / By place switch the row order.
   - Difficulty, Execution, Artistic Impression: one column per judge (by name; "Difficulty #1" and so on on the public link), showing the score that judge submitted for the team. A dash means no score from that judge yet.

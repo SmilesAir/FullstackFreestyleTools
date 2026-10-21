@@ -1,6 +1,7 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { pool } from './db';
+import { ensureEventPresets } from './judging-settings-store';
 import { isPoolLocked, POOL_LOCKED_ERROR } from './pool-locks';
 
 // Starting and cancelling a routine, as the Head Judge's actions do it. No
@@ -59,7 +60,16 @@ export async function startRoutineRow(
      SELECT extract(epoch FROM routine_started_at)::float8 * 1000 AS started_ms FROM started`,
     [eventId, clickedAt, routineId]
   );
-  if (updated.rows[0]) return { error: null, startedAt: Math.round(updated.rows[0].started_ms) };
+  if (updated.rows[0]) {
+    // The event's first routine makes its event presets (no-op after that).
+    // The routine has started either way.
+    try {
+      await ensureEventPresets(eventId);
+    } catch (err) {
+      console.error('Could not make the event presets', err);
+    }
+    return { error: null, startedAt: Math.round(updated.rows[0].started_ms) };
+  }
 
   const current = await pool.query<{ team_id: string | null; started_ms: number | null }>(
     `SELECT team_id, extract(epoch FROM routine_started_at)::float8 * 1000 AS started_ms

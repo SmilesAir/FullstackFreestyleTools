@@ -206,8 +206,8 @@ function Body({
 
       <div className="flex shrink-0 items-center justify-between gap-3 rounded border border-gray-300 px-4 py-3">
         <div className="flex min-w-0 flex-col">
-          <span className="text-sm leading-tight">{unrestricted === null ? 'Baseline Estimate' : 'Baseline / Unrestricted'}</span>
-          <span className="font-mono text-4xl font-bold leading-tight tabular-nums">
+          <span className="whitespace-nowrap text-xs leading-tight min-[400px]:text-sm">{unrestricted === null ? 'Baseline Estimate' : 'Baseline / Unrestricted'}</span>
+          <span className="whitespace-nowrap font-mono text-4xl font-bold leading-tight tabular-nums">
             {estimate}
             {unrestricted !== null && <span className="text-2xl font-normal text-gray-500"> / {unrestricted}</span>}
           </span>

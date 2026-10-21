@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { registerSupportChat } from './support-chat-ask';
 
 type Message = { role: 'user' | 'assistant'; content: string };
 type Position = { x: number; y: number };
@@ -103,6 +104,18 @@ export function SupportChat({ page }: { page: 'head-judge' | 'events' | 'judging
     if (loaded && conversationId) writeJson(() => sessionStorage, chatKey, { conversationId, messages, open });
   }, [loaded, chatKey, conversationId, messages, open]);
 
+  // Another part of the page (Explain these results) can open the chat with a
+  // question in the box, for the person to send or change first.
+  useEffect(
+    () =>
+      registerSupportChat((question) => {
+        setOpen(true);
+        setInput(question);
+        setTimeout(() => textarea.current?.focus(), 0);
+      }),
+    []
+  );
+
   // Opening: put the box where it was (or the bottom-right corner), inside the window.
   useEffect(() => {
     if (!open) return;
@@ -166,11 +179,14 @@ export function SupportChat({ page }: { page: 'head-judge' | 'events' | 'judging
     request.current = controller;
     const showAnswer = (content: string) =>
       setMessages((current) => [...current.slice(0, -1), { role: 'assistant', content }]);
+    // The event open on the Head Judge page, whose results the chat can read.
+    const openEvent = page === 'head-judge' ? new URLSearchParams(window.location.search).get('event') : null;
+    const eventId = openEvent && /^[0-9a-f-]{36}$/i.test(openEvent) ? openEvent : undefined;
     try {
       const response = await fetch('/api/support-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId, page, messages: asked.slice(-MAX_SENT) }),
+        body: JSON.stringify({ conversationId, page, eventId, messages: asked.slice(-MAX_SENT) }),
         signal: controller.signal,
       });
       if (!response.ok || !response.body) {

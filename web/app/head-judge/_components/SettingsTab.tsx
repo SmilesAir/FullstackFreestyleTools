@@ -2,15 +2,16 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { removePreset, saveAsPreset, saveSettings } from '@/lib/judging-settings-actions';
-import { defaultSettings, sameSettings, type Preset, type SystemSettings } from '@/lib/judging-settings';
+import { removePreset, saveAsPreset, saveEventPreset, saveSettings } from '@/lib/judging-settings-actions';
+import { OFFICIAL_PRESET, defaultSettings, sameSettings, type Preset, type SystemSettings } from '@/lib/judging-settings';
 import { CategoryForm } from './CategoryForm';
 import { LineForm } from './LineForm';
 import { LINE_MAX_KEY, parseDraft, toDraft, type Draft } from './settingsDraft';
 
 // The head judge's tunables for the selected event, one form per judging
 // system the event uses. Each form keeps its own draft. Opens on `current`,
-// the rules the event is on now.
+// the rules the event is on now. The event's results already in are rescored
+// with each save.
 export function SettingsTab({
   eventId,
   systems,
@@ -31,6 +32,10 @@ export function SettingsTab({
       <div>
         <h2 className="text-lg font-semibold">Judging settings</h2>
         <p className="text-sm text-gray-500">These values apply to this event only.</p>
+        <p className="text-sm text-gray-500">
+          Saving rescores the results already in. Each judge&apos;s change from the baseline is kept as the same
+          percentage.
+        </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Judging system">
@@ -63,6 +68,10 @@ export function SettingsTab({
     </div>
   );
 }
+
+// How many scores a save rescored (none = nothing to say).
+const rescoredNote = (rescored: number | undefined) =>
+  !rescored ? '' : ` · ${rescored} ${rescored === 1 ? 'score' : 'scores'} rescored`;
 
 function SystemForm({
   eventId,
@@ -100,6 +109,8 @@ function SystemForm({
   const dirty = parsed === null || !sameSettings(parsed, saved);
   const matching = parsed ? presets.find((p) => sameSettings(p.settings, parsed)) : undefined;
   const chosen = presets.find((p) => p.id === presetId);
+  const eventPreset = presets.find((p) => p.eventId === eventId);
+  const outsidePreset = eventPreset !== undefined && !sameSettings(eventPreset.settings, saved);
   const trimmedName = name.trim();
   const replacing = replaceName !== null && replaceName.toLowerCase() === trimmedName.toLowerCase();
 
@@ -120,7 +131,19 @@ function SystemForm({
     startTransition(async () => {
       const result = await saveSettings(eventId, rulesId, parsed);
       if (result.error) return setError(result.error);
-      setMessage('Settings saved');
+      setMessage(`Settings saved${rescoredNote(result.rescored)}`);
+      router.refresh();
+    });
+  }
+
+  function updateEventPreset() {
+    if (!parsed) return;
+    setError(null);
+    setMessage(null);
+    startTransition(async () => {
+      const result = await saveEventPreset(eventId, rulesId, parsed);
+      if (result.error) return setError(result.error);
+      setMessage(`Saved to the event and its event preset${rescoredNote(result.rescored)}`);
       router.refresh();
     });
   }
@@ -133,7 +156,7 @@ function SystemForm({
     startTransition(async () => {
       const result = await saveSettings(eventId, rulesId, chosen.settings);
       if (result.error) return setError(result.error);
-      setMessage(`Loaded "${chosen.name}" and applied it to this event`);
+      setMessage(`Loaded "${chosen.name}" and applied it to this event${rescoredNote(result.rescored)}`);
       router.refresh();
     });
   }
@@ -172,6 +195,41 @@ function SystemForm({
 
   return (
     <div className="flex flex-col gap-6">
+      <section className="flex flex-col gap-2 rounded border border-gray-300 p-3">
+        <h3 className="font-medium">Event preset</h3>
+        {eventPreset ? (
+          <>
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span>
+                This event&apos;s preset: <span className="font-medium">{eventPreset.name}</span>
+              </span>
+              <button
+                type="button"
+                onClick={updateEventPreset}
+                disabled={!parsed || pending || (!dirty && !outsidePreset)}
+                className="cursor-pointer rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Update event preset
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">
+              Choosing this event in the Events tab loads its preset back in. Update the preset to keep your changes.
+            </p>
+            {outsidePreset && (
+              <p className="text-sm text-amber-700">
+                Not in the event preset: the saved settings differ from it and are lost the next time this event is
+                chosen in the Events tab.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-xs text-gray-500">
+            The event preset is made from these settings when the event&apos;s first routine starts. Until then this
+            event uses what is saved here ({OFFICIAL_PRESET} when it was created).
+          </p>
+        )}
+      </section>
+
       <section className="flex flex-col gap-3 rounded border border-gray-300 p-3">
         <h3 className="font-medium">Presets for {rulesId}</h3>
         <div className="flex flex-wrap items-center gap-2">

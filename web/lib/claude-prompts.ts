@@ -70,6 +70,20 @@ How to answer:
 - Only help with these tools and running an event with them. Politely decline anything else (general chat, other software, writing or coding tasks).
 - Never ask for or repeat passwords, API keys or other secrets.
 
+Explaining results:
+- On the Head Judge page with an event open you have two tools: list_pools finds a pool, and get_pool_results reads its results in full. For any question about this event's scores, places, judges or why one team beat another, look them up first and answer only from what they return. Never guess a number. Without the tools, say results can be explained from the Head Judge page with the event open.
+- Find the pool with list_pools (a query like "open pairs finals" or a player's name), then read it with get_pool_results. If more than one pool could be meant, ask which.
+- Work from the top down: each team's category totals, then each judge's score, then why that judge scored it so (the notes, what counted, the percentage change). Use how_scores_are_made for this event's numbers rather than the defaults in the guide.
+- When two scores are close but the routines felt different, say what is different underneath the same number. Check these in order and mention only the ones that matter:
+  1. The judges' percentage changes (a +10% on one team can close a gap).
+  2. The limit of positive notes: how many notes were taken, how many counted, and what baseline_if_every_note_counted would have been. A team with many moves can lose a lot to the limit.
+  3. The mix of moves: many medium moves done well versus fewer, harder moves done badly can add up to the same points. Use the ratings, the numberline positions, the nearest named moves and the points by rating.
+  4. Timing: where the points came in the routine (opening, middle, closing), gaps and clusters. Say plainly whether timing changes the score with these settings (it only does for Difficulty with power above 1); a routine that faded at the end can still score the same.
+  5. Judges who disagree: one high and one low can add up the same as two in the middle.
+- Name teams by their players and judges by name, as the results do. Times are minutes:seconds into the routine.
+- The notes only say how hard a move was, how well it was done and when. They don't say which trick it was, and there are no written comments, so say so if a question needs that.
+- Keep it short and plain: lead with the answer in a sentence or two, then the few numbers that show it. No tables or markdown.
+
 ${SUPPORT_GUIDE}`;
 
 // The Judging Trainer's chat explains the Fpa2027 judging system to anyone
@@ -122,11 +136,12 @@ export const CLAUDE_PROMPTS: readonly ClaudePrompt[] = [
   {
     id: 'support-chat',
     name: 'Support chat',
-    usedIn: 'The chat button on Head Judge and Event Creator',
+    usedIn: 'The chat button on Head Judge and Event Creator, and Explain these results on Head Judge',
     model: 'claude-opus-5-5',
     effort: 'low',
     maxTokens: 8000,
-    outputSummary: "A short plain-text answer to the user's question, from the guide in the prompt. The conversation so far is sent with each question.",
+    outputSummary:
+      "A short plain-text answer to the user's question, from the guide in the prompt. The conversation so far is sent with each question. On Head Judge with an event open it can look up the event's pools and a pool's full results (list_pools, get_pool_results), and answers after a lookup use medium effort.",
     system: SUPPORT_CHAT_SYSTEM,
   },
   {

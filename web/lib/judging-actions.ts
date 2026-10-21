@@ -3,7 +3,7 @@
 import { pool } from './db';
 import { JUDGING_RULES_ID, MAX_NOTES_PER_ROUTINE, noteTypesFor, type NoteCategory } from './judging';
 import { adjustedScore, estimateFromNotes } from './judging-estimate';
-import { categorySettings, resolveEventSettings, scoreLimitOf } from './judging-settings';
+import { categorySettings, difficultyNoteValues, resolveEventSettings, scoreLimitOf } from './judging-settings';
 import { POOL_LOCKED_ERROR } from './pool-locks';
 
 // Public on purpose: judges don't log in. Every action checks that the person
@@ -31,10 +31,7 @@ function difficultyValues(
   position: number
 ): { lineValue: number; multiplier: number } {
   const settings = categorySettings(resolveEventSettings(rulesId ?? DEFAULT_RULES_ID, judgingSettings), 'Diff')!;
-  return {
-    lineValue: Math.round(position * settings.line!.max * 10000) / 10000,
-    multiplier: settings.noteWeights[rating],
-  };
+  return difficultyNoteValues(settings, rating, position);
 }
 
 // A tap position: a number from 0 (the bottom of the numberline) to 1 (the top).

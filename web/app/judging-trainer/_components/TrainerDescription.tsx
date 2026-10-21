@@ -192,9 +192,9 @@ export function TrainerDescription() {
           </table>
         </div>
         <p>
-          <strong>Difficulty</strong>: the numberline runs from 0 to 1, with Chair at 0.2, Gitis at 0.5 and Double
-          Barrell Gitis at 0.8. A note is worth <strong>where it was tapped × the rating&apos;s multiplier</strong>: Good
-          ×2, Average ×1, Bad ×0.3. A well-done Gitis is 0.5 × 2 = 1 point.
+          <strong>Difficulty</strong>: the numberline runs from 0 at the bottom to 3 points at the top, with Chair at
+          0.6, Gitis at 1.5 and Double Barrell Gitis at 2.4. A note is worth <strong>where it was tapped × the
+          rating&apos;s multiplier</strong>: Good ×2, Average ×1, Bad ×0.3. A well-done Gitis is 1.5 × 2 = 3 points.
         </p>
 
         <h3 className="font-semibold">The graph</h3>

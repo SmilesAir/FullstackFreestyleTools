@@ -470,8 +470,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_events_announcer_code ON events(announcer_
 -- Anything missing falls back to the defaults in code.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS judging_settings jsonb NOT NULL DEFAULT '{}';
 
--- Named copies of one judging system's settings, shared across events. Loading
--- a preset copies its values into an event, so later edits never reach back.
+-- Named copies of one judging system's settings. Loading a preset copies its
+-- values into an event, so later edits never reach back. "Fpa-Official" is what
+-- a new event starts with.
 CREATE TABLE IF NOT EXISTS judging_presets (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   rules_id   text NOT NULL,
@@ -481,6 +482,13 @@ CREATE TABLE IF NOT EXISTS judging_presets (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_judging_presets_name ON judging_presets(rules_id, lower(name));
+
+-- The event a preset belongs to: its event preset, made from the event's
+-- settings when its first routine starts and loaded back into the event each
+-- time the head judge chooses it. Null for presets shared across events. One
+-- per event and judging system.
+ALTER TABLE judging_presets ADD COLUMN IF NOT EXISTS event_id uuid REFERENCES events(id) ON DELETE CASCADE;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_judging_presets_event ON judging_presets(event_id, rules_id) WHERE event_id IS NOT NULL;
 
 -- Whether this event is bridged to the live legacy app's DynamoDB table
 -- (freestyle-judge-production-dataTable). Off by default for every event, old

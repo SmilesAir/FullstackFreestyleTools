@@ -6,7 +6,7 @@ import { axisRange, curveSegments, signed } from '@/lib/score-curve';
 
 const MARGIN = { l: 38, r: 12, t: 20, b: 28 };
 const WIDTH = 800;
-const HEIGHT = 320;
+const HEIGHT = 220;
 const NO_SCORES: never[] = [];
 
 export type OverviewTeam = {

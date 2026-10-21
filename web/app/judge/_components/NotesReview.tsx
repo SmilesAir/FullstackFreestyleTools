@@ -228,7 +228,7 @@ function UpcomingRoutine({
             estimate={0}
             submitted={null}
             percent={percent}
-            status={changed ? (failed ? 'Not saved' : 'Saving…') : 'Not played. Press to enter'}
+            status={changed ? (failed ? 'Not saved' : 'Not played') : 'Not played. Press to enter'}
             onAdjust={adjust}
             canEnter
           />
@@ -285,7 +285,7 @@ function PastRoutine({
             unrestricted={routine.secondsPerScore > 0 ? unrestricted : null}
             submitted={routine.submitted}
             percent={percent}
-            status={changed ? (failed ? 'Not saved' : 'Saving…') : null}
+            status={changed && failed ? 'Not saved' : null}
             onAdjust={adjust}
             canEnter
           />
@@ -359,7 +359,7 @@ function CurrentRoutine({
             unrestricted={state.secondsPerScore > 0 ? unrestricted : null}
             submitted={state.submitted}
             percent={percent}
-            status={changed ? (failed ? 'Not saved' : 'Saving…') : null}
+            status={changed && failed ? 'Not saved' : null}
             onAdjust={adjust}
             canEnter={canEnter}
           />

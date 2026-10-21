@@ -196,15 +196,17 @@ export function niceStep(raw: number): number {
   return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
 }
 
-// The value range to draw: always includes zero and at least one step each way.
+// The value range to draw: fits the values closely, with a little room past
+// them, and always includes zero. Ticks fall on multiples of `step` inside it.
 export function axisRange(
   maxY: number,
   minY: number
 ): { lo: number; hi: number; step: number } {
-  const step = niceStep(Math.max(1, (maxY - minY) * 1.1) / 5);
+  const range = Math.max(1, maxY - Math.min(0, minY));
+  const pad = range * 0.06;
   return {
-    step,
-    hi: Math.max(step, Math.ceil((maxY * 1.05) / step) * step),
-    lo: Math.min(-step, Math.floor((minY * 1.05) / step) * step),
+    step: niceStep(range / 4),
+    hi: Math.max(0, maxY) + pad,
+    lo: Math.min(0, minY) - pad,
   };
 }
