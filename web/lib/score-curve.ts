@@ -56,6 +56,10 @@ export function bumpWeight(shape: CurveShape, spread: number, d: number): number
 export const CURVE_SHAPE: CurveShape = 'smooth';
 export const CURVE_SPREAD = 4;
 
+// The area under one note's bump, per point of the note (about 10): dividing
+// an area by this turns it back into points.
+export const NOTE_AREA = CURVE_SPREAD * Math.sqrt(2 * Math.PI);
+
 // The line's height at one moment.
 export function curveValueAt(scores: readonly CurveScore[], shape: CurveShape, spread: number, t: number): number {
   let y = 0;
@@ -140,7 +144,7 @@ export function baselineEstimate(
   const from = Math.min(0, ...times) - AREA_MARGIN;
   const to = Math.max(routineSeconds, ...times) + AREA_MARGIN;
   const area = curveArea(scores, { shape: CURVE_SHAPE, spread: CURVE_SPREAD, from, to, power });
-  const value = (areaScale * area) / (CURVE_SPREAD * Math.sqrt(2 * Math.PI));
+  const value = (areaScale * area) / NOTE_AREA;
   return Math.round(value * 10) / 10 || 0;
 }
 
@@ -165,7 +169,9 @@ export type CurveSegment = { fromIndex: number; toIndex: number; peakIndex: numb
 // zero-crossing moment between two samples, which is only ever off by at most
 // half a step's worth of area; fine for a contextual label, not a scored
 // value) and the index of its tallest/deepest point, for placing that label.
-// Runs under `minArea` are left out entirely - too small to be worth labelling.
+// The area is given in points (divided by NOTE_AREA, as the baseline does), so
+// a run reads as the notes in it added up.
+// Runs under `minArea` (raw area) are left out entirely - too small to be worth labelling.
 export function curveSegments(ys: readonly number[], step: number, minArea = 0.5): CurveSegment[] {
   const segments: CurveSegment[] = [];
   let i = 0;
@@ -182,7 +188,7 @@ export function curveSegments(ys: readonly number[], step: number, minArea = 0.5
     if (Math.abs(area) >= minArea) {
       let peakIndex = i;
       for (let k = i + 1; k < j; k++) if (Math.abs(ys[k]) > Math.abs(ys[peakIndex])) peakIndex = k;
-      segments.push({ fromIndex: i, toIndex: j - 1, peakIndex, area: Math.round(area * 10) / 10 });
+      segments.push({ fromIndex: i, toIndex: j - 1, peakIndex, area: Math.round((area / NOTE_AREA) * 10) / 10 });
     }
     i = j;
   }

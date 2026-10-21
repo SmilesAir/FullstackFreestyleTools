@@ -52,6 +52,10 @@ export const ARTISTIC_NOTES = [
 
 export type ArtisticNoteType = (typeof ARTISTIC_NOTES)[number]['type'];
 
+// The notes that mark a fault (worth less by default), so having more of them
+// is worse - e.g. a delta in their count reads green when it goes down.
+export const NEGATIVE_NOTES: ReadonlySet<string> = new Set(['large_error', 'medium_error', 'minor_error', 'form_bad']);
+
 // Difficulty's notes are ratings of a move the judge placed on a numberline:
 // what each is worth is a multiplier of the numberline score (its setting).
 export const DIFFICULTY_NOTES = [

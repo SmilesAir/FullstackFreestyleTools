@@ -7,6 +7,7 @@ import {
   CATEGORY_NOTES,
   combineTeamCurve,
   JUDGING_CATEGORIES,
+  NEGATIVE_NOTES,
   NOTE_CATEGORIES,
   noteFullLabel,
   noteGroups,
@@ -276,12 +277,13 @@ const cell = 'border border-gray-300 px-2 py-1.5 text-center';
 // signed and colored (the same green/red ScoreGraph.tsx uses for positive/
 // negative scores), an em-dash if either side has no value yet, and plain
 // text for an exact tie - the baseline's own row lands here naturally.
-function scoreDelta(value: number | null, baseline: number | null) {
+// `lowerIsBetter` flips the colors, for counts of negative notes.
+function scoreDelta(value: number | null, baseline: number | null, lowerIsBetter = false) {
   if (value === null || baseline === null) return <span className="font-normal text-gray-400">—</span>;
   const delta = Math.round((value - baseline) * 100) / 100;
   if (delta === 0) return <>0</>;
   return (
-    <span className={delta > 0 ? 'text-green-600' : 'text-red-600'}>
+    <span className={delta > 0 !== lowerIsBetter ? 'text-green-600' : 'text-red-600'}>
       {delta > 0 ? '+' : '−'}
       {Math.abs(delta)}
     </span>
@@ -703,7 +705,7 @@ export function NotesTable({
             {totals.map((total, i) => (
               <td key={notes[i].type} className={cell}>
                 {comparing
-                  ? scoreDelta(total, compareTotals[i])
+                  ? scoreDelta(total, compareTotals[i], NEGATIVE_NOTES.has(notes[i].type))
                   : limitedType(notes[i].type)
                     ? `${countedTotals[i]} / ${total}`
                     : total}

@@ -63,7 +63,7 @@ export function PoolOverviewGraph({
     .sort((a, b) => Number(a.id === highlightedTeamId) - Number(b.id === highlightedTeamId));
 
   // Each hump/dip of the highlighted team's own line, labelled with its
-  // integral for context - only the highlighted team, or this would be
+  // points (its area ÷ one note's bump) for context - only the highlighted team, or this would be
   // unreadable with several lines' worth of labels at once.
   const highlightedTeam = teams.find((t) => t.id === highlightedTeamId);
   const segments = highlightedTeam ? curveSegments(highlightedTeam.curve.ys, highlightedTeam.curve.step) : [];
