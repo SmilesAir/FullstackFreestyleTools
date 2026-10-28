@@ -74,21 +74,57 @@ export async function playOrderImage(title: string, subtitle: string, pools: Pla
   );
 }
 
+// Rough rendered width of text in Geist, erring wide so a line we build never
+// wraps again inside Satori (which would overflow the row's fixed height).
+function textWidth(text: string, fontSize: number): number {
+  let em = 0;
+  for (const ch of text) {
+    if (/[iljtfrI.,:;'|!() ]/.test(ch)) em += 0.32;
+    else if (/[mwMW]/.test(ch)) em += 0.85;
+    else if (/[A-Z]/.test(ch)) em += 0.68;
+    else em += 0.58;
+  }
+  return em * fontSize;
+}
+
+// Greedy word wrap into lines no wider than maxWidth (a single long word stays whole).
+function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
+  const lines: string[] = [];
+  let line = '';
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && textWidth(next, fontSize) > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.length > 0 ? lines : [''];
+}
+
 export type ResultsRow = { place: number | null; team: string; cells: (number | null)[]; total: number | null };
 
 // Place · Team · each extra column (category totals) · Total, best first.
+// Long team names wrap onto several lines and their row grows to fit.
 export async function resultsImage(title: string, subtitle: string, columns: string[], rows: ResultsRow[], totalLabel = 'Total'): Promise<ArrayBuffer> {
-  const height = PAD * 2 + TITLE_H + 16 + ROW_H * (rows.length + 1);
   const numberCol = 120;
   const placeCol = 80;
+  const fontSize = 20;
+  const lineH = 26;
+  const teamCol = WIDTH - PAD * 2 - 2 - 24 - placeCol - numberCol * (columns.length + 1) - 8;
+  const rowHeight = (lines: number) => Math.max(ROW_H, lines * lineH + 14);
+  const teamLines = rows.map((r) => wrapText(r.team, teamCol, fontSize));
+  const height = PAD * 2 + TITLE_H + 16 + ROW_H + teamLines.reduce((sum, lines) => sum + rowHeight(lines.length), 0);
   const cell = (v: number | null) => (v === null ? '—' : String(v));
-  const Row = ({ place, team, cells, total, head }: { place: string; team: string; cells: string[]; total: string; head?: boolean }) => (
+  const Row = ({ place, team, cells, total, head }: { place: string; team: string[]; cells: string[]; total: string; head?: boolean }) => (
     <div
       style={{
         display: 'flex',
-        height: ROW_H,
+        height: rowHeight(team.length),
         alignItems: 'center',
-        fontSize: 20,
+        fontSize,
         borderTop: head ? 'none' : `1px solid ${COLORS.line}`,
         background: head ? COLORS.head : COLORS.bg,
         color: head ? COLORS.muted : COLORS.text,
@@ -96,7 +132,13 @@ export async function resultsImage(title: string, subtitle: string, columns: str
       }}
     >
       <span style={{ width: placeCol, color: head ? COLORS.muted : COLORS.accent }}>{place}</span>
-      <span style={{ flex: 1 }}>{team}</span>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, paddingRight: 8 }}>
+        {team.map((line, i) => (
+          <span key={i} style={{ height: lineH, lineHeight: `${lineH}px`, whiteSpace: 'nowrap' }}>
+            {line}
+          </span>
+        ))}
+      </div>
       {cells.map((c, i) => (
         <span key={i} style={{ width: numberCol, justifyContent: 'flex-end', display: 'flex', whiteSpace: 'nowrap' }}>
           {c}
@@ -108,9 +150,9 @@ export async function resultsImage(title: string, subtitle: string, columns: str
   return png(
     <Frame title={title} subtitle={subtitle}>
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: 16, border: `1px solid ${COLORS.line}`, borderRadius: 8 }}>
-        <Row head place="Place" team="Team" cells={columns} total={totalLabel} />
+        <Row head place="Place" team={['Team']} cells={columns} total={totalLabel} />
         {rows.map((r, i) => (
-          <Row key={i} place={cell(r.place)} team={r.team} cells={r.cells.map(cell)} total={cell(r.total)} />
+          <Row key={i} place={cell(r.place)} team={teamLines[i]} cells={r.cells.map(cell)} total={cell(r.total)} />
         ))}
       </div>
     </Frame>,

@@ -93,13 +93,8 @@ export function scoreCurve(
   return { ts, ys };
 }
 
-// A height with its size raised to `power` and its sign kept: power 1 leaves it
-// alone, above 1 makes tall values count for more.
-const emphasise = (y: number, power: number) => (y === 0 ? 0 : Math.sign(y) * Math.pow(Math.abs(y), power));
-
 // The area under the line from `from` to `to` (green above zero adds, red
-// below subtracts), with each height first passed through `emphasise`.
-// A trapezoid sum with points every `step` seconds.
+// below subtracts). A trapezoid sum with points every `step` seconds.
 export function curveArea(
   scores: readonly CurveScore[],
   {
@@ -107,17 +102,16 @@ export function curveArea(
     spread,
     from,
     to,
-    power,
     step = 0.1,
-  }: { shape: CurveShape; spread: number; from: number; to: number; power: number; step?: number }
+  }: { shape: CurveShape; spread: number; from: number; to: number; step?: number }
 ): number {
   if (scores.length === 0 || to <= from) return 0;
   const count = Math.max(2, Math.round((to - from) / step) + 1);
   const h = (to - from) / (count - 1);
-  let previous = emphasise(curveValueAt(scores, shape, spread, from), power);
+  let previous = curveValueAt(scores, shape, spread, from);
   let area = 0;
   for (let i = 1; i < count; i++) {
-    const current = emphasise(curveValueAt(scores, shape, spread, from + i * h), power);
+    const current = curveValueAt(scores, shape, spread, from + i * h);
     area += ((previous + current) / 2) * h;
     previous = current;
   }
@@ -129,21 +123,20 @@ export function curveArea(
 const AREA_MARGIN = 4 * CURVE_SPREAD;
 
 // The score the computer suggests from the notes: the area under the whole
-// curve, with heights raised to `power`, times `areaScale`. The area runs past
-// the routine's start and end (and any note after its length), so when a note
-// was taken doesn't change what it is worth: at power 1 the estimate is the
-// notes' points added up. Above 1, notes close together (a tall hill) count for
-// more. Dividing by spread x sqrt(2 pi) makes a note count its own weight.
+// curve times `areaScale`. The area runs past the routine's start and end (and
+// any note after its length), so when a note was taken doesn't change what it
+// is worth: the estimate is the notes' points added up, times `areaScale`.
+// Dividing by spread x sqrt(2 pi) makes a note count its own weight.
 // Rounded to 1 decimal.
 export function baselineEstimate(
   scores: readonly CurveScore[],
   routineSeconds: number,
-  { areaScale, power }: { areaScale: number; power: number }
+  { areaScale }: { areaScale: number }
 ): number {
   const times = scores.map((s) => s.t);
   const from = Math.min(0, ...times) - AREA_MARGIN;
   const to = Math.max(routineSeconds, ...times) + AREA_MARGIN;
-  const area = curveArea(scores, { shape: CURVE_SHAPE, spread: CURVE_SPREAD, from, to, power });
+  const area = curveArea(scores, { shape: CURVE_SHAPE, spread: CURVE_SPREAD, from, to });
   const value = (areaScale * area) / NOTE_AREA;
   return Math.round(value * 10) / 10 || 0;
 }

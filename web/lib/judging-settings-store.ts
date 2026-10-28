@@ -6,6 +6,7 @@ import { adjustedScore, estimateFromNotes } from './judging-estimate';
 import {
   OFFICIAL_PRESET,
   TUNABLE_SYSTEMS,
+  adjustUnit,
   categorySettings,
   defaultSettings,
   hasTunables,
@@ -319,7 +320,7 @@ async function rescoreResults(client: PoolClient, eventId: string, rulesId: stri
         s.judge_player_id,
         s.category_type,
         baseline,
-        adjustedScore(baseline, Number(s.adjust_percent)),
+        adjustedScore(baseline, Number(s.adjust_percent), adjustUnit(category, own)),
         JSON.stringify({ rulesId, [s.category_type]: own }),
       ]
     );

@@ -69,6 +69,20 @@ export function poolOverviewTeams(
   return overview;
 }
 
+// The teams in the order the Summary table shows them, for the per-team details
+// below it to follow: play order, or by place (best first, teams with no total
+// yet last). `rank` is the number the Summary's Team column shows - the play
+// order, or the place (null with no total yet).
+export function detailsOrder(
+  teams: HeadJudgePool['teams'],
+  data: PoolResultsData | null,
+  judgesByCategory: { judges: HeadJudgePool['judges'] }[],
+  sort: ResultsSortOrder
+): { team: HeadJudgePool['teams'][number]; rank: number | null }[] {
+  if (sort === 'play' || data === null) return teams.map((team, i) => ({ team, rank: i + 1 }));
+  return [...poolStandings(teams, data, judgesByCategory)].sort(byPlace).map((r) => ({ team: r.team, rank: r.place }));
+}
+
 // The results of a pool: a summary table of every team's scores and place, then
 // for each team a graph of the categories' averaged lines and a table per judge
 // category that takes notes (Execution, Artistic Impression, Difficulty) with a
@@ -145,7 +159,7 @@ export function PoolResults({
         </div>
       )}
       {failed && <p className="text-xs text-amber-700">Could not load the latest results. Trying again.</p>}
-      <PoolResultsView pool={pool} data={data} />
+      <PoolResultsView pool={pool} data={data} flagMissingScores />
     </div>
   );
 }
@@ -157,11 +171,13 @@ export function PoolResultsView({
   pool,
   data,
   scoreCell,
+  flagMissingScores = false,
 }: {
   pool: HeadJudgePool;
   data: PoolResultsData | null;
   // See PoolSummary.
   scoreCell?: ScoreCellFn;
+  flagMissingScores?: boolean;
 }) {
   // Hovering a Summary row highlights that team's line in the combined graph below it.
   const [highlightedTeamId, setHighlightedTeamId] = useState<string | null>(null);
@@ -170,6 +186,8 @@ export function PoolResultsView({
   // "no baseline picked" (unchanged absolute display); null = picked but that
   // team has no result yet (so every delta is a dash).
   const [baselineTeamId, setBaselineTeamId] = useState<string | null>(null);
+  // The Summary's sort order; each team's details below follow it.
+  const [sort, setSort] = useState<ResultsSortOrder>('play');
 
   // The pool's judges in each category that takes notes, by name. Memoized so
   // overviewTeams below gets a stable dependency, not a fresh array every render.
@@ -205,20 +223,23 @@ export function PoolResultsView({
             onHighlight={setHighlightedTeamId}
             baselineTeamId={baselineTeamId}
             onSetBaseline={setBaselineTeamId}
+            sort={sort}
+            onSortChange={setSort}
             scoreCell={scoreCell}
+            flagMissingScores={flagMissingScores}
           />
           <PoolOverviewGraph teams={overviewTeams} routineSeconds={pool.routineSeconds} highlightedTeamId={highlightedTeamId} />
         </>
       )}
       <ol className="flex flex-col gap-4">
-        {pool.teams.map((team, i) => {
+        {detailsOrder(pool.teams, data, judgesByCategory, sort).map(({ team, rank }) => {
           const result: TeamResult | undefined = data?.[team.id];
           const finished = result ? noteJudges.filter((j) => result.judges[j.playerId]?.submitted).length : 0;
           return (
             <li key={team.id} className="flex flex-col gap-3 rounded border border-gray-200 p-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="text-lg font-semibold">
-                  <span className="mr-3 font-normal text-gray-400">{i + 1}.</span>
+                  <span className="mr-3 font-normal text-gray-400">{rank === null ? '—' : `${rank}.`}</span>
                   {teamName(team)}
                 </h3>
                 <span className="text-sm text-gray-500">
@@ -272,6 +293,56 @@ export function PoolResultsView({
 }
 
 const cell = 'border border-gray-300 px-2 py-1.5 text-center';
+
+// Header tooltips: what each column of the tables below holds. Kept free of
+// note worths, since those are a per-event setting.
+const CATEGORY_TIPS: Record<NoteCategory, string> = {
+  Diff: 'Difficulty: how hard the moves were, rated by placing each move on a numberline',
+  AI: 'Artistic Impression: teamwork, use of the music and form',
+  Ex: 'Execution: how cleanly the tricks were completed, and the errors made',
+};
+
+const NOTE_TIPS: Record<string, string> = {
+  large_error: 'How many Large Errors the judge noted: the most serious kind of error',
+  medium_error: 'How many Medium Errors the judge noted',
+  minor_error: 'How many Minor Errors the judge noted: the smallest kind of error',
+  average_completion: 'How many tricks the judge noted as completed, but not cleanly',
+  clean_completion: 'How many tricks the judge noted as completed cleanly: the best Execution note',
+  teamwork_great: 'How many Great teamwork moments the judge noted',
+  teamwork_decent: 'How many Decent teamwork moments the judge noted',
+  teamwork_minor: 'How many Minor teamwork moments the judge noted',
+  music_great: 'How many Great uses of the music the judge noted',
+  music_decent: 'How many Decent uses of the music the judge noted',
+  form_good: 'How many times the judge noted Good form',
+  form_bad: 'How many times the judge noted Bad form (a fault)',
+};
+
+const GROUP_TIPS: Record<string, string> = {
+  Teamwork: 'Teamwork notes: how well the players worked together',
+  Music: 'Music notes: how well the routine used its music',
+  Form: 'Form notes: the players’ body form, good or bad',
+};
+
+const LIMIT_TIP = ' With a limit on positive notes, a column reads "counted / taken".';
+
+const TIPS = {
+  team: 'The team, with its colour in the combined graph, and its play order (or place, when sorted by place)',
+  judge: 'The judge',
+  judgeScore: 'The score this judge submitted for the team',
+  totals: "Each category's judges' scores added up",
+  categoryTotal: (category: NoteCategory) => `All the ${categoryLabel(category)} judges' scores added up`,
+  teamTotal: 'Every submitted score added up, across all categories (plus the Adjustment, if shown)',
+  place: "The team's place in the pool by Team total, highest first. On equal totals the team that won more categories places higher; if that is equal too, the team that plays later wins (won on seed)",
+  baseline: "The score worked out from the judge's notes, before the judge's own adjustment",
+  unrestricted: ' / Unrestricted: what the baseline would have been with every note counted, past the limit on positive notes',
+  score: "The score the judge submitted: the baseline after their own adjustment up or down. This is what counts in the Summary",
+  diffNotes:
+    'Every move the judge noted, in order: where it sits on the numberline (0 to 10) and how well it was done (Good, Average or Bad)',
+  rawPoints: "The judge's counted moves added up: each move's numberline value times its rating's multiplier",
+};
+
+const baselineTip = (rows: (JudgeResult | undefined)[]) =>
+  rows.some((r) => r?.unrestricted != null) ? TIPS.baseline + TIPS.unrestricted : TIPS.baseline;
 
 // A score cell once a baseline team is picked: `value` minus `baseline`,
 // signed and colored (the same green/red ScoreGraph.tsx uses for positive/
@@ -329,8 +400,8 @@ export type ScoreCellFn = (teamId: string, judgePlayerId: string, score: number 
 
 // One row per team in play order: each judge's submitted score under its
 // category, then each category's total, then the team's total (all the submitted
-// scores added up) and its place in the pool by that total (equal totals share
-// a place). A team with no submitted score yet has no total or place.
+// scores added up) and its place in the pool by that total (equal totals split
+// by categories won, then seed). A team with no submitted score yet has no total or place.
 // Exported for the public results page, which builds its own (anonymized)
 // judgesByCategory and data, but wants the identical table.
 export function PoolSummary({
@@ -341,7 +412,10 @@ export function PoolSummary({
   onHighlight,
   baselineTeamId = null,
   onSetBaseline,
+  sort: sortProp,
+  onSortChange,
   scoreCell,
+  flagMissingScores = false,
 }: {
   pool: Pick<HeadJudgePool, 'teams'>;
   data: PoolResultsData;
@@ -356,9 +430,20 @@ export function PoolSummary({
   // Both optional, same reasoning as highlightedTeamId above.
   baselineTeamId?: string | null;
   onSetBaseline?: (teamId: string | null) => void;
+  // The sort order, when the caller keeps it (so the details below the table
+  // can follow it - see detailsOrder); otherwise the table keeps its own.
+  sort?: ResultsSortOrder;
+  onSortChange?: (order: ResultsSortOrder) => void;
   scoreCell?: ScoreCellFn;
+  // The head judge's own view: a team some judges have scored but not all
+  // gets a red row, its missing scores a stronger red, so a judge who hasn't
+  // finished (or whose score went missing) stands out. A team nobody has
+  // scored yet isn't flagged - it just hasn't played.
+  flagMissingScores?: boolean;
 }) {
-  const [sort, setSort] = useState<ResultsSortOrder>('play');
+  const [ownSort, setOwnSort] = useState<ResultsSortOrder>('play');
+  const sort = sortProp ?? ownSort;
+  const setSort = onSortChange ?? setOwnSort;
 
   const rows = poolStandings(pool.teams, data, judgesByCategory);
   // "By place" re-sorts the same rows best-to-worst; a team with no total yet sorts last.
@@ -366,6 +451,8 @@ export function PoolSummary({
   const dash = <span className="font-normal text-gray-400">—</span>;
   const baselineRow = baselineTeamId ? rows.find((r) => r.team.id === baselineTeamId) : undefined;
   const baselineTeam = baselineRow?.team;
+  // The Adjustment column only shows when the pool has one.
+  const showAdjustment = rows.some((r) => (r.adjustment ?? 0) > 0);
 
   return (
     <section className="flex flex-col gap-2">
@@ -378,41 +465,53 @@ export function PoolSummary({
         <table className="w-full border-collapse text-sm tabular-nums">
           <thead>
             <tr>
-              <th rowSpan={2} className="border border-gray-300 px-3 py-1.5 text-left font-medium">
+              <th rowSpan={2} className="border border-gray-300 px-3 py-1.5 text-left font-medium" title={TIPS.team}>
                 Team
               </th>
               {judgesByCategory.map(({ category, judges }) => (
-                <th key={category} colSpan={judges.length} className={`${cell} font-semibold`}>
+                <th key={category} colSpan={judges.length} className={`${cell} font-semibold`} title={CATEGORY_TIPS[category]}>
                   {categoryLabel(category)}
                 </th>
               ))}
-              <th colSpan={judgesByCategory.length} className={`${cell} font-semibold`}>
+              <th
+                colSpan={judgesByCategory.length + (showAdjustment ? 1 : 0)}
+                className={`${cell} font-semibold`}
+                title={TIPS.totals}
+              >
                 Totals
               </th>
-              <th rowSpan={2} className={`${cell} font-semibold`}>
+              <th rowSpan={2} className={`${cell} font-semibold`} title={TIPS.teamTotal}>
                 Team total
               </th>
-              <th rowSpan={2} className={`${cell} font-semibold`}>
+              <th rowSpan={2} className={`${cell} font-semibold`} title={TIPS.place}>
                 Place
               </th>
             </tr>
             <tr>
               {judgesByCategory.flatMap(({ judges }) =>
                 judges.map((j) => (
-                  <th key={j.playerId} className={`${cell} font-medium`}>
+                  <th key={j.playerId} className={`${cell} font-medium`} title={TIPS.judgeScore}>
                     {j.name}
                   </th>
                 ))
               )}
               {judgesByCategory.map(({ category }) => (
-                <th key={`${category}-total`} className={`${cell} font-medium`}>
+                <th key={`${category}-total`} className={`${cell} font-medium`} title={TIPS.categoryTotal(category)}>
                   {categoryLabel(category)}
                 </th>
               ))}
+              {showAdjustment && (
+                <th
+                  className={`${cell} font-medium`}
+                  title="A whole number added to every team's total so all of them are above zero"
+                >
+                  Adjustment
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
-            {displayRows.map(({ team, playIndex, categories, total, place }) => {
+            {displayRows.map(({ team, playIndex, categories, adjustment, total, place, tieBreak }) => {
               // By play order this always starts at 1; by place it's the
               // team's actual place (so the list reads 1, 2, 3... by rank
               // too), a dash for a team with no total yet.
@@ -421,13 +520,27 @@ export function PoolSummary({
               // The baseline's own row reads its actual scores, not an
               // all-zero delta against itself - only every other row compares.
               const compareRow = team.id === baselineTeamId ? undefined : baselineRow;
+              const scores = categories.flatMap((c) => c.scores);
+              const missingJudges = flagMissingScores && scores.some((s) => s !== null)
+                ? categories.flatMap((c, k) =>
+                    c.scores.flatMap((s, j) => (s === null ? [judgesByCategory[k].judges[j].name] : []))
+                  )
+                : [];
+              const missing = missingJudges.length > 0;
               return (
                 <tr
                   key={team.id}
                   onMouseEnter={() => onHighlight?.(team.id)}
                   onMouseLeave={() => onHighlight?.(null)}
+                  title={missing ? `Waiting for ${missingJudges.join(', ')}` : undefined}
                   className={
-                    team.id === highlightedTeamId ? 'bg-yellow-100' : team.id === baselineTeamId ? 'bg-blue-50' : undefined
+                    team.id === highlightedTeamId
+                      ? 'bg-yellow-100'
+                      : missing
+                        ? 'bg-red-50 outline outline-2 -outline-offset-2 outline-red-500'
+                        : team.id === baselineTeamId
+                          ? 'bg-blue-50'
+                          : undefined
                   }
                 >
                   <td className="border border-gray-300 px-3 py-1.5 text-left">
@@ -448,9 +561,18 @@ export function PoolSummary({
                   </td>
                   {categories.flatMap((c, k) =>
                     c.scores.map((score, j) => (
-                      <td key={`${k}-${j}`} className={cell}>
+                      <td
+                        key={`${k}-${j}`}
+                        className={missing && score === null ? `${cell} bg-red-200 font-semibold text-red-700` : cell}
+                      >
                         {scoreCell?.(team.id, judgesByCategory[k].judges[j].playerId, score) ??
-                          (compareRow ? scoreDelta(score, compareRow.categories[k].scores[j]) : score === null ? dash : score)}
+                          (missing && score === null
+                            ? 'waiting'
+                            : compareRow
+                              ? scoreDelta(score, compareRow.categories[k].scores[j])
+                              : score === null
+                                ? dash
+                                : score)}
                       </td>
                     ))
                   )}
@@ -459,10 +581,22 @@ export function PoolSummary({
                       {compareRow ? scoreDelta(c.total, compareRow.categories[k].total) : c.total === null ? dash : c.total}
                     </td>
                   ))}
+                  {showAdjustment && (
+                    <td className={`${cell} font-semibold`}>
+                      {compareRow
+                        ? scoreDelta(adjustment, compareRow.adjustment)
+                        : adjustment === null
+                          ? dash
+                          : `+${adjustment}`}
+                    </td>
+                  )}
                   <td className={`${cell} font-semibold`}>
                     {compareRow ? scoreDelta(total, compareRow.total) : total === null ? dash : total}
                   </td>
-                  <td className={`${cell} font-semibold`}>{place ?? dash}</td>
+                  <td className={`${cell} font-semibold`}>
+                    {place ?? dash}
+                    {tieBreak && <span className="ml-1 text-xs font-normal text-gray-500">(tie, won on {tieBreak})</span>}
+                  </td>
                 </tr>
               );
             })}
@@ -520,11 +654,21 @@ export function DifficultyTable({
       <table className="w-full min-w-[36rem] border-collapse text-sm tabular-nums">
         <thead>
           <tr>
-            <th className="border border-gray-300 px-3 py-1.5 text-left font-medium">Judge</th>
-            <th className={`${cell} font-medium`}>Notes (numberline / rating)</th>
-            <th className={`${cell} font-medium`}>Raw Points</th>
-            <th className={`${cell} font-medium`}>{baselineHeading(rows)}</th>
-            <th className={`${cell} font-medium`}>Score</th>
+            <th className="border border-gray-300 px-3 py-1.5 text-left font-medium" title={TIPS.judge}>
+              Judge
+            </th>
+            <th className={`${cell} font-medium`} title={TIPS.diffNotes}>
+              Notes (numberline / rating)
+            </th>
+            <th className={`${cell} font-medium`} title={TIPS.rawPoints}>
+              Raw Points
+            </th>
+            <th className={`${cell} font-medium`} title={baselineTip(rows)}>
+              {baselineHeading(rows)}
+            </th>
+            <th className={`${cell} font-medium`} title={TIPS.score}>
+              Score
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -645,33 +789,50 @@ export function NotesTable({
         <thead>
           {hasHeadings && (
             <tr>
-              <th rowSpan={2} className="border border-gray-300 px-3 py-1.5 text-left font-medium">
+              <th rowSpan={2} className="border border-gray-300 px-3 py-1.5 text-left font-medium" title={TIPS.judge}>
                 Judge
               </th>
               {groups.map((group) => (
-                <th key={group.heading} colSpan={group.notes.length} className={`${cell} font-semibold`}>
+                <th
+                  key={group.heading}
+                  colSpan={group.notes.length}
+                  className={`${cell} font-semibold`}
+                  title={group.heading ? GROUP_TIPS[group.heading] : undefined}
+                >
                   {group.heading}
                 </th>
               ))}
-              <th rowSpan={2} className={`${cell} font-medium`}>
+              <th rowSpan={2} className={`${cell} font-medium`} title={baselineTip(rows)}>
                 {heading}
               </th>
-              <th rowSpan={2} className={`${cell} font-medium`}>
+              <th rowSpan={2} className={`${cell} font-medium`} title={TIPS.score}>
                 Score
               </th>
             </tr>
           )}
           <tr>
-            {!hasHeadings && <th className="border border-gray-300 px-3 py-1.5 text-left font-medium">Judge</th>}
+            {!hasHeadings && (
+              <th className="border border-gray-300 px-3 py-1.5 text-left font-medium" title={TIPS.judge}>
+                Judge
+              </th>
+            )}
             {notes.map((note) => (
-              <th key={note.type} className={`${cell} font-medium ${NOTE_TINT[note.type]}`}>
+              <th
+                key={note.type}
+                className={`${cell} font-medium ${NOTE_TINT[note.type]}`}
+                title={NOTE_TIPS[note.type] + (limitedType(note.type) ? LIMIT_TIP : '')}
+              >
                 {note.label}
               </th>
             ))}
             {!hasHeadings && (
               <>
-                <th className={`${cell} font-medium`}>{heading}</th>
-                <th className={`${cell} font-medium`}>Score</th>
+                <th className={`${cell} font-medium`} title={baselineTip(rows)}>
+                  {heading}
+                </th>
+                <th className={`${cell} font-medium`} title={TIPS.score}>
+                  Score
+                </th>
               </>
             )}
           </tr>

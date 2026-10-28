@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { JUDGE_CATEGORY_LABELS } from '@/lib/event-creator';
-import { ensurePoolLink, setPoolLocked, setPoolResultsPublished } from '@/lib/head-judge-actions';
+import { clearPoolResults, ensurePoolLink, setPoolLocked, setPoolResultsPublished } from '@/lib/head-judge-actions';
 import { teamName, type HeadJudgeDivision, type HeadJudgePool } from '@/lib/head-judge';
 
 // Every pool that has teams, grouped by division and then round. A pool row
@@ -85,6 +85,8 @@ function PoolRow({
   const [lockError, setLockError] = useState<string | null>(null);
   const [publishPending, startPublishTransition] = useTransition();
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [clearPending, startClearTransition] = useTransition();
+  const [clearMessage, setClearMessage] = useState<{ text: string; error: boolean } | null>(null);
   const [copyState, setCopyState] = useState<'idle' | 'copying' | 'copied' | 'error'>('idle');
   // A pool that needs judges and has none yet stands out.
   const noJudges = pool.usesJudges && pool.judges.length === 0;
@@ -106,6 +108,17 @@ function PoolRow({
       // Published either way; say so if the event's Discord post didn't go out.
       if (result.discord?.status === 'failed') setPublishError(`Published, but not posted to Discord: ${result.discord.error}`);
       router.refresh();
+    });
+  }
+
+  // Test events only: throws away the pool's scores so it can be judged again.
+  function clearResults() {
+    if (!confirm(`Clear every score in ${pool.divisionName} ${pool.roundName} pool ${pool.letter} so it can be judged again? This can't be undone.`)) return;
+    setClearMessage(null);
+    startClearTransition(async () => {
+      const result = await clearPoolResults(pool.divisionId, pool.roundNumber, pool.letter);
+      setClearMessage(result.error ? { text: result.error, error: true } : { text: 'Results cleared', error: false });
+      if (!result.error) router.refresh();
     });
   }
 
@@ -184,12 +197,26 @@ function PoolRow({
         >
           {copyState === 'copying' ? 'Getting link…' : copyState === 'copied' ? 'Copied!' : copyState === 'error' ? 'Could not copy' : 'Copy link'}
         </button>
+        {pool.testEvent && (
+          <button
+            type="button"
+            onClick={clearResults}
+            disabled={clearPending || pool.locked}
+            title={pool.locked ? 'Unlock the pool to clear its results' : undefined}
+            className="rounded border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+          >
+            {clearPending ? 'Clearing…' : 'Clear results'}
+          </button>
+        )}
         {playing && <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">Playing</span>}
         {pool.locked && <span className="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">🔒 Locked</span>}
         {pool.resultsPublished && <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">📢 Published</span>}
       </div>
       {lockError && <p className="px-3 pb-2 text-xs text-red-600">{lockError}</p>}
       {publishError && <p className="px-3 pb-2 text-xs text-red-600">{publishError}</p>}
+      {clearMessage && (
+        <p className={`px-3 pb-2 text-xs ${clearMessage.error ? 'text-red-600' : 'text-green-700'}`}>{clearMessage.text}</p>
+      )}
 
       {expanded && (
         <div className="grid gap-4 border-t border-gray-200 px-3 py-3 sm:grid-cols-2">

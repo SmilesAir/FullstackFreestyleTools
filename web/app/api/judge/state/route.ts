@@ -1,13 +1,15 @@
 import { after } from 'next/server';
 import { recordJudgeSeen } from '@/lib/judge-presence';
-import { noteTypesFor } from '@/lib/judging';
+import { judgePinOk } from '@/lib/judge-pin';
+import { JUDGE_PIN_ERROR, noteTypesFor } from '@/lib/judging';
 import { getJudgeState } from '@/lib/judging-queries';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // A judge's live state, polled by the judge screens. Public on purpose (judges
 // don't log in) and it only returns what the landing page and that judge's own
-// notes already show. /api isn't behind the login proxy.
+// notes already show. /api isn't behind the login proxy, but a device needs the
+// event's judge PIN (see judge-pin.ts).
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const eventId = params.get('event') ?? '';
@@ -17,10 +19,11 @@ export async function GET(request: Request) {
     return Response.json({ error: 'Missing or invalid event, player or category' }, { status: 400 });
   }
 
-  // Note that this judge's screen is reaching the server, after the answer has gone.
-  after(() => recordJudgeSeen(eventId, playerId));
-
   try {
+    // A device without the event's judge PIN gets nothing (and isn't counted as seen).
+    if (!(await judgePinOk(eventId))) return Response.json({ error: JUDGE_PIN_ERROR }, { status: 401 });
+    // Note that this judge's screen is reaching the server, after the answer has gone.
+    after(() => recordJudgeSeen(eventId, playerId));
     return Response.json(await getJudgeState(eventId, playerId, category), { headers: { 'Cache-Control': 'no-store' } });
   } catch {
     // The database being unreachable.

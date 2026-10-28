@@ -22,6 +22,10 @@ const nextConfig: NextConfig = {
     "*.local",
   ],
 
+  // Hide the floating Next.js "N" badge `next dev` puts in the corner. Build
+  // and runtime errors still show their overlay.
+  devIndicators: false,
+
   async rewrites() {
     if (!legacyOrigin) return [];
     return {

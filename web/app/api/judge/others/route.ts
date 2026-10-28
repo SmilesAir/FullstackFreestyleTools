@@ -1,4 +1,5 @@
-import { noteTypesFor } from '@/lib/judging';
+import { judgePinOk } from '@/lib/judge-pin';
+import { JUDGE_PIN_ERROR, noteTypesFor } from '@/lib/judging';
 import { getOtherJudgeCurves } from '@/lib/judging-queries';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    if (!(await judgePinOk(eventId))) return Response.json({ error: JUDGE_PIN_ERROR }, { status: 401 });
     const others = await getOtherJudgeCurves(eventId, playerId, category, [routineId]);
     return Response.json(others[routineId] ?? [], { headers: { 'Cache-Control': 'no-store' } });
   } catch {

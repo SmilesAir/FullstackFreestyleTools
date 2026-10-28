@@ -66,10 +66,12 @@ async function send(eventId: string) {
     team_id: string | null;
     routine_started_at: string | null;
     routine_id: string | null;
+    judges_ready_at: string | null;
     updated_at: string;
   }>(
     // Times as text: a JS Date would drop their microseconds, and updated_at is compared below.
-    `SELECT division_id, round_number, pool_id, team_id, routine_started_at::text, routine_id, updated_at::text
+    `SELECT division_id, round_number, pool_id, team_id, routine_started_at::text, routine_id,
+            judges_ready_at::text, updated_at::text
      FROM event_play_state WHERE event_id = $1`,
     [eventId]
   );
@@ -80,13 +82,14 @@ async function send(eventId: string) {
   // The routine id only when Neon already has that routine (else NULL, which
   // the next sync replaces, its row having changed since it last sent it).
   await getPool('remote').query(
-    `INSERT INTO event_play_state (event_id, division_id, round_number, pool_id, team_id, routine_started_at, routine_id, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6::timestamptz, (SELECT id FROM routines WHERE id = $7::uuid), $8::timestamptz)
+    `INSERT INTO event_play_state (event_id, division_id, round_number, pool_id, team_id, routine_started_at, routine_id, judges_ready_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6::timestamptz, (SELECT id FROM routines WHERE id = $7::uuid), $9::timestamptz, $8::timestamptz)
      ON CONFLICT (event_id) DO UPDATE
      SET division_id = EXCLUDED.division_id, round_number = EXCLUDED.round_number, pool_id = EXCLUDED.pool_id,
          team_id = EXCLUDED.team_id, routine_started_at = EXCLUDED.routine_started_at,
-         routine_id = EXCLUDED.routine_id, updated_at = EXCLUDED.updated_at
+         routine_id = EXCLUDED.routine_id, judges_ready_at = EXCLUDED.judges_ready_at,
+         updated_at = EXCLUDED.updated_at
      WHERE event_play_state.updated_at <= EXCLUDED.updated_at`,
-    [eventId, row.division_id, row.round_number, row.pool_id, row.team_id, row.routine_started_at, row.routine_id, row.updated_at]
+    [eventId, row.division_id, row.round_number, row.pool_id, row.team_id, row.routine_started_at, row.routine_id, row.updated_at, row.judges_ready_at]
   );
 }

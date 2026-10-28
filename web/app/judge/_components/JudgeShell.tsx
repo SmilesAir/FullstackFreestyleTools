@@ -1,10 +1,17 @@
 import Link from 'next/link';
 import { HOME_PATH } from '@/lib/site';
+import { BlockBackButton } from './BlockBackButton';
 
 // The frame every judging screen shares. The tab bar (which shows the judge's
-// name) and the category's own controls go in `children`.
+// name) and the category's own controls go in `children`. The back button is
+// blocked while it's on screen.
 export function JudgeShell({ children }: { children?: React.ReactNode }) {
-  return <main className="flex min-h-dvh w-full flex-col gap-2 px-2 py-3">{children}</main>;
+  return (
+    <main className="flex min-h-dvh w-full flex-col gap-2 px-2 py-3">
+      <BlockBackButton />
+      {children}
+    </main>
+  );
 }
 
 export function NotJudging() {

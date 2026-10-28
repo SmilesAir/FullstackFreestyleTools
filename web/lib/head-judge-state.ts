@@ -14,6 +14,9 @@ export type PlayState = {
   // if it was cancelled with judges' notes or scores on it (so it can be
   // restored). Otherwise null.
   restorableRoutineId: string | null;
+  // The head judge readied the judges for the next routine (only while none is
+  // running; starting it clears this).
+  judgesReady: boolean;
   updatedAt: number;
 };
 
@@ -42,6 +45,7 @@ export const NO_PLAY_STATE: PlayState = {
   routineStartedAt: null,
   finishedJudges: [],
   restorableRoutineId: null,
+  judgesReady: false,
   updatedAt: 0,
 };
 
@@ -66,6 +70,7 @@ export function samePlayState(a: PlayState, b: PlayState): boolean {
     a.teamId === b.teamId &&
     a.routineStartedAt === b.routineStartedAt &&
     a.finishedJudges.join() === b.finishedJudges.join() &&
-    a.restorableRoutineId === b.restorableRoutineId
+    a.restorableRoutineId === b.restorableRoutineId &&
+    a.judgesReady === b.judgesReady
   );
 }

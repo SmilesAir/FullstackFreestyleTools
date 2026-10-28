@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { addNote, deleteNote, editNote, submitBackupScore, submitScore } from '@/lib/judging-actions';
 import { fetchJson } from '@/lib/fetch-json';
 import { startIdlePoller } from '@/lib/idle-poller';
-import type { JudgeNote, JudgeState } from '@/lib/judging';
+import { JUDGE_PIN_ERROR, type JudgeNote, type JudgeState } from '@/lib/judging';
 import { JUDGE_POLL_MS, type PollMode } from '@/lib/poll-intervals';
 
 export type SaveStatus = 'saved' | 'saving' | 'retrying';
@@ -99,6 +99,14 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
   const [connection, setConnection] = useState<'ok' | 'lost'>('ok');
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The server wants the event's judge PIN (it's new, or this device never had
+  // it): the screen shows the PIN pad, and saving waits until it's entered.
+  const [pinNeeded, setPinNeeded] = useState(false);
+  const pinNeededRef = useRef(false);
+  const askForPin = useCallback(() => {
+    pinNeededRef.current = true;
+    setPinNeeded(true);
+  }, []);
   const [submitting, setSubmitting] = useState(false);
   // Which database answers: the local server is asked every second.
   const [mode, setMode] = useState<PollMode>(initial.mode);
@@ -138,16 +146,19 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
         setServer(data);
         setSettled([]);
       }
-    } catch {
-      setConnection('lost');
+    } catch (err) {
+      // fetchJson throws the status: 401 is the server asking for the judge PIN.
+      if (err instanceof Error && err.message === '401') askForPin();
+      else setConnection('lost');
     }
-  }, [eventId, playerId, categoryType]);
+  }, [eventId, playerId, categoryType, askForPin]);
 
   const drain = useCallback(async () => {
     if (draining.current) return;
     draining.current = true;
     let wait = 500;
-    while (queue.current.length > 0) {
+    // Nothing is sent while the PIN is wanted; entering it starts again.
+    while (queue.current.length > 0 && !pinNeededRef.current) {
       const op = queue.current[0];
       setStatus(wait > 500 ? 'retrying' : 'saving');
       try {
@@ -157,6 +168,11 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
             : op.type === 'edit'
               ? await editNote(eventId, playerId, op.id, op.noteType, op.position)
               : await deleteNote(eventId, playerId, categoryType, op.id);
+        if (result.error === JUDGE_PIN_ERROR) {
+          // Kept (here and in the browser) until the PIN is entered.
+          askForPin();
+          break;
+        }
         queue.current.shift();
         lastSavedAt.current = Date.now();
         sync();
@@ -172,9 +188,9 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
       }
     }
     draining.current = false;
-    setStatus('saved');
+    setStatus(queue.current.length > 0 ? 'retrying' : 'saved');
     void poll();
-  }, [eventId, playerId, categoryType, sync, poll]);
+  }, [eventId, playerId, categoryType, sync, poll, askForPin]);
 
   const enqueue = useCallback(
     (op: Op) => {
@@ -264,6 +280,18 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
     }
   }, [server.routineId, server.teamName, enqueue]);
 
+  // The head judge readied the judges for the next routine: start again from 0
+  // (the taps so far were warm-up). Each new readying counts, not each poll.
+  const readiedAt = useRef(initial.judgesReadyAt);
+  useEffect(() => {
+    if (server.judgesReadyAt === readiedAt.current) return;
+    readiedAt.current = server.judgesReadyAt;
+    if (server.judgesReadyAt !== null && preStartRef.current.length > 0) {
+      preStartRef.current = [];
+      setPreStart([]);
+    }
+  }, [server.judgesReadyAt]);
+
   // Submits the judge's score for the running routine (or, given `routineId`, an
   // earlier one whose score is being changed): the server works out the baseline
   // from the saved notes and applies the change in percent. Notes still being
@@ -281,6 +309,10 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
         await sleep(200);
       }
       const result = await submitScore(eventId, playerId, categoryType, routineId, adjustPercent);
+      if (result.error === JUDGE_PIN_ERROR) {
+        askForPin();
+        return false;
+      }
       if (result.error) {
         setError(result.error);
         return false;
@@ -304,6 +336,10 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
     setSubmitting(true);
     try {
       const result = await submitBackupScore(eventId, playerId, categoryType, teamId, adjustPercent);
+      if (result.error === JUDGE_PIN_ERROR) {
+        askForPin();
+        return false;
+      }
       if (result.error) {
         setError(result.error);
         return false;
@@ -327,6 +363,14 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
     paused,
     error,
     dismissError: () => setError(null),
+    pinNeeded,
+    // The PIN pad took the PIN: send what was waiting and read the state again.
+    pinEntered: () => {
+      pinNeededRef.current = false;
+      setPinNeeded(false);
+      void drain();
+      void poll();
+    },
     canNote,
     preStartNotes,
     submit,

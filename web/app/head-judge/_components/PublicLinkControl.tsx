@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ensurePoolLink, setPoolLocked, setPoolResultsPublished } from '@/lib/head-judge-actions';
+import { clearPoolResults, ensurePoolLink, setPoolLocked, setPoolResultsPublished } from '@/lib/head-judge-actions';
 import type { HeadJudgePool } from '@/lib/head-judge';
 
 // Every pool's public permalink, its Lock/Unlock toggle and its Publish/Unpublish
@@ -10,6 +10,7 @@ import type { HeadJudgePool } from '@/lib/head-judge';
 // two buttons the Pools tab has, for whoever is already looking at this pool's
 // results). The link is the same whether or not the pool is published: before, it
 // shows the teams and judges; after, the full results with judges never named.
+// A test event's pool also gets a Clear results button, to judge it again.
 export function PublicLinkControl({ pool }: { pool: HeadJudgePool }) {
   const router = useRouter();
   const [code, setCode] = useState<string | null>(null);
@@ -21,6 +22,8 @@ export function PublicLinkControl({ pool }: { pool: HeadJudgePool }) {
   // What happened to the Discord post the last publish made (none when the event has no channel).
   const [discord, setDiscord] = useState<{ text: string; error: boolean } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [clearMessage, setClearMessage] = useState<{ text: string; error: boolean } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,6 +58,16 @@ export function PublicLinkControl({ pool }: { pool: HeadJudgePool }) {
     if (result.discord?.status === 'posted') setDiscord({ text: 'Posted to Discord', error: false });
     else if (result.discord?.status === 'failed') setDiscord({ text: `Not posted to Discord: ${result.discord.error}`, error: true });
     router.refresh();
+  }
+
+  async function clearResults() {
+    if (!confirm(`Clear every score in ${pool.divisionName} ${pool.roundName} pool ${pool.letter} so it can be judged again? This can't be undone.`)) return;
+    setClearing(true);
+    setClearMessage(null);
+    const result = await clearPoolResults(pool.divisionId, pool.roundNumber, pool.letter);
+    setClearing(false);
+    setClearMessage(result.error ? { text: result.error, error: true } : { text: 'Results cleared', error: false });
+    if (!result.error) router.refresh();
   }
 
   async function copy() {
@@ -94,6 +107,23 @@ export function PublicLinkControl({ pool }: { pool: HeadJudgePool }) {
       </span>
       {publishError && <span className="text-xs text-red-600">{publishError}</span>}
       {discord && <span className={`text-xs ${discord.error ? 'text-red-600' : 'text-green-700'}`}>{discord.text}</span>}
+      {pool.testEvent && (
+        <>
+          <span className="mx-1 text-gray-300">·</span>
+          <button
+            type="button"
+            onClick={clearResults}
+            disabled={clearing || pool.locked}
+            title={pool.locked ? 'Unlock the pool to clear its results' : undefined}
+            className="rounded border border-red-300 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
+          >
+            {clearing ? 'Clearing…' : 'Clear results'}
+          </button>
+          {clearMessage && (
+            <span className={`text-xs ${clearMessage.error ? 'text-red-600' : 'text-green-700'}`}>{clearMessage.text}</span>
+          )}
+        </>
+      )}
       <span className="mx-1 text-gray-300">·</span>
       {linkError ? (
         <span className="text-xs text-red-600">{linkError}</span>

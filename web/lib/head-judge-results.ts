@@ -1,7 +1,8 @@
 // Shared (client + server) shapes for a pool's results: what each judge noted
 // and scored for each team.
 
-import { notePoints, type NoteCategory, type OtherCurve, type SubmittedScore } from './judging';
+import { NOTE_CATEGORIES, notePoints, notesFromStart, type NoteCategory, type OtherCurve, type SubmittedScore } from './judging';
+import { averageJudgeCurves, type JudgeCurve } from './judging-curves';
 import { estimateFromNotes } from './judging-estimate';
 import { scoreLimitOf, type CategorySettings } from './judging-settings';
 import { limitScores, type CurveScore } from './score-curve';
@@ -44,9 +45,9 @@ export function judgeResultFromNotes(
 ): JudgeResult {
   const weights = settings?.noteWeights ?? {};
   const secondsPerScore = scoreLimitOf(settings);
-  const ordered = [...notes].sort((a, b) => a.notedAt - b.notedAt);
+  const ordered = notesFromStart(notes, routine.startedAt).sort((a, b) => a.notedAt - b.notedAt);
   const scores = limitScores(
-    ordered.map((n): CurveScore => ({ t: Math.max(0, (n.notedAt - routine.startedAt) / 1000), s: notePoints(n, weights) })),
+    ordered.map((n): CurveScore => ({ t: (n.notedAt - routine.startedAt) / 1000, s: notePoints(n, weights) })),
     routine.routineSeconds,
     secondsPerScore
   );
@@ -86,29 +87,35 @@ export type TeamResult = { routineId: string; judges: Record<string, JudgeResult
 // By team id. A team that hasn't played has no entry.
 export type PoolResultsData = Record<string, TeamResult>;
 
+// One run of a team's routine, as combineTeamRoutines takes it: each judge's
+// result by player id and each judge's own curve (see judging-curves.ts).
+export type TeamRoutineResult = { routineId: string; judges: Record<string, JudgeResult>; judgeCurves: JudgeCurve[] };
+
 // One team's results from several runs of its routine, oldest first, as one result, so
 // judges can score a team one at a time (each in their own run) and every score counts:
 // - each judge's entry is from the newest run where they submitted a score, or if they
 //   never did, the newest run where they took notes (a re-judge replaces their own
 //   earlier score; notes in a new run without a score keep the earlier score showing);
-// - each category's averaged curve is from the newest run that has one.
-export function combineTeamRoutines(routines: TeamResult[]): TeamResult | null {
+// - each category's curve averages its judges' curves from that same run, so
+//   re-judging one judge changes only their part of the average.
+export function combineTeamRoutines(routines: TeamRoutineResult[]): TeamResult | null {
   const newest = routines[routines.length - 1];
   if (!newest) return null;
 
-  const scored: Record<string, JudgeResult> = {};
-  const noted: Record<string, JudgeResult> = {};
-  const curves = new Map<string, OtherCurve>();
+  // player id -> the run their entry is from
+  const scored = new Map<string, TeamRoutineResult>();
+  const noted = new Map<string, TeamRoutineResult>();
   for (const routine of routines) {
     for (const [playerId, result] of Object.entries(routine.judges)) {
-      if (result.submitted) scored[playerId] = result;
-      else noted[playerId] = result;
+      (result.submitted ? scored : noted).set(playerId, routine);
     }
-    for (const curve of routine.curves) curves.set(curve.category, curve);
   }
-  return {
-    routineId: newest.routineId,
-    judges: { ...noted, ...scored },
-    curves: [...curves.values()],
-  };
+  const judges: Record<string, JudgeResult> = {};
+  const curves: JudgeCurve[] = [];
+  for (const playerId of new Set([...noted.keys(), ...scored.keys()])) {
+    const routine = scored.get(playerId) ?? noted.get(playerId)!;
+    judges[playerId] = routine.judges[playerId];
+    curves.push(...routine.judgeCurves.filter((c) => c.playerId === playerId));
+  }
+  return { routineId: newest.routineId, judges, curves: averageJudgeCurves(curves, NOTE_CATEGORIES) };
 }

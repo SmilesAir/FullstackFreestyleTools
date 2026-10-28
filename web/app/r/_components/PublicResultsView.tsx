@@ -7,6 +7,7 @@ import { ScoreGraph } from '@/app/judge/_components/ScoreGraph';
 import {
   categoryLabel,
   curveDuration,
+  detailsOrder,
   DifficultyTable,
   NotesTable,
   poolGraphExtent,
@@ -15,6 +16,7 @@ import {
 } from '@/app/head-judge/_components/PoolResults';
 import { PoolOverviewGraph } from '@/app/head-judge/_components/PoolOverviewGraph';
 import { SimpleRankingTable } from '@/app/head-judge/_components/SimpleRankingResults';
+import type { ResultsSortOrder } from '@/app/head-judge/_components/SortToggle';
 import { navigateToPool } from '@/lib/public-results-actions';
 import type { EventPoolNav, PublicPoolResult } from '@/lib/public-results';
 
@@ -172,6 +174,8 @@ function FpaResultsView({ result }: { result: PublicPoolResult }) {
   // Checking a Summary row's box makes every score in the tables below a delta
   // against it instead of an absolute number.
   const [baselineTeamId, setBaselineTeamId] = useState<string | null>(null);
+  // The Summary's sort order; each team's details below follow it.
+  const [sort, setSort] = useState<ResultsSortOrder>('play');
 
   const data = result.data!;
   const judgesByCategory = result.judgesByCategory!;
@@ -193,12 +197,14 @@ function FpaResultsView({ result }: { result: PublicPoolResult }) {
             onHighlight={setHighlightedTeamId}
             baselineTeamId={baselineTeamId}
             onSetBaseline={setBaselineTeamId}
+            sort={sort}
+            onSortChange={setSort}
           />
           <PoolOverviewGraph teams={overviewTeams} routineSeconds={result.routineSeconds} highlightedTeamId={highlightedTeamId} />
         </>
       )}
       <ol className="flex flex-col gap-4">
-        {result.teams.map((team, i) => {
+        {detailsOrder(result.teams, data, judgesByCategory, sort).map(({ team, rank }) => {
           const teamResult = data[team.id];
           const finished = teamResult ? noteJudges.filter((j) => teamResult.judges[j.playerId]?.submitted).length : 0;
           // The baseline's own tables read their actual values, not an
@@ -208,7 +214,7 @@ function FpaResultsView({ result }: { result: PublicPoolResult }) {
             <li key={team.id} className="flex flex-col gap-3 rounded border border-gray-200 p-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="text-lg font-semibold">
-                  <span className="mr-3 font-normal text-gray-400">{i + 1}.</span>
+                  <span className="mr-3 font-normal text-gray-400">{rank === null ? '—' : `${rank}.`}</span>
                   {team.players.join(' / ') || '(no players)'}
                 </h3>
                 <span className="text-sm text-gray-500">

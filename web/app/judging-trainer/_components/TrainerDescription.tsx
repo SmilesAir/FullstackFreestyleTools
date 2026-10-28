@@ -221,8 +221,9 @@ export function TrainerDescription() {
         <h3 className="font-semibold">The judge&apos;s adjustment</h3>
         <p>
           The arrows change the score by 1% or 10% of the baseline&apos;s size, so up always means higher, even below
-          zero. A baseline of 0 has no size, so there 1% = 0.1 points. Score = baseline + |baseline| × percent ÷ 100,
-          rounded to 2 decimals.
+          zero. Near 0 the baseline has almost no size, so the size is never less than ten ordinary notes (an Average
+          Completion, a Minor teamwork, an Average Chair): there 10% is one such note and 1% a tenth of one. Score =
+          baseline + max(|baseline|, 10 × note) × percent ÷ 100, rounded to 2 decimals.
         </p>
 
         <h3 className="font-semibold">Results</h3>

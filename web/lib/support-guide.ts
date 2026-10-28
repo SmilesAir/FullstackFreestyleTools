@@ -31,6 +31,7 @@ Events
 Division settings (in each division's tab)
 - Division type, Routine time (3, 4 or 5 minutes; Open Co-op defaults to 4, others to 3) and Rules.
 - Rules: the full judging system (Difficulty, Execution and Artistic Impression judges) or Simple Ranking (no assigned judges; anyone ranks the teams from the landing page; see below).
+- Older divisions may show Fpa2020 (the old FPA Judging System's rules). Its judges never appear on the landing page: switch the division to Fpa2027 and press Save settings (the green Saved confirms it).
 
 Adding teams
 - One division: in the division's Add teams section, paste the teams in any format (one team per line, names separated by "/", "&", commas, a copied spreadsheet...) and press Parse with Claude.
@@ -80,11 +81,11 @@ Results tab and public links
   - Difficulty, Execution, Artistic Impression: one column per judge (by name; "Difficulty #1" and so on on the public link), showing the score that judge submitted for the team. A dash means no score from that judge yet.
   - Totals: each category's judges' scores added up.
   - Team total: every submitted score added up (all categories).
-  - Place: the team's place in the pool by Team total, highest first. Equal totals share a place. A team with no score yet has no total or place.
+  - Place: the team's place in the pool by Team total, highest first. Places always run 1, 2, 3... On equal totals the team that won more categories (a higher category total) places higher, marked "(tie, won on categories)"; if that is equal too, the team that plays later wins, marked "(tie, won on seed)". A team with no score yet has no total or place.
   - Hovering a row highlights that team's line in the combined graph. Ticking the box at the start of a row compares every other team to that team: all the numbers on the page (Summary and the tables below) become differences from it, green when higher and red when lower (the other way round for counts of negative notes - the errors and Form Bad - where fewer is better), and the total rows read Delta. Untick it to go back.
 - Combined graph (under the Summary): one line per team, its judges' notes averaged over the routine, in the team's colour. All teams share one height scale, so equal heights mean equal scores at that moment.
   - Hovering a Summary row also puts a number on each hump (above zero) and dip (below zero) of that team's line. The number is the hump's points: the area under it, turned back into points the same way the Difficulty baseline is (each note is drawn as a bump about 10 seconds wide, so the raw area is about 10 times the points). It is NOT the peak height, even though it sits at the peak. A wide hump has a bigger number than a narrow one of the same height, so two peaks can look the same height with very different numbers (for example 31.2 and 23.4) when one hump lasts longer. To compare peak heights, read them against the Y axis.
-  - Why the hump numbers are smaller than the Summary's scores: the combined line is every judge of every category averaged into one, so a hump's number is the points one average judge gave in that stretch. The Summary's Team total adds up every judge's score, over the whole routine. Roughly, a hump's number times the number of judges is its share of the Team total. It's not exact: notes outside the hump and dips below zero also count, and Difficulty's power setting (Settings tab) can make tall peaks count for more in the score.
+  - Why the hump numbers are smaller than the Summary's scores: the combined line is every judge of every category averaged into one, so a hump's number is the points one average judge gave in that stretch. The Summary's Team total adds up every judge's score, over the whole routine. Roughly, a hump's number times the number of judges is its share of the Team total. It's not exact: notes outside the hump and dips below zero also count.
 - Each team's box: its name, "X of Y judges finished" (or Not played yet), a graph with one averaged line per judge category over the routine, then a table per category with a row per judge and a Total row (all the judges added up).
 - Execution table: a column per note (Large Error, Medium Error, Minor Error, Average Completion, Clean Completion) with how many of that note the judge took. Then Baseline and Score (below).
 - Artistic Impression table: the notes under their area headings, Teamwork (Great, Decent, Minor), Music (Great, Decent) and Form (Good, Bad), with how many of each the judge took. Then Baseline and Score.
@@ -108,6 +109,13 @@ Settings tab
 - The judge presses their own button and keeps that screen open. It is their seat: it follows the Head Judge's playing pool and team by itself, so a device can be set up once and left on the seat.
 - They note and score each routine, then submit. The Head Judge's Play tab shows Finished for them.
 - If a judge's dot on the Play tab shows Not connected, their screen isn't reaching the server: have them reload the page and check their Wi-Fi.
+
+If a judge's button is missing from the landing page, check in this order
+- The division's Rules are Fpa2027. A division on Fpa2020 (the old system) never lists its judges. This is the most common cause: change Rules in the division's settings and press Save settings; changing the dropdown alone doesn't save.
+- The event has Playing turned on in the Event Creator.
+- The judge is assigned to the pool that is playing right now (the pool chosen on the Head Judge's Play tab). Only the playing pool's judges are listed; choosing another pool changes the buttons.
+- The judge buttons only show when signed out. Signed in, the home page shows Active events and My activity instead: sign out or use a private window.
+- When running offline, the change was made on the main website but the laptop hasn't pulled it down yet (or the other way round): check which database the screen is using in the database pill.
 
 ## Simple Ranking divisions
 - No assigned judges: anyone can rank the playing pool from the Judge button on the main landing page while the event is playing.
@@ -156,6 +164,7 @@ If a phone can't reach the laptop
 - Started the wrong team or started too early: Cancel Routine (hold), choose the right team, and start again.
 - Results show "Not played yet": no routine for that team was finished (or it was cancelled).
 - A judge submitted by mistake: start that team's routine again for that judge; their newest score replaces the earlier one.
+- A judge's button isn't on the landing page: most often the division's Rules are still Fpa2020; set them to Fpa2027 and Save settings. See "If a judge's button is missing" under Judges for the full checklist.
 - Teams or judges can't be edited in the Event Creator: the pool is locked by the Head Judge.
 - The pool's public link shows no results: the pool isn't published yet (Publish results on Head Judge).
 - A team's song is missing or wrong: Set music / Change music in Event Music.`;

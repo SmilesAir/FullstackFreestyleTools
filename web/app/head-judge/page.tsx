@@ -1,9 +1,11 @@
 import { getEvent, listEvents } from '@/lib/event-creator-queries';
 import { getHeadJudgePools, getPlayState } from '@/lib/head-judge-queries';
+import { getJudgePinForHeadJudge } from '@/lib/judge-pin';
 import { getEventSettings, getEventSystems, listPresets } from '@/lib/judging-settings-store';
 import { AnnouncerLinkButton } from './_components/AnnouncerLinkButton';
 import { EventsTab } from './_components/EventsTab';
 import { HeadJudgeShell } from './_components/HeadJudgeShell';
+import { JudgePinBadge } from './_components/JudgePinBadge';
 import { SettingsTab } from './_components/SettingsTab';
 
 const TABS = ['events', 'pools', 'play', 'results', 'settings'] as const;
@@ -26,12 +28,14 @@ export default async function HeadJudgePage({
   const { event: eventParam, tab: tabParam } = await searchParams;
 
   // Independent queries run together (each DB round trip is ~100ms).
-  const [events, selected, divisions, play, settings] = await Promise.all([
+  const [events, selected, divisions, play, settings, judgePin] = await Promise.all([
     listEvents(),
     eventParam ? getEvent(eventParam) : null,
     eventParam ? getHeadJudgePools(eventParam) : [],
     getPlayState(eventParam ?? NO_EVENT),
     eventParam ? loadSettings(eventParam) : null,
+    // Made the first time the event is opened here; judges need it from then on.
+    eventParam ? getJudgePinForHeadJudge(eventParam) : null,
   ]);
   const initialTab = TABS.find((t) => t === tabParam) ?? 'events';
 
@@ -45,6 +49,7 @@ export default async function HeadJudgePage({
               Event: <span className="font-medium text-gray-700">{selected.event_name}</span>
             </span>
             <AnnouncerLinkButton eventId={selected.id} />
+            {judgePin && <JudgePinBadge key={judgePin.pin} eventId={selected.id} {...judgePin} />}
           </div>
         )}
       </div>

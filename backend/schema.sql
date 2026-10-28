@@ -185,6 +185,9 @@ CREATE TABLE IF NOT EXISTS event_play_state (
 );
 -- The running routine (NULL when none is running).
 ALTER TABLE event_play_state ADD COLUMN IF NOT EXISTS routine_id uuid REFERENCES routines(id) ON DELETE SET NULL;
+-- When the Head Judge readied the judges for the next routine (NULL = not
+-- readied). Only while no routine is running; starting the routine clears it.
+ALTER TABLE event_play_state ADD COLUMN IF NOT EXISTS judges_ready_at timestamptz;
 
 -- What a judge pressed during a routine under the Fpa2027 judging system
 -- (Execution: large_error, medium_error, minor_error, average_completion,
@@ -469,6 +472,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_events_announcer_code ON events(announcer_
 -- and then category, e.g. {"Fpa2027": {"Ex": {"noteWeights": {"large_error": -3}}}}.
 -- Anything missing falls back to the defaults in code.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS judging_settings jsonb NOT NULL DEFAULT '{}';
+
+-- The event's 2-digit judge PIN ("00" to "99"), shown on the Head Judge page and
+-- entered once on each judging device (a signed cookie remembers it). Made the
+-- first time the Head Judge opens the event; until then, and for test events,
+-- judging needs no PIN. A new PIN signs every device out.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS judge_pin text;
+
+-- Wrong judge PINs per event and client (a hash of the IP), for the
+-- exponentially growing wait between guesses. Kept on whichever database is
+-- serving; never synced. A right PIN, a quiet hour or a new PIN clears it.
+CREATE TABLE IF NOT EXISTS judge_pin_attempts (
+  event_id       uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  client_key     text NOT NULL,
+  failures       integer NOT NULL DEFAULT 0,
+  locked_until   timestamptz,
+  last_failed_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (event_id, client_key)
+);
 
 -- Named copies of one judging system's settings. Loading a preset copies its
 -- values into an event, so later edits never reach back. "Fpa-Official" is what

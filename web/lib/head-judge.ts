@@ -27,6 +27,8 @@ export type HeadJudgePool = {
   locked: boolean;
   // Visible on this pool's public permalink (see web/lib/public-results.ts).
   resultsPublished: boolean;
+  // The event is a test event, so its results can be cleared to judge the pool again.
+  testEvent: boolean;
 };
 
 export type HeadJudgeRound = { number: number; name: string; pools: HeadJudgePool[] };

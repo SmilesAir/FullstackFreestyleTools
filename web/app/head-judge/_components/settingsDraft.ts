@@ -4,11 +4,9 @@ import {
   MAX_LINE_MAX,
   MAX_MOVES,
   MAX_MOVE_NAME,
-  MAX_POWER,
   MAX_SECONDS_PER_SCORE,
   MIN_AREA_SCALE,
   MIN_LINE_MAX,
-  MIN_POWER,
   MIN_SECONDS_PER_SCORE,
   hasScoreLimit,
   weightRange,
@@ -17,7 +15,7 @@ import {
 
 // Every field of the Settings form is text while it is being edited. Its key is
 // the category and the field: "Ex.large_error", "AI.form_bad", "Ex.areaScale",
-// "AI.power", "Ex.secondsPerScore"; for Difficulty's numberline "Diff.lineMax", and each move
+// "Ex.secondsPerScore"; for Difficulty's numberline "Diff.lineMax", and each move
 // "Diff.move.<n>.name" / "Diff.move.<n>.position" with "Diff.moves" holding how
 // many there are.
 export type Draft = Record<string, string>;
@@ -32,13 +30,11 @@ export const rangeOf = (key: string): [number, number] => {
   const [category, field] = key.split('.');
   return field === 'areaScale'
     ? [MIN_AREA_SCALE, MAX_AREA_SCALE]
-    : field === 'power'
-      ? [MIN_POWER, MAX_POWER]
-      : field === 'lineMax'
-        ? [MIN_LINE_MAX, MAX_LINE_MAX]
-        : field === 'secondsPerScore'
-          ? [MIN_SECONDS_PER_SCORE, MAX_SECONDS_PER_SCORE]
-          : weightRange(category as NoteCategory);
+    : field === 'lineMax'
+      ? [MIN_LINE_MAX, MAX_LINE_MAX]
+      : field === 'secondsPerScore'
+        ? [MIN_SECONDS_PER_SCORE, MAX_SECONDS_PER_SCORE]
+        : weightRange(category as NoteCategory);
 };
 
 export const moveCount = (draft: Draft) => Number(draft[MOVES_KEY] ?? 0);
@@ -59,7 +55,6 @@ export const toDraft = (s: SystemSettings): Draft => {
       draft[fieldKey(category, note.type)] = String(s[category].noteWeights[note.type]);
     }
     draft[fieldKey(category, 'areaScale')] = String(s[category].estimate.areaScale);
-    draft[fieldKey(category, 'power')] = String(s[category].estimate.power);
     const seconds = s[category].secondsPerScore;
     if (seconds !== undefined) draft[fieldKey(category, 'secondsPerScore')] = String(seconds);
     const line = s[category].line;
@@ -122,9 +117,8 @@ export function parseDraft(draft: Draft): SystemSettings | null {
       noteWeights[note.type] = round2(draft, key);
     }
     const scale = fieldKey(category, 'areaScale');
-    const power = fieldKey(category, 'power');
-    if (!validText(draft, scale) || !validText(draft, power)) return null;
-    settings[category] = { noteWeights, estimate: { areaScale: round2(draft, scale), power: round2(draft, power) } };
+    if (!validText(draft, scale)) return null;
+    settings[category] = { noteWeights, estimate: { areaScale: round2(draft, scale) } };
     if (hasScoreLimit(category)) {
       const seconds = fieldKey(category, 'secondsPerScore');
       if (!validText(draft, seconds)) return null;

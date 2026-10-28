@@ -5,6 +5,7 @@ import { Tabs, type Tab } from '@/app/_components/Tabs';
 import type { JudgeHistory, JudgeState, NoteCategory, OtherCurve } from '@/lib/judging';
 import { IDLE_MS, useJudgeNotes, type JudgeNotesApi } from '@/app/judge/_components/useJudgeNotes';
 import { NotesPlay } from './NotesPlay';
+import { PinPad } from './PinPad';
 import { NotesReview } from './NotesReview';
 
 // A note-taking judge's screen (Execution or Artistic Impression). One hook owns
@@ -38,15 +39,20 @@ export function NotesJudge({
   }, [allSaved, onSaveStatus]);
 
   return (
-    <NotesJudgeView
-      judge={judge}
-      category={category}
-      eventId={eventId}
-      playerId={playerId}
-      judgeName={judgeName}
-      basePath={basePath}
-      initialTab={initialTab}
-    />
+    <>
+      <NotesJudgeView
+        judge={judge}
+        category={category}
+        eventId={eventId}
+        playerId={playerId}
+        judgeName={judgeName}
+        basePath={basePath}
+        initialTab={initialTab}
+      />
+      {/* The Head Judge made a new PIN (or this device never had it): what was
+          pressed meanwhile is kept and sent once it's entered. */}
+      {judge.pinNeeded && <PinPad eventId={eventId} judgeName={judgeName} onUnlocked={judge.pinEntered} />}
+    </>
   );
 }
 
@@ -91,6 +97,12 @@ export function NotesJudgeView({
     if (state.routineId !== null) setActive('play');
   }
 
+  // Review is closed while the head judge has the judges readied, and during a
+  // routine until this judge has submitted their score for it.
+  const submittedHere = state.submitted !== null && state.notesRoutine?.id === state.routineId;
+  const reviewLocked = state.judgesReadyAt !== null || (state.routineId !== null && !submittedHere);
+  if (reviewLocked && active === 'review') setActive('play');
+
   const tabs: Tab[] = [
     {
       id: 'play',
@@ -124,6 +136,7 @@ export function NotesJudgeView({
       id: 'review',
       label: 'Review',
       href: `${basePath}?tab=review`,
+      disabled: reviewLocked,
       content: (
         <NotesReview
           category={category}
@@ -171,7 +184,14 @@ export function NotesJudgeView({
           </p>
         )}
       </div>
-      <Tabs tabs={tabs} initialActive={initialTab} active={active} onChange={setActive} trailing={
+      <Tabs
+        tabs={tabs}
+        initialActive={initialTab}
+        active={active}
+        onChange={(id) => {
+          if (!(reviewLocked && id === 'review')) setActive(id);
+        }}
+        trailing={
           <>
             {judgeName}
             <span

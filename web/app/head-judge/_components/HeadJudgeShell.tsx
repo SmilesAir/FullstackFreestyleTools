@@ -89,9 +89,12 @@ export function HeadJudgeShell({
           mode={play.mode}
           onSelectTeam={play.setTeam}
           onStart={play.start}
+          judgesReady={play.state.judgesReady}
+          onSetReady={play.setReady}
           onCancel={play.cancel}
           onNextTeam={play.nextTeam}
           restorableRoutineId={play.state.restorableRoutineId}
+          onAdjustStart={play.adjustStart}
           onRestore={play.restore}
         />
       ) : (

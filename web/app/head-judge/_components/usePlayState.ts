@@ -1,37 +1,45 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
+  adjustRoutineStart,
   cancelRoutine,
   finishRoutine,
   restoreRoutine,
+  setJudgesReady,
   setPlayingPool,
   setPlayingTeam,
   startRoutine,
-} from '@/lib/head-judge-actions';
-import { fetchJson } from '@/lib/fetch-json';
-import { samePlayState, type PlayResponse, type PlayState } from '@/lib/head-judge-state';
-import { HEAD_JUDGE_POLL_MS, type PollMode } from '@/lib/poll-intervals';
+} from "@/lib/head-judge-actions";
+import { fetchJson } from "@/lib/fetch-json";
+import {
+  samePlayState,
+  type PlayResponse,
+  type PlayState,
+} from "@/lib/head-judge-state";
+import { HEAD_JUDGE_POLL_MS, type PollMode } from "@/lib/poll-intervals";
 
 // What the head judge did on this screen that the server may not have heard
 // about yet. Kept in order and sent one at a time.
 type Op =
-  | { type: 'pool'; divisionId: string; roundNumber: number; letter: string }
-  | { type: 'team'; teamId: string }
-  | { type: 'start'; clickedAt: number }
-  | { type: 'cancel' }
-  | { type: 'next'; nextTeamId: string | null }
-  | { type: 'restore'; routineId: string };
+  | { type: "pool"; divisionId: string; roundNumber: number; letter: string }
+  | { type: "team"; teamId: string }
+  | { type: "start"; clickedAt: number }
+  | { type: "adjustStart"; routineId: string; startedAt: number }
+  | { type: "cancel" }
+  | { type: "next"; nextTeamId: string | null }
+  | { type: "restore"; routineId: string }
+  | { type: "ready"; ready: boolean };
 
-export type SaveStatus = 'saved' | 'saving' | 'retrying';
+export type SaveStatus = "saved" | "saving" | "retrying";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // The change an operation makes to what's on screen.
 function applyOp(state: PlayState, op: Op): PlayState {
   switch (op.type) {
-    case 'pool':
+    case "pool":
       return {
         ...state,
         divisionId: op.divisionId,
@@ -41,19 +49,48 @@ function applyOp(state: PlayState, op: Op): PlayState {
         routineStartedAt: null,
         finishedJudges: [],
         restorableRoutineId: null,
+        judgesReady: false,
       };
     // Whether there is a routine to restore is only known once the server is read.
-    case 'team':
-      return { ...state, teamId: op.teamId, routineStartedAt: null, finishedJudges: [], restorableRoutineId: null };
-    case 'start':
-      return { ...state, routineStartedAt: op.clickedAt, finishedJudges: [], restorableRoutineId: null };
-    case 'cancel':
+    case "team":
+      return {
+        ...state,
+        teamId: op.teamId,
+        routineStartedAt: null,
+        finishedJudges: [],
+        restorableRoutineId: null,
+      };
+    case "start":
+      return {
+        ...state,
+        routineStartedAt: op.clickedAt,
+        finishedJudges: [],
+        restorableRoutineId: null,
+        judgesReady: false,
+      };
+    // Only moves a routine that is still running here.
+    case "adjustStart":
+      return state.routineStartedAt === null
+        ? state
+        : { ...state, routineStartedAt: op.startedAt };
+    case "cancel":
       return { ...state, routineStartedAt: null, finishedJudges: [] };
     // The routine is over as played; the next team (if any) is up.
-    case 'next':
-      return { ...state, teamId: op.nextTeamId, routineStartedAt: null, finishedJudges: [], restorableRoutineId: null };
-    case 'restore':
+    case "next":
+      return {
+        ...state,
+        teamId: op.nextTeamId,
+        routineStartedAt: null,
+        finishedJudges: [],
+        restorableRoutineId: null,
+      };
+    case "restore":
       return { ...state, restorableRoutineId: null };
+    // Only while no routine is running (the server refuses it otherwise).
+    case "ready":
+      return state.routineStartedAt === null
+        ? { ...state, judgesReady: op.ready }
+        : state;
   }
 }
 
@@ -66,12 +103,16 @@ function applyOp(state: PlayState, op: Op): PlayState {
 export function usePlayState(eventId: string, initial: PlayResponse) {
   const [state, setState] = useState<PlayState>(initial.state);
   // Server time minus this device's time, for the timer.
-  const [clockOffset, setClockOffset] = useState(() => initial.serverNow - Date.now());
-  const [status, setStatus] = useState<SaveStatus>('saved');
-  const [connection, setConnection] = useState<'ok' | 'lost'>('ok');
+  const [clockOffset, setClockOffset] = useState(
+    () => initial.serverNow - Date.now(),
+  );
+  const [status, setStatus] = useState<SaveStatus>("saved");
+  const [connection, setConnection] = useState<"ok" | "lost">("ok");
   const [error, setError] = useState<string | null>(null);
   // Which judges' screens have been heard from lately (seconds ago, by player id).
-  const [presence, setPresence] = useState<Record<string, number>>(initial.presence);
+  const [presence, setPresence] = useState<Record<string, number>>(
+    initial.presence,
+  );
   // Which database answers: the local one is asked every second, Neon less often.
   const [mode, setMode] = useState<PollMode>(initial.mode);
   const modeRef = useRef<PollMode>(initial.mode);
@@ -102,12 +143,14 @@ export function usePlayState(eventId: string, initial: PlayResponse) {
     polling.current = true;
     const sentAt = Date.now();
     try {
-      const data = await fetchJson<PlayResponse>(`/api/head-judge/state?event=${encodeURIComponent(eventId)}`);
+      const data = await fetchJson<PlayResponse>(
+        `/api/head-judge/state?event=${encodeURIComponent(eventId)}`,
+      );
       // The server read its clock about halfway through the round trip.
       offset.current = data.serverNow - (sentAt + Date.now()) / 2;
       setClockOffset(offset.current);
-      setConnection('ok');
-      modeRef.current = data.mode ?? 'remote';
+      setConnection("ok");
+      modeRef.current = data.mode ?? "remote";
       setMode(modeRef.current);
       setPresence(data.presence ?? {});
       // Changed elsewhere: read the page's data again (once per change).
@@ -116,10 +159,12 @@ export function usePlayState(eventId: string, initial: PlayResponse) {
         router.refresh();
       }
       if (queue.current.length === 0 && !draining.current) {
-        setState((current) => (samePlayState(current, data.state) ? current : data.state));
+        setState((current) =>
+          samePlayState(current, data.state) ? current : data.state,
+        );
       }
     } catch {
-      setConnection('lost');
+      setConnection("lost");
     } finally {
       polling.current = false;
     }
@@ -131,20 +176,33 @@ export function usePlayState(eventId: string, initial: PlayResponse) {
     let wait = 500;
     while (queue.current.length > 0) {
       const op = queue.current[0];
-      setStatus(wait > 500 ? 'retrying' : 'saving');
+      setStatus(wait > 500 ? "retrying" : "saving");
       try {
         const result =
-          op.type === 'pool'
-            ? await setPlayingPool(eventId, op.divisionId, op.roundNumber, op.letter)
-            : op.type === 'team'
+          op.type === "pool"
+            ? await setPlayingPool(
+                eventId,
+                op.divisionId,
+                op.roundNumber,
+                op.letter,
+              )
+            : op.type === "team"
               ? await setPlayingTeam(eventId, op.teamId)
-              : op.type === 'start'
+              : op.type === "start"
                 ? await startRoutine(eventId, op.clickedAt)
-                : op.type === 'restore'
-                  ? await restoreRoutine(eventId, op.routineId)
-                  : op.type === 'next'
-                    ? await finishRoutine(eventId, op.nextTeamId)
-                    : await cancelRoutine(eventId);
+                : op.type === "adjustStart"
+                  ? await adjustRoutineStart(
+                      eventId,
+                      op.routineId,
+                      op.startedAt,
+                    )
+                  : op.type === "restore"
+                    ? await restoreRoutine(eventId, op.routineId)
+                    : op.type === "ready"
+                      ? await setJudgesReady(eventId, op.ready)
+                      : op.type === "next"
+                        ? await finishRoutine(eventId, op.nextTeamId)
+                        : await cancelRoutine(eventId);
         queue.current.shift();
         persist();
         wait = 500;
@@ -152,27 +210,29 @@ export function usePlayState(eventId: string, initial: PlayResponse) {
           // The server refused it, so retrying can't help; the next read of the
           // server's state puts the screen right.
           setError(result.error);
-        } else if (op.type === 'start') {
+        } else if (op.type === "start" || op.type === "adjustStart") {
           // Normally the time we sent. If another screen started this routine
-          // first, its earlier time wins.
+          // first, its earlier time wins (a moved start can come back trimmed
+          // to the server's now).
           const startedAt = (result as { startedAt?: number }).startedAt;
           if (startedAt !== undefined) {
             setState((current) =>
-              current.routineStartedAt !== null && current.routineStartedAt !== startedAt
+              current.routineStartedAt !== null &&
+              current.routineStartedAt !== startedAt
                 ? { ...current, routineStartedAt: startedAt }
-                : current
+                : current,
             );
           }
         }
       } catch {
         // No answer (connection or server trouble): keep the operation and try again.
-        setStatus('retrying');
+        setStatus("retrying");
         await sleep(wait);
         wait = Math.min(wait * 2, 5000);
       }
     }
     draining.current = false;
-    setStatus('saved');
+    setStatus("saved");
     void poll();
   }, [eventId, persist, poll]);
 
@@ -184,7 +244,7 @@ export function usePlayState(eventId: string, initial: PlayResponse) {
       persist();
       void drain();
     },
-    [drain, persist]
+    [drain, persist],
   );
 
   // Restore anything a reload interrupted, then keep reading the server.
@@ -209,19 +269,20 @@ export function usePlayState(eventId: string, initial: PlayResponse) {
     let timer: ReturnType<typeof setTimeout>;
     let stopped = false;
     const loop = async () => {
-      if (document.visibilityState === 'visible') await poll();
-      if (!stopped) timer = setTimeout(loop, HEAD_JUDGE_POLL_MS[modeRef.current]);
+      if (document.visibilityState === "visible") await poll();
+      if (!stopped)
+        timer = setTimeout(loop, HEAD_JUDGE_POLL_MS[modeRef.current]);
     };
     timer = setTimeout(loop, HEAD_JUDGE_POLL_MS[modeRef.current]);
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void poll();
+      if (document.visibilityState === "visible") void poll();
     };
-    document.addEventListener('visibilitychange', onVisible);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       stopped = true;
       clearTimeout(restore);
       clearTimeout(timer);
-      document.removeEventListener('visibilitychange', onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [storageKey, drain, poll]);
 
@@ -235,13 +296,20 @@ export function usePlayState(eventId: string, initial: PlayResponse) {
     error,
     dismissError: () => setError(null),
     setPool: (divisionId: string, roundNumber: number, letter: string) =>
-      enqueue({ type: 'pool', divisionId, roundNumber, letter }),
-    setTeam: (teamId: string) => enqueue({ type: 'team', teamId }),
+      enqueue({ type: "pool", divisionId, roundNumber, letter }),
+    setTeam: (teamId: string) => enqueue({ type: "team", teamId }),
     // The click's time on the server's clock, so it counts from the press itself.
-    start: () => enqueue({ type: 'start', clickedAt: Date.now() + offset.current }),
-    cancel: () => enqueue({ type: 'cancel' }),
+    start: () =>
+      enqueue({ type: "start", clickedAt: Date.now() + offset.current }),
+    // Moves the running routine's first throw (ms, server clock) - Start was pressed late.
+    adjustStart: (routineId: string, startedAt: number) =>
+      enqueue({ type: "adjustStart", routineId, startedAt }),
+    cancel: () => enqueue({ type: "cancel" }),
     // Ends the running routine as played and puts the next team up (null = none).
-    nextTeam: (nextTeamId: string | null) => enqueue({ type: 'next', nextTeamId }),
-    restore: (routineId: string) => enqueue({ type: 'restore', routineId }),
+    nextTeam: (nextTeamId: string | null) =>
+      enqueue({ type: "next", nextTeamId }),
+    restore: (routineId: string) => enqueue({ type: "restore", routineId }),
+    // Readies (or un-readies) the judges' screens for the next routine.
+    setReady: (ready: boolean) => enqueue({ type: "ready", ready }),
   };
 }

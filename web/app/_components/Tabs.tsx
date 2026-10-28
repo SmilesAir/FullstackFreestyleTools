@@ -12,6 +12,8 @@ export type Tab = {
   // Stretch this tab's content to the rest of the screen's height. Needs the
   // bar's parent to be a flex column that is at least as tall as the screen.
   fill?: boolean;
+  // Shown but can't be picked (greyed out), e.g. while something else must be finished first.
+  disabled?: boolean;
 };
 
 // Every tab's content is rendered by the server up front and kept mounted
@@ -73,7 +75,12 @@ export function Tabs({
             href={t.href}
             role="tab"
             aria-selected={t.id === current}
+            aria-disabled={t.disabled || undefined}
             onClick={(e) => {
+              if (t.disabled) {
+                e.preventDefault();
+                return;
+              }
               // Let ctrl/cmd/middle-click open the link normally.
               if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
               e.preventDefault();
@@ -82,7 +89,11 @@ export function Tabs({
               window.history.replaceState(null, '', t.href);
             }}
             className={`whitespace-nowrap border-b-2 ${large ? 'px-8 py-4 text-[28px] leading-tight' : 'px-4 py-2 text-sm'} ${
-              t.id === current ? 'border-black font-semibold text-black' : 'border-transparent text-gray-600 hover:text-black'
+              t.id === current
+                ? 'border-black font-semibold text-black'
+                : t.disabled
+                  ? 'cursor-not-allowed border-transparent text-gray-300'
+                  : 'border-transparent text-gray-600 hover:text-black'
             }`}
           >
             {t.label}

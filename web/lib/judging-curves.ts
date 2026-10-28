@@ -4,7 +4,7 @@
 
 import { categorySettings, type SystemSettings } from './judging-settings';
 import { CURVE_SHAPE, CURVE_SPREAD, scoreCurve, type CurveScore } from './score-curve';
-import { notePoints, type OtherCurve } from './judging';
+import { notePoints, notesFromStart, type OtherCurve } from './judging';
 
 const OTHER_STEP = 0.5;
 
@@ -17,21 +17,24 @@ export type CurveNote = {
   multiplier: number | null;
 };
 
-// A category counts the judges who took at least one note; a category nobody
-// took notes in is left out. Each judge's curve is drawn from the category's
-// weights in `settings`, on the same time axis rule as the graph (whole 30
-// seconds, long enough for the routine and the latest note).
-export function averageRoutineCurves(
+// One judge's curve for one routine in one category.
+export type JudgeCurve = { playerId: string; category: string; step: number; ys: number[] };
+
+// Each judge's curve per category they took notes in (a category nobody took
+// notes in has none), drawn from the category's weights in `settings`, on the
+// same time axis rule as the graph (whole 30 seconds, long enough for the
+// routine and the latest note).
+export function judgeRoutineCurves(
   routine: { startedAt: number; routineSeconds: number },
   notes: readonly CurveNote[],
   settings: SystemSettings,
   categories: readonly string[]
-): OtherCurve[] {
+): JudgeCurve[] {
   // category -> judge -> that judge's points
   const points = new Map<string, Map<string, CurveScore[]>>();
   let latest = 0;
-  for (const n of notes) {
-    const t = Math.max(0, (n.notedAt - routine.startedAt) / 1000);
+  for (const n of notesFromStart(notes, routine.startedAt)) {
+    const t = (n.notedAt - routine.startedAt) / 1000;
     latest = Math.max(latest, t);
     const weights = categorySettings(settings, n.categoryType)?.noteWeights ?? {};
     const judges = points.get(n.categoryType) ?? new Map<string, CurveScore[]>();
@@ -42,21 +45,45 @@ export function averageRoutineCurves(
   }
 
   const duration = Math.max(30, Math.ceil(Math.max(routine.routineSeconds, latest) / 30) * 30);
-  const curves: OtherCurve[] = [];
+  const curves: JudgeCurve[] = [];
   for (const category of categories) {
-    const judges = points.get(category);
-    if (!judges || judges.size === 0) continue;
-    let sum: number[] | null = null;
-    for (const scores of judges.values()) {
+    for (const [playerId, scores] of points.get(category) ?? []) {
       const { ys } = scoreCurve(scores, { duration, spread: CURVE_SPREAD, shape: CURVE_SHAPE, step: OTHER_STEP });
-      sum = sum ? sum.map((v, i) => v + ys[i]) : ys;
+      curves.push({ playerId, category, step: OTHER_STEP, ys });
     }
-    curves.push({
-      category,
-      judges: judges.size,
-      step: OTHER_STEP,
-      ys: sum!.map((v) => Math.round((v / judges.size) * 100) / 100),
-    });
   }
   return curves;
+}
+
+// Judges' curves averaged into one curve per category, in the order of
+// `categories` (a category with no curves is left out). Curves from different
+// runs can differ in length, so each average is as long as its shortest curve.
+export function averageJudgeCurves(curves: readonly JudgeCurve[], categories: readonly string[]): OtherCurve[] {
+  const averaged: OtherCurve[] = [];
+  for (const category of categories) {
+    const judges = curves.filter((c) => c.category === category);
+    if (judges.length === 0) continue;
+    const len = Math.min(...judges.map((c) => c.ys.length));
+    averaged.push({
+      category,
+      judges: judges.length,
+      step: judges[0].step,
+      ys: Array.from(
+        { length: len },
+        (_, i) => Math.round((judges.reduce((sum, c) => sum + c.ys[i], 0) / judges.length) * 100) / 100
+      ),
+    });
+  }
+  return averaged;
+}
+
+// Each note-taking category's judges of one routine, averaged: a category counts
+// the judges who took at least one note (see judgeRoutineCurves).
+export function averageRoutineCurves(
+  routine: { startedAt: number; routineSeconds: number },
+  notes: readonly CurveNote[],
+  settings: SystemSettings,
+  categories: readonly string[]
+): OtherCurve[] {
+  return averageJudgeCurves(judgeRoutineCurves(routine, notes, settings, categories), categories);
 }

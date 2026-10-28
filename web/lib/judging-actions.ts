@@ -1,14 +1,23 @@
 'use server';
 
 import { pool } from './db';
-import { JUDGING_RULES_ID, MAX_NOTES_PER_ROUTINE, noteTypesFor, type NoteCategory } from './judging';
+import { judgePinOk } from './judge-pin';
+import { JUDGE_PIN_ERROR, JUDGING_RULES_ID, MAX_NOTES_PER_ROUTINE, noteTypesFor, type NoteCategory } from './judging';
 import { adjustedScore, estimateFromNotes } from './judging-estimate';
-import { categorySettings, difficultyNoteValues, resolveEventSettings, scoreLimitOf } from './judging-settings';
+import {
+  adjustUnit,
+  categorySettings,
+  difficultyNoteValues,
+  resolveEventSettings,
+  scoreLimitOf,
+  snapshotCategorySettings,
+} from './judging-settings';
 import { POOL_LOCKED_ERROR } from './pool-locks';
 
-// Public on purpose: judges don't log in. Every action checks that the person
-// is judging this category in the event's playing pool (of a division that uses
-// the Fpa2027 judging system) instead.
+// Public on purpose: judges don't log in. Every action checks that this device
+// has the event's judge PIN (JUDGE_PIN_ERROR otherwise; see judge-pin.ts) and
+// that the person is judging this category in the event's playing pool (of a
+// division that uses the Fpa2027 judging system).
 //
 // Bad input and refusals are answered with a message the screen shows, not a
 // database error, because the screen retries anything that throws.
@@ -18,6 +27,7 @@ export type SubmitResult = { error: string | null; score?: number; baseline?: nu
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BAD_INPUT: NoteActionResult = { error: 'That note could not be read' };
+const PIN_NEEDED = { error: JUDGE_PIN_ERROR };
 const ALREADY_SUBMITTED = 'Score already submitted';
 const DEFAULT_RULES_ID = 'Fpa2020';
 
@@ -58,6 +68,7 @@ export async function addNote(
 ): Promise<NoteActionResult> {
   if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(noteId) || !UUID.test(routineId)) return BAD_INPUT;
   if (!Number.isFinite(clickedAt)) return BAD_INPUT;
+  if (!(await judgePinOk(eventId))) return PIN_NEEDED;
   if (!noteTypesFor(categoryType)?.includes(noteType)) return BAD_INPUT;
   const isDifficulty = categoryType === 'Diff';
   if (isDifficulty ? !validPosition(linePosition) : linePosition !== undefined && linePosition !== null) return BAD_INPUT;
@@ -80,7 +91,10 @@ export async function addNote(
     `INSERT INTO fpa2027_judge_notes
        (id, routine_id, event_id, player_id, category_type, note_type, noted_at, line_position, line_value, multiplier)
      SELECT $1::uuid, s.routine_id, e.id, $3::uuid, $4::text, $5::text,
-            LEAST(now(), GREATEST(s.routine_started_at, to_timestamp($6::float8 / 1000.0))),
+            -- When it was really tapped, even before the start (Start pressed
+            -- late: the Head Judge can move the start back before it). Not
+            -- earlier than a start could be moved to (MAX_CLICK_AGE).
+            LEAST(now(), GREATEST(s.routine_started_at - interval '10 minutes', to_timestamp($6::float8 / 1000.0))),
             $10::numeric, $11::numeric, $12::numeric
      FROM events e
      JOIN event_play_state s ON s.event_id = e.id
@@ -168,6 +182,7 @@ export async function editNote(
 ): Promise<NoteActionResult> {
   if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(noteId)) return BAD_INPUT;
   if (!noteTypesFor('Diff')?.includes(rating) || !validPosition(linePosition)) return BAD_INPUT;
+  if (!(await judgePinOk(eventId))) return PIN_NEEDED;
 
   const found = await pool.query<{ judging_settings: unknown; rules_id: string | null; locked: boolean }>(
     `SELECT e.judging_settings, d.rules_id,
@@ -214,6 +229,7 @@ export async function deleteNote(
 ): Promise<NoteActionResult> {
   if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(noteId)) return BAD_INPUT;
   if (!noteTypesFor(categoryType)) return BAD_INPUT;
+  if (!(await judgePinOk(eventId))) return PIN_NEEDED;
   const deleted = await pool.query(
     `DELETE FROM fpa2027_judge_notes n
      WHERE n.id = $1 AND n.event_id = $2 AND n.player_id = $3 AND n.category_type = $4
@@ -282,6 +298,7 @@ export async function submitScore(
   if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(routineId)) return { error: 'That score could not be read' };
   if (!noteTypesFor(categoryType)) return { error: 'That score could not be read' };
   if (!Number.isFinite(adjustPercent)) return { error: 'That score could not be read' };
+  if (!(await judgePinOk(eventId))) return PIN_NEEDED;
   const percent = Math.round(adjustPercent * 100) / 100;
 
   const lockCheck = await pool.query<{ locked: boolean }>(
@@ -300,11 +317,12 @@ export async function submitScore(
     started_ms: number;
     running_now: boolean;
     stored_baseline: string | null;
+    stored_settings: unknown;
   }>(
     `SELECT e.judging_settings, d.rules_id, d.routine_seconds,
             extract(epoch FROM r.started_at)::float8 * 1000 AS started_ms,
             COALESCE(s.routine_id = r.id AND s.routine_started_at IS NOT NULL, false) AS running_now,
-            sc.baseline_estimate AS stored_baseline
+            sc.baseline_estimate AS stored_baseline, sc.settings AS stored_settings
      FROM routines r
      JOIN events e ON e.id = r.event_id
      JOIN divisions d ON d.id = r.division_id AND d.rules_id = $5
@@ -330,20 +348,26 @@ export async function submitScore(
   const ctx = context.rows[0];
   if (!ctx) return { error: "You're not judging this routine" };
 
-  // An earlier routine's score keeps its baseline: only the change is new.
+  // noteTypesFor above means this is a category that takes notes.
+  const category = categoryType as NoteCategory;
+  const settings = categorySettings(resolveEventSettings(ctx.rules_id, ctx.judging_settings), categoryType)!;
+
+  // An earlier routine's score keeps its baseline (and the settings it was
+  // made with): only the change is new.
   if (!ctx.running_now && ctx.stored_baseline !== null) {
     const baseline = Number(ctx.stored_baseline);
+    const own = snapshotCategorySettings(ctx.stored_settings, categoryType, scoreLimitOf(settings)) || settings;
+    const score = adjustedScore(baseline, percent, adjustUnit(category, own));
     await pool.query(
       `UPDATE fpa2027_judge_scores
        SET adjust_percent = $4, score = $5, submitted_at = now()
        WHERE routine_id = $1 AND judge_player_id = $2 AND category_type = $3`,
-      [routineId, playerId, categoryType, percent, adjustedScore(baseline, percent)]
+      [routineId, playerId, categoryType, percent, score]
     );
-    return { error: null, score: adjustedScore(baseline, percent), baseline, adjustPercent: percent };
+    return { error: null, score, baseline, adjustPercent: percent };
   }
 
-  // noteTypesFor above means this is a category that takes notes.
-  const settings = categorySettings(resolveEventSettings(ctx.rules_id, ctx.judging_settings), categoryType)!;
+  const unit = adjustUnit(category, settings);
   const startedAt = Math.round(ctx.started_ms);
   const baselineOf = (notes: SavedNote[]) =>
     estimateFromNotes(
@@ -352,7 +376,7 @@ export async function submitScore(
       ctx.routine_seconds,
       settings.noteWeights,
       settings.estimate,
-      categoryType as NoteCategory,
+      category,
       scoreLimitOf(settings)
     ).baseline;
   const snapshot = JSON.stringify({ rulesId: ctx.rules_id, [categoryType]: settings });
@@ -365,7 +389,7 @@ export async function submitScore(
        ON CONFLICT (routine_id, judge_player_id, category_type)
        DO UPDATE SET baseline_estimate = EXCLUDED.baseline_estimate, adjust_percent = EXCLUDED.adjust_percent,
                      score = EXCLUDED.score, settings = EXCLUDED.settings, submitted_at = now()`,
-      [routineId, playerId, categoryType, baseline, percent, adjustedScore(baseline, percent), snapshot]
+      [routineId, playerId, categoryType, baseline, percent, adjustedScore(baseline, percent, unit), snapshot]
     );
 
   const first = await readNotes(routineId, playerId, categoryType);
@@ -380,14 +404,14 @@ export async function submitScore(
     baseline = baselineOf(second);
     await save(baseline);
   }
-  return { error: null, score: adjustedScore(baseline, percent), baseline, adjustPercent: percent };
+  return { error: null, score: adjustedScore(baseline, percent, unit), baseline, adjustPercent: percent };
 }
 
 // A backup for when something went wrong: saves the judge's score for a team of
 // the pool they are judging now that has no routine (the timer was never
 // started, say). The first judge to do this makes the team's routine, marked
 // finished with no notes; everyone after uses it. Then it is an ordinary score
-// (a baseline of 0, so the change moves it in fixed steps).
+// (a baseline of 0, so the change moves it in steps of one ordinary note).
 export async function submitBackupScore(
   eventId: string,
   playerId: string,
@@ -397,6 +421,7 @@ export async function submitBackupScore(
 ): Promise<SubmitResult & { routineId?: string }> {
   if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(teamId)) return { error: 'That score could not be read' };
   if (!noteTypesFor(categoryType)) return { error: 'That score could not be read' };
+  if (!(await judgePinOk(eventId))) return PIN_NEEDED;
 
   const client = await pool.connect();
   let routineId: string | null = null;

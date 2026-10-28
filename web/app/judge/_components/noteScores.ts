@@ -1,4 +1,4 @@
-import { noteFullLabel, notePoints, type JudgeNote, type NoteCategory } from '@/lib/judging';
+import { noteFullLabel, notePoints, notesFromStart, type JudgeNote, type NoteCategory } from '@/lib/judging';
 import { limitScores, type CurveScore } from '@/lib/score-curve';
 import { NOTE_COLOR, NOTE_DOT_SCALE } from './noteStyles';
 
@@ -14,10 +14,10 @@ export function noteScores(
   routineSeconds: number,
   secondsPerScore: number
 ): CurveScore[] {
-  const scores = notes.map((n) => ({
+  const scores = notesFromStart(notes, routineStartedAt).map((n) => ({
     id: n.id,
     label: noteFullLabel(category, n.noteType),
-    t: Math.max(0, (n.notedAt - routineStartedAt) / 1000),
+    t: (n.notedAt - routineStartedAt) / 1000,
     s: notePoints(n, noteWeights),
     color: NOTE_COLOR[n.noteType],
     dotScale: NOTE_DOT_SCALE[n.noteType],

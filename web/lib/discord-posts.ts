@@ -94,10 +94,19 @@ export function postPoolResults(divisionId: string, roundNumber: number, letter:
         .map((r) => ({ place: r.place, team: names.get(r.teamId) ?? '', cells: [], total: r.total }));
     } else {
       const judgesByCategory = result.judgesByCategory ?? [];
-      columns = judgesByCategory.map(({ category }) => CATEGORY_LABELS[category] ?? category);
-      rows = [...poolStandings(result.teams, result.data ?? {}, judgesByCategory)]
-        .sort(byPlace)
-        .map((r) => ({ place: r.place, team: teamName(r.team), cells: r.categories.map((c) => c.total), total: r.total }));
+      const standings = poolStandings(result.teams, result.data ?? {}, judgesByCategory);
+      // The Adjustment column only shows when the pool has one.
+      const showAdjustment = standings.some((r) => (r.adjustment ?? 0) > 0);
+      columns = [
+        ...judgesByCategory.map(({ category }) => CATEGORY_LABELS[category] ?? category),
+        ...(showAdjustment ? ['Adjustment'] : []),
+      ];
+      rows = [...standings].sort(byPlace).map((r) => ({
+        place: r.place,
+        team: teamName(r.team),
+        cells: [...r.categories.map((c) => c.total), ...(showAdjustment ? [r.adjustment] : [])],
+        total: r.total,
+      }));
     }
 
     const title = `${result.divisionName} · ${result.roundName} · Pool ${letter}`;

@@ -10,6 +10,7 @@ import { ScoreAdjuster } from './ScoreAdjuster';
 // the backup for a routine whose score never got in): the first press submits.
 export function ScoreCard({
   estimate,
+  unit,
   unrestricted = null,
   submitted,
   percent,
@@ -18,6 +19,8 @@ export function ScoreCard({
   canEnter = false,
 }: {
   estimate: number;
+  // What one ordinary note is worth (see adjustedScore).
+  unit: number;
   // The baseline with every note counted, when the category limits its
   // positive notes (null = no limit): shown as Baseline / Unrestricted.
   unrestricted?: number | null;
@@ -40,7 +43,7 @@ export function ScoreCard({
           {submitted || entering ? 'Your score' : limited ? 'Baseline / Unrestricted' : 'Baseline estimate'}
         </span>
         <span className="font-mono text-2xl font-bold tabular-nums">
-          {adjustedScore(submitted ? submitted.baseline : estimate, percent)}
+          {adjustedScore(submitted ? submitted.baseline : estimate, percent, unit)}
           {!submitted && !entering && limited && (
             <span className="text-base font-normal text-gray-500"> / {unrestricted}</span>
           )}

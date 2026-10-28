@@ -78,7 +78,7 @@ Explaining results:
   1. The judges' percentage changes (a +10% on one team can close a gap).
   2. The limit of positive notes: how many notes were taken, how many counted, and what baseline_if_every_note_counted would have been. A team with many moves can lose a lot to the limit.
   3. The mix of moves: many medium moves done well versus fewer, harder moves done badly can add up to the same points. Use the ratings, the numberline positions, the nearest named moves and the points by rating.
-  4. Timing: where the points came in the routine (opening, middle, closing), gaps and clusters. Say plainly whether timing changes the score with these settings (it only does for Difficulty with power above 1); a routine that faded at the end can still score the same.
+  4. Timing: where the points came in the routine (opening, middle, closing), gaps and clusters. Say plainly that timing never changes the score (every category's baseline is its counted notes added up); a routine that faded at the end can still score the same.
   5. Judges who disagree: one high and one low can add up the same as two in the middle.
 - Name teams by their players and judges by name, as the results do. Times are minutes:seconds into the routine.
 - The notes only say how hard a move was, how well it was done and when. They don't say which trick it was, and there are no written comments, so say so if a question needs that.

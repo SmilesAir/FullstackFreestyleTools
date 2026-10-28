@@ -7,6 +7,7 @@ import { fetchJson } from '@/lib/fetch-json';
 import { JUDGE_POLL_MS, type PollMode } from '@/lib/poll-intervals';
 import { IDLE_MS } from './useJudgeNotes';
 import { NotesJudge } from './NotesJudge';
+import { PinPad } from './PinPad';
 
 type Holder = { playerId: string; name: string; initial: JudgeState };
 
@@ -40,6 +41,10 @@ export function SeatJudge({
   });
   const { shown: holder, next } = seatState;
   const [saved, setSaved] = useState(true);
+  // The server wanted the PIN while reading the next judge's state (a new PIN
+  // while the seat was empty, say). Only asked here while nobody is on screen:
+  // a judge's screen asks for it itself.
+  const [pinNeeded, setPinNeeded] = useState(false);
 
   // Switch once nothing of the old judge's is still on its way.
   if (next !== undefined && (saved || holder === null)) {
@@ -78,8 +83,11 @@ export function SeatJudge({
       const stateQuery = new URLSearchParams({ event: eventId, player: now.playerId, category });
       const state = await fetchJson<JudgeState>(`/api/judge/state?${stateQuery}`);
       setSeatState((s) => ({ ...s, next: { ...now, initial: state } }));
-    } catch {
-      // No connection: the current screen says so; ask again next time.
+      setPinNeeded(false);
+    } catch (err) {
+      // 401 is the server asking for the judge PIN. Otherwise no connection:
+      // the current screen says so; ask again next time.
+      if (err instanceof Error && err.message === '401') setPinNeeded(true);
     }
   }, [eventId, category, seat]);
 
@@ -102,6 +110,9 @@ export function SeatJudge({
           Nobody is in this seat in the pool that is playing. Keep this screen open: it switches to the judge as soon as
           the head judge sets a pool with one.
         </p>
+        {pinNeeded && (
+          <PinPad eventId={eventId} judgeName={`Seat ${seat}`} categoryLabel={categoryLabel} onUnlocked={() => setPinNeeded(false)} />
+        )}
       </main>
     );
   }

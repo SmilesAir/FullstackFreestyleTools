@@ -10,7 +10,7 @@ import {
   judgeResultFromNotes,
   type JudgeResult,
   type PoolResultsData,
-  type TeamResult,
+  type TeamRoutineResult,
 } from './head-judge-results';
 import {
   JUDGING_RULES_ID,
@@ -23,9 +23,9 @@ import {
   type OtherCurve,
   type SubmittedScore,
 } from './judging';
-import { averageRoutineCurves, type CurveNote } from './judging-curves';
+import { averageRoutineCurves, judgeRoutineCurves, type CurveNote } from './judging-curves';
 import { adjustedScore, estimateFromNotes } from './judging-estimate';
-import { defaultSettings, scoreLimitOf, type CategorySettings } from './judging-settings';
+import { adjustUnit, defaultSettings, scoreLimitOf, type CategorySettings } from './judging-settings';
 import { scoreLimit } from './score-curve';
 
 export const TRAINER_ROUTINE_SECONDS = 180;
@@ -67,6 +67,7 @@ export const TRAINER_POOL: HeadJudgePool = {
   routineSeconds: TRAINER_ROUTINE_SECONDS,
   locked: false,
   resultsPublished: false,
+  testEvent: false,
 };
 
 // One run of a team's routine, started for one judge from the results table
@@ -240,7 +241,7 @@ export function submitScore(
         scoreLimitOf(own)
       ).baseline * 100
     ) / 100;
-  const score: SubmittedScore = { score: adjustedScore(baseline, percent), baseline, adjustPercent: percent };
+  const score: SubmittedScore = { score: adjustedScore(baseline, percent, adjustUnit(category, own)), baseline, adjustPercent: percent };
   return { ...s, scores: { ...s.scores, [routine.id]: { ...s.scores[routine.id], [category]: score } } };
 }
 
@@ -314,6 +315,7 @@ export function judgeState(s: TrainerState, category: NoteCategory, now: number)
     teamName: onTeam ? teamLabel(onTeam) : null,
     routineStartedAt: on?.startedAt ?? null,
     routineId: on?.id ?? null,
+    judgesReadyAt: null,
     notesRoutine: notesFor
       ? {
           id: notesFor.id,
@@ -328,6 +330,7 @@ export function judgeState(s: TrainerState, category: NoteCategory, now: number)
     noteWeights: own.noteWeights,
     estimate: own.estimate,
     secondsPerScore: scoreLimitOf(own),
+    adjustUnit: adjustUnit(category, own),
     line: own.line ?? null,
     mode: 'local',
   };
@@ -367,6 +370,7 @@ export function judgeHistory(s: TrainerState, category: NoteCategory): JudgeHist
         noteWeights: own.noteWeights,
         estimate: own.estimate,
         secondsPerScore: scoreLimitOf(own),
+        adjustUnit: adjustUnit(category, own),
         others: otherCurves(s, category, r.id),
       };
     });
@@ -381,7 +385,7 @@ export function judgeHistory(s: TrainerState, category: NoteCategory): JudgeHist
 
 // The pool's results, as /api/head-judge/results would answer them.
 export function poolResults(s: TrainerState): PoolResultsData {
-  const byTeam = new Map<string, TeamResult[]>();
+  const byTeam = new Map<string, TeamRoutineResult[]>();
   for (const r of s.routines) {
     const judges: Record<string, JudgeResult> = {};
     for (const category of NOTE_CATEGORIES) {
@@ -396,7 +400,13 @@ export function poolResults(s: TrainerState): PoolResultsData {
         submitted
       );
     }
-    const entry: TeamResult = { routineId: r.id, judges, curves: routineCurves(s, r, NOTE_CATEGORIES) };
+    const judgeCurves = judgeRoutineCurves(
+      { startedAt: r.startedAt, routineSeconds: r.seconds },
+      curveNotes(s, r.id, NOTE_CATEGORIES),
+      TRAINER_SETTINGS,
+      NOTE_CATEGORIES
+    );
+    const entry: TeamRoutineResult = { routineId: r.id, judges, judgeCurves };
     byTeam.set(r.teamId, [...(byTeam.get(r.teamId) ?? []), entry]);
   }
   const data: PoolResultsData = {};

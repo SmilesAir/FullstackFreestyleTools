@@ -50,8 +50,8 @@ Baseline = the worth of every note added up (rounded to 1 decimal), like Executi
 
 ## Your Score: the percent adjustment
 - The judge adjusts the baseline with the arrow buttons: single arrows are 1%, double arrows 10%, up or down. The change is a percent of the baseline's size, so raising always raises the score, even below zero.
-- A baseline of 0 has no size, so there each 1% is 0.1 points (10% = 1 point).
-- Your Score = baseline + (size of baseline x percent / 100), rounded to 2 decimals. That is what is submitted.
+- Near 0 the baseline has almost no size, so the size used is never less than ten of the category's ordinary notes: an Execution Average Completion, an Artistic Impression Teamwork Minor, or a Difficulty Average Chair (Chair's numberline score x the Average multiplier). There each 10% is one such note and 1% a tenth of one (1 point for Execution and Artistic Impression, 0.6 for Difficulty with the default settings), with no jump between a baseline of exactly 0 and one just off it.
+- Your Score = baseline + (size x percent / 100), where size = the larger of |baseline| and 10 ordinary notes, rounded to 2 decimals. That is what is submitted.
 
 ## Results and places
 - For each team: each judge's submitted score, a total per category, and the team total (every submitted score added up, rounded to 2 decimals).

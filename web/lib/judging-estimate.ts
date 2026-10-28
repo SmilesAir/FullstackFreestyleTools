@@ -3,7 +3,7 @@
 // as the graph does on the judge's screen (judge/_components/noteScores.ts),
 // so the number the judge saw is the number that is stored.
 
-import { notePoints, type NoteCategory } from './judging';
+import { notePoints, notesFromStart, type NoteCategory } from './judging';
 import { baselineEstimate, countedScores, limitScores, noteSum, type CurveScore } from './score-curve';
 
 // The estimate from these points: Execution/Artistic Impression add the notes'
@@ -12,7 +12,7 @@ import { baselineEstimate, countedScores, limitScores, noteSum, type CurveScore 
 export function estimateFromScores(
   scores: readonly CurveScore[],
   routineSeconds: number,
-  estimate: { areaScale: number; power: number },
+  estimate: { areaScale: number },
   category: NoteCategory
 ): number {
   return category === 'Diff' ? baselineEstimate(scores, routineSeconds, estimate) : noteSum(scores);
@@ -23,7 +23,7 @@ export function estimateFromScores(
 export function estimatesOf(
   scores: readonly CurveScore[],
   routineSeconds: number,
-  estimate: { areaScale: number; power: number },
+  estimate: { areaScale: number },
   category: NoteCategory
 ): { baseline: number; unrestricted: number } {
   return {
@@ -37,12 +37,12 @@ export function estimateFromNotes(
   routineStartedAt: number,
   routineSeconds: number,
   noteWeights: Record<string, number>,
-  estimate: { areaScale: number; power: number },
+  estimate: { areaScale: number },
   category: NoteCategory,
   secondsPerScore: number
 ): { baseline: number; unrestricted: number } {
-  const points = notes.map((n) => ({
-    t: Math.max(0, (n.notedAt - routineStartedAt) / 1000),
+  const points = notesFromStart(notes, routineStartedAt).map((n) => ({
+    t: (n.notedAt - routineStartedAt) / 1000,
     s: notePoints(n, noteWeights),
   }));
   return estimatesOf(limitScores(points, routineSeconds, secondsPerScore), routineSeconds, estimate, category);
@@ -51,10 +51,11 @@ export function estimateFromNotes(
 // The final score: the baseline with the judge's percentage change, to 2 decimals
 // (the same rounding the score dialog shows). The change is a percentage of the
 // baseline's size, so a positive change always raises the score, even when the
-// baseline is below zero. A baseline of 0 has no size, so there each percent is
-// a tenth of a point instead (10% = 1 point, 1% = 0.1).
-const ZERO_BASELINE_SIZE = 10;
-export function adjustedScore(baseline: number, adjustPercent: number): number {
-  const size = baseline === 0 ? ZERO_BASELINE_SIZE : Math.abs(baseline);
+// baseline is below zero. Near 0 the baseline has (almost) no size, so the size
+// is never less than ten of the category's ordinary notes (`unit`, see
+// adjustUnit): there 10% is one such note and 1% a tenth of one, with no jump
+// between a baseline of exactly 0 and one just off it.
+export function adjustedScore(baseline: number, adjustPercent: number, unit: number): number {
+  const size = Math.max(Math.abs(baseline), 10 * unit);
   return Math.round((baseline + (size * adjustPercent) / 100) * 100) / 100 || 0;
 }

@@ -26,8 +26,8 @@ const judge = (score, notes = 5) => ({
   moves: [],
   submitted: score === null ? null : { score, baseline: score, adjustPercent: 0 },
 });
-const curve = (category, tag) => ({ category, judges: 1, step: 0.5, ys: [tag] });
-const run = (routineId, judges, curves = []) => ({ routineId, judges, curves });
+const curve = (playerId, category, ys) => ({ playerId, category, step: 0.5, ys });
+const run = (routineId, judges, judgeCurves = []) => ({ routineId, judges, judgeCurves });
 const scores = (r) => Object.fromEntries(Object.entries(r.judges).map(([id, j]) => [id, j.submitted?.score ?? null]));
 
 check('no routines -> nothing', combineTeamRoutines([]) === null, '');
@@ -46,12 +46,26 @@ check('notes in a newer run without a score keep the earlier score', scores(note
 const neverScored = combineTeamRoutines([run('r1', { a: judge(null, 3) }), run('r2', { a: judge(null, 8) })]);
 check('a judge who never scored shows their newest notes', neverScored.judges.a.submitted === null && neverScored.judges.a.counts.note === 8, JSON.stringify(neverScored.judges.a));
 
+// Two Diff judges and one AI judge on the first run; only Diff judge a re-judges on the second.
 const curves = combineTeamRoutines([
-  run('r1', {}, [curve('Diff', 'old-diff'), curve('AI', 'old-ai')]),
-  run('r2', {}, [curve('Diff', 'new-diff')]),
+  run('r1', { a: judge(10), b: judge(20), c: judge(30) }, [curve('a', 'Diff', [2, 4]), curve('b', 'Diff', [6, 8]), curve('c', 'AI', [5, 5])]),
+  run('r2', { a: judge(12) }, [curve('a', 'Diff', [4, 6])]),
 ]);
-const byCat = Object.fromEntries(curves.curves.map((c) => [c.category, c.ys[0]]));
-check('each category curve comes from the newest run that has one', byCat.Diff === 'new-diff' && byCat.AI === 'old-ai', JSON.stringify(byCat));
+const byCat = Object.fromEntries(curves.curves.map((c) => [c.category, c]));
+check('a re-judge replaces only that judge in the category average', JSON.stringify(byCat.Diff.ys) === '[5,7]' && byCat.Diff.judges === 2, JSON.stringify(byCat.Diff));
+check('other categories keep their curve', JSON.stringify(byCat.AI.ys) === '[5,5]' && byCat.AI.judges === 1, JSON.stringify(byCat.AI));
+
+const notesCurve = combineTeamRoutines([
+  run('r1', { a: judge(10) }, [curve('a', 'Diff', [2])]),
+  run('r2', { a: judge(null) }, [curve('a', 'Diff', [9])]),
+]);
+check('notes in a newer run without a score keep the earlier curve', notesCurve.curves[0].ys[0] === 2, JSON.stringify(notesCurve.curves));
+
+const uneven = combineTeamRoutines([
+  run('r1', { a: judge(10), b: judge(20) }, [curve('a', 'Diff', [1, 1, 1]), curve('b', 'Diff', [3, 3, 3])]),
+  run('r2', { a: judge(12) }, [curve('a', 'Diff', [1, 1])]),
+]);
+check('curves of different lengths average over the shortest', JSON.stringify(uneven.curves[0].ys) === '[2,2]', JSON.stringify(uneven.curves));
 
 console.log(failures === 0 ? '\nAll checks passed.' : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);

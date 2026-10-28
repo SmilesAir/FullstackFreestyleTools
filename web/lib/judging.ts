@@ -119,6 +119,11 @@ export const MAX_NOTES_PER_ROUTINE = 300;
 // divisions whose Rules are this take part.
 export const JUDGING_RULES_ID = 'Fpa2027';
 
+// What a judge's action or read answers when this device hasn't entered the
+// event's judge PIN (or the Head Judge has made a new one): the screen then
+// shows the PIN pad (see judge-pin.ts).
+export const JUDGE_PIN_ERROR = 'Enter the judge PIN';
+
 // The Difficulty judge's numberline: how long it is (the numberline score at
 // its top; the bottom is 0) and the moves named on it. A move sits at a
 // position from 0 to 1, so it stays where it is when the line's length changes.
@@ -150,6 +155,12 @@ export const notePoints = (
 ): number =>
   note.lineValue != null && note.multiplier != null ? note.lineValue * note.multiplier : (weights[note.noteType] ?? 0);
 
+// The notes that count for a routine started at `startedAt`: a note keeps the
+// moment it was really tapped, so one tapped before the start (the Head Judge
+// pressed Start late, say) is left out, until the start is moved before it.
+export const notesFromStart = <T extends { notedAt: number }>(notes: readonly T[], startedAt: number): T[] =>
+  notes.filter((n) => n.notedAt >= startedAt);
+
 export type JudgeState = {
   serverNow: number;
   // This person is judging this category in the event's playing pool right now.
@@ -160,6 +171,10 @@ export type JudgeState = {
   routineStartedAt: number | null;
   // The running routine's id (null = none running).
   routineId: string | null;
+  // When the head judge readied the judges for the next routine (null = not
+  // readied, or a routine is running): notes start again from 0 and the screen
+  // stays on Play.
+  judgesReadyAt: number | null;
   // The routine the notes below belong to: the running one, otherwise this
   // judge's most recent.
   notesRoutine: { id: string; startedAt: number; teamName: string | null; routineSeconds: number } | null;
@@ -171,10 +186,13 @@ export type JudgeState = {
   // setting for the playing pool's judging system, with defaults filled in.
   noteWeights: Record<string, number>;
   // How the baseline estimate is made from the notes' curve (same source).
-  estimate: { areaScale: number; power: number };
+  estimate: { areaScale: number };
   // How many seconds of the routine each counted positive note takes (0 = no
   // limit; see limitScores in score-curve.ts).
   secondsPerScore: number;
+  // What one ordinary note is worth: the judge's change near a baseline of 0
+  // is measured in it (see adjustUnit in judging-settings.ts).
+  adjustUnit: number;
   // The numberline of a Difficulty judge (null for the other categories).
   line: DifficultyLine | null;
   // Which database answered: the screens ask every second from the local one.
@@ -218,8 +236,11 @@ export type JudgedRoutine = {
   notes: JudgeNote[];
   submitted: SubmittedScore | null;
   noteWeights: Record<string, number>;
-  estimate: { areaScale: number; power: number };
+  estimate: { areaScale: number };
   secondsPerScore: number;
+  // What one ordinary note is worth: the judge's change near a baseline of 0
+  // is measured in it (see adjustUnit in judging-settings.ts).
+  adjustUnit: number;
   // The other categories' judges, averaged per category.
   others: OtherCurve[];
 };

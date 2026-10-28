@@ -13,8 +13,8 @@ import {
 } from './judging';
 
 // How the baseline estimate is made from the area under the notes' curve:
-// estimate = areaScale x area (heights raised to `power`, see score-curve.ts).
-export type EstimateSettings = { areaScale: number; power: number };
+// estimate = areaScale x area (see score-curve.ts).
+export type EstimateSettings = { areaScale: number };
 
 // One category's tunables: what each of its notes is worth (for Difficulty, the
 // multiplier of each rating), and its estimate. Difficulty also has its
@@ -64,9 +64,6 @@ export const POSITION_STEP = 0.01;
 export const MIN_AREA_SCALE = 0;
 export const MAX_AREA_SCALE = 100;
 export const AREA_SCALE_STEP = 0.05;
-export const MIN_POWER = 0.5;
-export const MAX_POWER = 3;
-export const POWER_STEP = 0.1;
 
 export const MIN_SECONDS_PER_SCORE = 0;
 export const MAX_SECONDS_PER_SCORE = 600;
@@ -81,8 +78,7 @@ export const scoreLimitOf = (settings: CategorySettings | undefined): number => 
 // 15 seconds per score: 4 positive notes a minute.
 const DEFAULT_SECONDS_PER_SCORE = 15;
 
-// Power 1 is the plain area: no extra credit for clusters until it is raised.
-const DEFAULT_ESTIMATE: EstimateSettings = { areaScale: 1, power: 1 };
+const DEFAULT_ESTIMATE: EstimateSettings = { areaScale: 1 };
 
 // The document gives no note values, so these are placeholders to tune.
 const DEFAULT_WEIGHTS: Record<NoteCategory, Record<string, number>> = {
@@ -177,6 +173,26 @@ export function difficultyNoteValues(
   };
 }
 
+// What one ordinary note of a category is worth, the step the judge's change
+// is measured in near a baseline of 0 (see adjustedScore): an Average
+// Completion, a Minor teamwork, an Average Chair (the move named Chair, else
+// the lowest move on the line). Never 0, so the arrows always move the score.
+const FALLBACK_MOVE_POSITION = 0.2;
+export function adjustUnit(category: NoteCategory, settings: CategorySettings): number {
+  const w = settings.noteWeights;
+  let unit: number;
+  if (category === 'Ex') unit = w.average_completion ?? 0;
+  else if (category === 'AI') unit = w.teamwork_minor ?? 0;
+  else {
+    const moves = settings.line?.moves ?? [];
+    const chair =
+      moves.find((m) => m.name.trim().toLowerCase() === 'chair') ??
+      [...moves].sort((a, b) => a.position - b.position)[0];
+    unit = (chair?.position ?? FALLBACK_MOVE_POSITION) * (settings.line?.max ?? 0) * (w.average ?? 0);
+  }
+  return Math.abs(unit) || 1;
+}
+
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const inRange = (v: unknown, min: number, max: number): v is number =>
   typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
@@ -186,7 +202,6 @@ const validPosition = (v: unknown): v is number => inRange(v, 0, 1);
 const validMoveName = (v: unknown): v is string =>
   typeof v === 'string' && v.trim().length > 0 && v.trim().length <= MAX_MOVE_NAME;
 const validAreaScale = (v: unknown): v is number => inRange(v, MIN_AREA_SCALE, MAX_AREA_SCALE);
-const validPower = (v: unknown): v is number => inRange(v, MIN_POWER, MAX_POWER);
 const validSecondsPerScore = (v: unknown): v is number => inRange(v, MIN_SECONDS_PER_SCORE, MAX_SECONDS_PER_SCORE);
 
 // One system's stored settings over its defaults; invalid entries are ignored.
@@ -201,7 +216,6 @@ export function resolveSettings(rulesId: string, stored: unknown): SystemSetting
     }
     const estimate = isObject(part.estimate) ? part.estimate : {};
     if (validAreaScale(estimate.areaScale)) settings[category].estimate.areaScale = estimate.areaScale;
-    if (validPower(estimate.power)) settings[category].estimate.power = estimate.power;
     if (hasScoreLimit(category) && validSecondsPerScore(part.secondsPerScore)) {
       settings[category].secondsPerScore = part.secondsPerScore;
     }
@@ -262,7 +276,7 @@ export function validateSettings(rulesId: string, input: unknown): { error: stri
     if (hasScoreLimit(category) !== (part.secondsPerScore !== undefined)) return unreadable;
     const known = new Set(CATEGORY_NOTES[category].map((n) => n.type));
     if (Object.keys(part.noteWeights).some((k) => !known.has(k))) return unreadable;
-    if (Object.keys(part.estimate).some((k) => k !== 'areaScale' && k !== 'power')) return unreadable;
+    if (Object.keys(part.estimate).some((k) => k !== 'areaScale')) return unreadable;
 
     for (const note of CATEGORY_NOTES[category]) {
       const value = Object.hasOwn(part.noteWeights, note.type) ? part.noteWeights[note.type] : undefined;
@@ -275,11 +289,7 @@ export function validateSettings(rulesId: string, input: unknown): { error: stri
     if (!validAreaScale(part.estimate.areaScale)) {
       return { error: `The area coefficient must be a number from ${MIN_AREA_SCALE} to ${MAX_AREA_SCALE}` };
     }
-    if (!validPower(part.estimate.power)) {
-      return { error: `The cluster power must be a number from ${MIN_POWER} to ${MAX_POWER}` };
-    }
     settings[category].estimate.areaScale = Math.round(part.estimate.areaScale * 100) / 100;
-    settings[category].estimate.power = Math.round(part.estimate.power * 100) / 100;
     if (hasScoreLimit(category)) {
       if (!validSecondsPerScore(part.secondsPerScore)) {
         return {
@@ -316,7 +326,6 @@ export function sameSettings(a: SystemSettings, b: SystemSettings): boolean {
     (c) =>
       CATEGORY_NOTES[c].every((n) => a[c].noteWeights[n.type] === b[c].noteWeights[n.type]) &&
       a[c].estimate.areaScale === b[c].estimate.areaScale &&
-      a[c].estimate.power === b[c].estimate.power &&
       a[c].secondsPerScore === b[c].secondsPerScore &&
       JSON.stringify(a[c].line ?? null) === JSON.stringify(b[c].line ?? null)
   );

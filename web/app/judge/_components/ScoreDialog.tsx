@@ -26,6 +26,8 @@ type Props = {
   duration: number;
   routineSeconds: number;
   estimate: number;
+  // What one ordinary note is worth (see adjustedScore).
+  unit: number;
   // The baseline with every note counted, when the category limits its
   // positive notes (null = no limit): shown as Baseline / Unrestricted.
   unrestricted: number | null;
@@ -87,6 +89,7 @@ function Body({
   duration,
   routineSeconds,
   estimate,
+  unit,
   unrestricted,
   adjustPercent,
   onAdjust,
@@ -109,7 +112,7 @@ function Body({
   // The picked note, if it is still there (it may have been removed meanwhile).
   const selected = selectedId === null ? null : (scores.find((s) => s.id === selectedId) ?? null);
   // The estimate with the judge's change; 2 decimals so a 1% step always shows.
-  const adjusted = adjustedScore(estimate, adjustPercent);
+  const adjusted = adjustedScore(estimate, adjustPercent, unit);
 
   return (
     <>

@@ -2,13 +2,21 @@ import 'server-only';
 import { pool } from './db';
 import { getMode } from './db-mode';
 import { roundName } from './head-judge';
-import { categorySettings, resolveEventSettings, scoreLimitOf, snapshotCategorySettings } from './judging-settings';
-import { averageRoutineCurves, type CurveNote } from './judging-curves';
+import {
+  adjustUnit,
+  categorySettings,
+  resolveEventSettings,
+  scoreLimitOf,
+  snapshotCategorySettings,
+  type CategorySettings,
+} from './judging-settings';
+import { averageJudgeCurves, judgeRoutineCurves, type CurveNote, type JudgeCurve } from './judging-curves';
 import {
   JUDGING_CATEGORIES,
   JUDGING_RULES_ID,
   NOTE_CATEGORIES,
   categoryByType,
+  noteCategoryOf,
   type JudgedRoutine,
   type OtherCurve,
   type JudgeHistory,
@@ -32,7 +40,14 @@ import { getTeams } from './event-creator-queries';
 const DEFAULT_RULES_ID = 'Fpa2020';
 
 // For a category that has no notes, so no estimate of its own.
-const DEFAULT_ESTIMATE = { areaScale: 1, power: 1 };
+const DEFAULT_ESTIMATE = { areaScale: 1 };
+
+// The step the judge's change is measured in near a baseline of 0 (see
+// adjustUnit); 1 for a category that has no notes.
+const unitOf = (categoryType: string, own: CategorySettings | undefined): number => {
+  const category = noteCategoryOf(categoryType);
+  return category && own ? adjustUnit(category, own) : 1;
+};
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TYPES = JUDGING_CATEGORIES.map((c) => c.type);
@@ -165,6 +180,7 @@ export async function getJudgeState(eventId: string, playerId: string, categoryT
     team_name: string | null;
     routine_id: string | null;
     started_ms: number | null;
+    ready_ms: number | null;
     judging: boolean;
     now_ms: number;
   }>(
@@ -172,6 +188,7 @@ export async function getJudgeState(eventId: string, playerId: string, categoryT
             COALESCE(${routineNameSql('s.routine_id')}, ${teamNameSql('s.team_id')}) AS team_name,
             s.routine_id,
             extract(epoch FROM s.routine_started_at)::float8 * 1000 AS started_ms,
+            extract(epoch FROM s.judges_ready_at)::float8 * 1000 AS ready_ms,
             COALESCE(e.is_playing AND d.rules_id = $4 AND EXISTS (
               SELECT 1 FROM pool_judges j
               WHERE j.division_id = s.division_id AND j.round_number = s.round_number AND j.pool_id = s.pool_id
@@ -264,6 +281,7 @@ export async function getJudgeState(eventId: string, playerId: string, categoryT
     teamName: row.team_name,
     routineStartedAt: startedAt,
     routineId: running ? row.routine_id : null,
+    judgesReadyAt: !running && row.ready_ms !== null ? Math.round(row.ready_ms) : null,
     routineSeconds,
     notesRoutine,
     submitted,
@@ -271,6 +289,7 @@ export async function getJudgeState(eventId: string, playerId: string, categoryT
     noteWeights,
     estimate,
     secondsPerScore: scoreLimitOf(own),
+    adjustUnit: unitOf(categoryType, own),
     line: own?.line ?? null,
     mode: getMode(),
   };
@@ -388,10 +407,10 @@ export async function getOtherJudgeCurves(
   return averagedCurves(allowed.rows, categories);
 }
 
-// The averaged curves of every note-taking category for each of these routines
-// (not cancelled), for the head judge's Results graph. No check of who is asking:
-// the caller checks the head judge's permission.
-export async function getRoutineCurves(routineIds: string[]): Promise<Record<string, OtherCurve[]>> {
+// Each judge's curve in every note-taking category for each of these routines
+// (not cancelled), for the head judge's Results graph, which averages each judge's
+// newest. No check of who is asking: the caller checks the head judge's permission.
+export async function getRoutineJudgeCurves(routineIds: string[]): Promise<Record<string, JudgeCurve[]>> {
   if (routineIds.length === 0) return {};
   const routines = await pool.query<RoutineForCurves>(
     `SELECT r.id, extract(epoch FROM r.started_at)::float8 * 1000 AS started_ms,
@@ -402,7 +421,7 @@ export async function getRoutineCurves(routineIds: string[]): Promise<Record<str
      WHERE r.id = ANY($1::uuid[]) AND r.status <> 'cancelled'`,
     [routineIds]
   );
-  return averagedCurves(routines.rows, NOTE_CATEGORIES);
+  return judgeCurves(routines.rows, NOTE_CATEGORIES);
 }
 
 type RoutineForCurves = {
@@ -419,6 +438,18 @@ async function averagedCurves(
   routines: RoutineForCurves[],
   categories: readonly string[]
 ): Promise<Record<string, OtherCurve[]>> {
+  const curves = await judgeCurves(routines, categories);
+  const result: Record<string, OtherCurve[]> = {};
+  for (const [routineId, judges] of Object.entries(curves)) result[routineId] = averageJudgeCurves(judges, categories);
+  return result;
+}
+
+// Reads the notes of these routines in these categories and draws each judge's
+// curve per category (a routine nobody took notes on is left out).
+async function judgeCurves(
+  routines: RoutineForCurves[],
+  categories: readonly string[]
+): Promise<Record<string, JudgeCurve[]>> {
   const notes = await pool.query<{
     routine_id: string;
     player_id: string;
@@ -435,7 +466,7 @@ async function averagedCurves(
     [routines.map((r) => r.id), categories]
   );
 
-  const result: Record<string, OtherCurve[]> = {};
+  const result: Record<string, JudgeCurve[]> = {};
   for (const routine of routines) {
     const settings = resolveEventSettings(routine.rules_id ?? DEFAULT_RULES_ID, routine.judging_settings);
     const routineNotes: CurveNote[] = notes.rows
@@ -448,7 +479,7 @@ async function averagedCurves(
         lineValue: n.line_value === null ? null : Number(n.line_value),
         multiplier: n.multiplier === null ? null : Number(n.multiplier),
       }));
-    const curves = averageRoutineCurves(
+    const curves = judgeRoutineCurves(
       { startedAt: routine.started_ms, routineSeconds: routine.routine_seconds },
       routineNotes,
       settings,
@@ -556,6 +587,7 @@ async function getJudgedRoutines(
       noteWeights: own?.noteWeights ?? {},
       estimate: own?.estimate ?? DEFAULT_ESTIMATE,
       secondsPerScore: scoreLimitOf(own),
+      adjustUnit: unitOf(categoryType, own),
     };
   });
 }

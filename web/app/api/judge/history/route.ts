@@ -1,12 +1,14 @@
-import { noteTypesFor } from '@/lib/judging';
+import { judgePinOk } from '@/lib/judge-pin';
+import { JUDGE_PIN_ERROR, noteTypesFor } from '@/lib/judging';
 import { getJudgeHistory } from '@/lib/judging-queries';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // A judge's Review tab list: every routine they took notes on or scored in the
 // event, and every team of the pool they are judging now, in the order they
-// play. Public on purpose like /api/judge/state: it only returns that judge's
-// own notes and scores, and team names the judge screens already show.
+// play. Public on purpose like /api/judge/state (and behind the judge PIN the
+// same way): it only returns that judge's own notes and scores, and team names
+// the judge screens already show.
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const eventId = params.get('event') ?? '';
@@ -17,6 +19,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    if (!(await judgePinOk(eventId))) return Response.json({ error: JUDGE_PIN_ERROR }, { status: 401 });
     return Response.json(await getJudgeHistory(eventId, playerId, category), {
       headers: { 'Cache-Control': 'no-store' },
     });

@@ -78,6 +78,8 @@ export function useTrainerJudge(state: TrainerState, update: TrainerUpdate, cate
     paused: false,
     error: null,
     dismissError: () => {},
+    pinNeeded: false,
+    pinEntered: () => {},
     canNote: noting,
     preStartNotes: [],
     submitting: false,

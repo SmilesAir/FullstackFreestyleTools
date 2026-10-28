@@ -4,7 +4,6 @@ import { noteGroups, type NoteCategory } from '@/lib/judging';
 import {
   AREA_SCALE_STEP,
   hasScoreLimit,
-  POWER_STEP,
   SECONDS_PER_SCORE_STEP,
   weightRange,
   weightStep,
@@ -84,17 +83,10 @@ export function CategoryForm({
 
       <h4 className="mt-2 font-medium">{title} baseline estimate</h4>
       <p className="text-sm text-gray-500">
-        The suggested score is the area under the notes&apos; curve over the routine, times the coefficient. The power
-        raises the curve&apos;s height first: 1 is the plain area, above 1 gives extra credit to notes that come close
-        together.
+        The suggested score is the area under the notes&apos; curve over the routine, times the coefficient.
       </p>
       <ul className="flex flex-col gap-2">
-        {(
-          [
-            ['areaScale', 'Area coefficient', AREA_SCALE_STEP],
-            ['power', 'Cluster power', POWER_STEP],
-          ] as const
-        ).map(([field, label, step]) => {
+        {([['areaScale', 'Area coefficient', AREA_SCALE_STEP]] as const).map(([field, label, step]) => {
           const key = fieldKey(category, field);
           const invalid = !validText(draft, key);
           const [min, max] = rangeOf(key);

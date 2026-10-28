@@ -156,6 +156,7 @@ export function NotesReview({
       node: (
         <UpcomingRoutine
           team={team}
+          unit={state.adjustUnit}
           extent={extent}
           submitting={submitting}
           onSubmit={async (percent) => {
@@ -199,11 +200,13 @@ export function NotesReview({
 // submits, and from then on it is listed as played.
 function UpcomingRoutine({
   team,
+  unit,
   extent,
   submitting,
   onSubmit,
 }: {
   team: UpcomingTeam;
+  unit: number;
   extent: Extent;
   submitting: boolean;
   onSubmit: (adjustPercent: number) => Promise<boolean>;
@@ -226,6 +229,7 @@ function UpcomingRoutine({
         aside={
           <ScoreCard
             estimate={0}
+            unit={unit}
             submitted={null}
             percent={percent}
             status={changed ? (failed ? 'Not saved' : 'Not played') : 'Not played. Press to enter'}
@@ -282,6 +286,7 @@ function PastRoutine({
         aside={
           <ScoreCard
             estimate={estimate}
+            unit={routine.adjustUnit}
             unrestricted={routine.secondsPerScore > 0 ? unrestricted : null}
             submitted={routine.submitted}
             percent={percent}
@@ -315,7 +320,7 @@ function CurrentRoutine({
   const routine = state.notesRoutine;
   // The running routine is scored with Enter Score on the Play tab; once it is
   // over, a missing score can be entered here (the backup).
-  const running = routine !== null && state.routineStartedAt === routine.startedAt;
+  const running = routine !== null && state.routineStartedAt !== null && state.routineId === routine.id;
   const canEnter = routine !== null && !state.submitted && !running;
   const { percent, changed, failed, adjust } = useScoreAdjust({
     routineId: routine && (state.submitted || canEnter) ? routine.id : null,
@@ -356,6 +361,7 @@ function CurrentRoutine({
         aside={
           <ScoreCard
             estimate={estimate}
+            unit={state.adjustUnit}
             unrestricted={state.secondsPerScore > 0 ? unrestricted : null}
             submitted={state.submitted}
             percent={percent}

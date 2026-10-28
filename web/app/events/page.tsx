@@ -105,7 +105,10 @@ export default async function EventsPage({
             className={`flex items-center gap-3 rounded border hover:bg-gray-50 ${e.id === selected?.id ? 'border-black bg-gray-50' : 'border-gray-300'}`}
           >
             <Link href={`/events?event=${e.id}`} className="min-w-0 flex-1 p-3">
-              <div className="font-medium text-blue-600">{e.event_name}</div>
+              <div className="font-medium text-blue-600">
+                {e.event_name}
+                {e.is_hidden && <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">Hidden</span>}
+              </div>
               <div className="text-xs text-gray-500">
                 {e.start_date} → {e.end_date} · {e.division_count} division(s) · {e.player_count} player(s)
               </div>
