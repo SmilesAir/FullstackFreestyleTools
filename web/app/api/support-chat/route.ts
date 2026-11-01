@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { getCurrentUserAccess } from '@/lib/authz';
+import { OUT_OF_CREDIT_MESSAGE, isOutOfCredit } from '@/lib/claude-errors';
 import { promptById } from '@/lib/claude-prompts';
 import { recordClaudeUsage } from '@/lib/claude-usage';
 import { POOL_LETTERS } from '@/lib/event-creator';
@@ -134,6 +135,7 @@ const json = (body: unknown, status: number) =>
 function apiErrorMessage(err: unknown): string {
   if (err instanceof Anthropic.AuthenticationError) return 'The saved Anthropic API key was rejected. Ask an admin to update it in Settings.';
   if (err instanceof Anthropic.RateLimitError) return 'Claude is busy right now. Try again in a minute.';
+  if (isOutOfCredit(err)) return OUT_OF_CREDIT_MESSAGE;
   if (err instanceof Anthropic.APIError) return `Claude couldn't answer (error ${err.status}). Try again shortly.`;
   return "Couldn't reach Claude. Check the internet connection and try again.";
 }
