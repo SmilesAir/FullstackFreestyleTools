@@ -3,16 +3,18 @@ import { HOME_PATH } from '@/lib/site';
 import { getEventPoolNav, getPublicPoolResults } from '@/lib/public-results';
 import { resolveShortCode } from '@/lib/pool-shortlink';
 import { PublicResultsView } from '../_components/PublicResultsView';
+import { getT } from '@/lib/i18n/server';
 
 export const dynamic = 'force-dynamic';
 
-function NotFound() {
+async function NotFound() {
+  const t = await getT();
   return (
     <main className="mx-auto mt-24 max-w-sm px-4 text-center">
-      <h1 className="mb-2 text-xl font-semibold">Not found</h1>
-      <p className="mb-6 text-sm text-gray-500">This results link doesn&apos;t point to anything — it may have been for an event that&apos;s gone.</p>
+      <h1 className="mb-2 text-xl font-semibold">{t.publicPages.notFound}</h1>
+      <p className="mb-6 text-sm text-gray-500">{t.publicPages.resultsNotFound}</p>
       <Link href={HOME_PATH} className="text-blue-600 underline">
-        ← Back
+        {t.judging.backLink}
       </Link>
     </main>
   );

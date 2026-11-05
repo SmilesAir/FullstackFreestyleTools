@@ -1,15 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { teamName, type HeadJudgePool } from '@/lib/head-judge';
+import { poolTitle, teamName, type HeadJudgePool } from '@/lib/head-judge';
 import type { JudgeResult, PoolResultsData, TeamResult } from '@/lib/head-judge-results';
 import {
   CATEGORY_NOTES,
   combineTeamCurve,
-  JUDGING_CATEGORIES,
   NEGATIVE_NOTES,
   NOTE_CATEGORIES,
-  noteFullLabel,
   noteGroups,
   type NoteCategory,
 } from '@/lib/judging';
@@ -22,6 +20,9 @@ import { PoolOverviewGraph, type OverviewTeam } from './PoolOverviewGraph';
 import { PublicLinkControl } from './PublicLinkControl';
 import { SimpleRankingResults } from './SimpleRankingResults';
 import { SortToggle, type ResultsSortOrder } from './SortToggle';
+import { useT } from '@/lib/i18n/client';
+import type { Dictionary } from '@/lib/i18n/dictionaries';
+import { categoryLabel, noteFullLabel as noteName, noteGroupLabel, noteLabel } from '@/lib/i18n/labels';
 
 const POLL_MS = 5000;
 
@@ -31,7 +32,7 @@ const NO_SCORES: never[] = [];
 // results page draws the same (already-anonymous) averaged graphs.
 export const curveDuration = (curves: TeamResult['curves']) => Math.max(30, ...curves.map((c) => (c.ys.length - 1) * c.step));
 
-export const categoryLabel = (category: NoteCategory) => JUDGING_CATEGORIES.find((c) => c.type === category)!.label;
+
 
 // The Y axis every team's graph in a pool should share, so they can be
 // compared to each other at a glance (a team that hasn't played yet, or has
@@ -101,6 +102,7 @@ export function PoolResults({
   active: boolean;
   refreshKey?: string;
 }) {
+  const t = useT();
   const [data, setData] = useState<PoolResultsData | null>(null);
   const [failed, setFailed] = useState(false);
   const chatAvailable = useSupportChatAvailable();
@@ -149,16 +151,16 @@ export function PoolResults({
             type="button"
             onClick={() =>
               askSupportChat(
-                `Explain the placements in ${pool.divisionName} ${pool.roundName} pool ${pool.letter}: why is each team where it is?`
+                t.results.explainPrompt(poolTitle(t, pool))
               )
             }
             className="rounded border border-gray-300 bg-white px-2 py-1 text-xs hover:bg-gray-100"
           >
-            Explain these results
+            {t.results.explain}
           </button>
         </div>
       )}
-      {failed && <p className="text-xs text-amber-700">Could not load the latest results. Trying again.</p>}
+      {failed && <p className="text-xs text-amber-700">{t.results.couldNotLoadLatest}</p>}
       <PoolResultsView pool={pool} data={data} flagMissingScores />
     </div>
   );
@@ -179,6 +181,7 @@ export function PoolResultsView({
   scoreCell?: ScoreCellFn;
   flagMissingScores?: boolean;
 }) {
+  const t = useT();
   // Hovering a Summary row highlights that team's line in the combined graph below it.
   const [highlightedTeamId, setHighlightedTeamId] = useState<string | null>(null);
   // Checking a Summary row's box makes every score in the tables below a delta
@@ -244,12 +247,12 @@ export function PoolResultsView({
                 </h3>
                 <span className="text-sm text-gray-500">
                   {data === null
-                    ? 'Loading…'
+                    ? t.common.loading
                     : !result
-                      ? 'Not played yet'
+                      ? t.results.notPlayedYet
                       : noteJudges.length === 0
                         ? ''
-                        : `${finished} of ${noteJudges.length} judges finished`}
+                        : t.results.judgesFinished(finished, noteJudges.length)}
                 </span>
               </div>
 
@@ -270,11 +273,11 @@ export function PoolResultsView({
 
               {result &&
                 (judgesByCategory.length === 0 ? (
-                  <p className="text-sm text-gray-500">No judges set for this pool.</p>
+                  <p className="text-sm text-gray-500">{t.results.noJudges}</p>
                 ) : (
                   judgesByCategory.map(({ category, judges }) => (
                     <div key={category} className="flex flex-col gap-1">
-                      <h4 className="text-sm font-medium text-gray-600">{categoryLabel(category)}</h4>
+                      <h4 className="text-sm font-medium text-gray-600">{categoryLabel(t, category)}</h4>
                       <NotesTable
                         category={category}
                         judges={judges}
@@ -294,55 +297,13 @@ export function PoolResultsView({
 
 const cell = 'border border-gray-300 px-2 py-1.5 text-center';
 
-// Header tooltips: what each column of the tables below holds. Kept free of
-// note worths, since those are a per-event setting.
-const CATEGORY_TIPS: Record<NoteCategory, string> = {
-  Diff: 'Difficulty: how hard the moves were, rated by placing each move on a numberline',
-  AI: 'Artistic Impression: teamwork, use of the music and form',
-  Ex: 'Execution: how cleanly the tricks were completed, and the errors made',
-};
+// Header tooltips (t.results.tips and friends): what each column of the tables below
+// holds. Kept free of note worths, since those are a per-event setting.
+const noteTip = (t: Dictionary, type: string) => (t.results.noteTips as Record<string, string>)[type] ?? '';
+const groupTip = (t: Dictionary, group: string) => (t.results.groupTips as Record<string, string>)[group];
 
-const NOTE_TIPS: Record<string, string> = {
-  large_error: 'How many Large Errors the judge noted: the most serious kind of error',
-  medium_error: 'How many Medium Errors the judge noted',
-  minor_error: 'How many Minor Errors the judge noted: the smallest kind of error',
-  average_completion: 'How many tricks the judge noted as completed, but not cleanly',
-  clean_completion: 'How many tricks the judge noted as completed cleanly: the best Execution note',
-  teamwork_great: 'How many Great teamwork moments the judge noted',
-  teamwork_decent: 'How many Decent teamwork moments the judge noted',
-  teamwork_minor: 'How many Minor teamwork moments the judge noted',
-  music_great: 'How many Great uses of the music the judge noted',
-  music_decent: 'How many Decent uses of the music the judge noted',
-  form_good: 'How many times the judge noted Good form',
-  form_bad: 'How many times the judge noted Bad form (a fault)',
-};
-
-const GROUP_TIPS: Record<string, string> = {
-  Teamwork: 'Teamwork notes: how well the players worked together',
-  Music: 'Music notes: how well the routine used its music',
-  Form: 'Form notes: the players’ body form, good or bad',
-};
-
-const LIMIT_TIP = ' With a limit on positive notes, a column reads "counted / taken".';
-
-const TIPS = {
-  team: 'The team, with its colour in the combined graph, and its play order (or place, when sorted by place)',
-  judge: 'The judge',
-  judgeScore: 'The score this judge submitted for the team',
-  totals: "Each category's judges' scores added up",
-  categoryTotal: (category: NoteCategory) => `All the ${categoryLabel(category)} judges' scores added up`,
-  teamTotal: 'Every submitted score added up, across all categories (plus the Adjustment, if shown)',
-  place: "The team's place in the pool by Team total, highest first. On equal totals the team that won more categories places higher; if that is equal too, the team that plays later wins (won on seed)",
-  baseline: "The score worked out from the judge's notes, before the judge's own adjustment",
-  unrestricted: ' / Unrestricted: what the baseline would have been with every note counted, past the limit on positive notes',
-  score: "The score the judge submitted: the baseline after their own adjustment up or down. This is what counts in the Summary",
-  diffNotes:
-    'Every move the judge noted, in order: where it sits on the numberline (0 to 10) and how well it was done (Good, Average or Bad)',
-  rawPoints: "The judge's counted moves added up: each move's numberline value times its rating's multiplier",
-};
-
-const baselineTip = (rows: (JudgeResult | undefined)[]) =>
-  rows.some((r) => r?.unrestricted != null) ? TIPS.baseline + TIPS.unrestricted : TIPS.baseline;
+const baselineTip = (t: Dictionary, rows: (JudgeResult | undefined)[]) =>
+  rows.some((r) => r?.unrestricted != null) ? t.results.tips.baseline + t.results.tips.unrestricted : t.results.tips.baseline;
 
 // A score cell once a baseline team is picked: `value` minus `baseline`,
 // signed and colored (the same green/red ScoreGraph.tsx uses for positive/
@@ -390,8 +351,8 @@ function baselineTotalText(rows: (JudgeResult | undefined)[]) {
 }
 
 // "Baseline", or "Baseline / Unrestricted" when any of these judges' scores was limited.
-const baselineHeading = (rows: (JudgeResult | undefined)[]) =>
-  rows.some((r) => r?.unrestricted != null) ? 'Baseline / Unrestricted' : 'Baseline';
+const baselineHeading = (t: Dictionary, rows: (JudgeResult | undefined)[]) =>
+  rows.some((r) => r?.unrestricted != null) ? t.results.baselineUnrestricted : t.results.baseline;
 
 // What a judge's score cell shows in place of the score (or dash), when the
 // caller wants something else there: the Judging Trainer puts a Start button
@@ -441,6 +402,8 @@ export function PoolSummary({
   // scored yet isn't flagged - it just hasn't played.
   flagMissingScores?: boolean;
 }) {
+  const t = useT();
+  const TIPS = t.results.tips;
   const [ownSort, setOwnSort] = useState<ResultsSortOrder>('play');
   const sort = sortProp ?? ownSort;
   const setSort = onSortChange ?? setOwnSort;
@@ -458,19 +421,19 @@ export function PoolSummary({
     <section className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-3">
         <SortToggle value={sort} onChange={setSort} />
-        <h3 className="text-lg font-semibold">Summary</h3>
-        {baselineTeam && <span className="text-sm text-gray-500">— compared to {teamName(baselineTeam)}</span>}
+        <h3 className="text-lg font-semibold">{t.results.summary}</h3>
+        {baselineTeam && <span className="text-sm text-gray-500">{t.results.comparedTo(teamName(baselineTeam))}</span>}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm tabular-nums">
           <thead>
             <tr>
               <th rowSpan={2} className="border border-gray-300 px-3 py-1.5 text-left font-medium" title={TIPS.team}>
-                Team
+                {t.results.team}
               </th>
               {judgesByCategory.map(({ category, judges }) => (
-                <th key={category} colSpan={judges.length} className={`${cell} font-semibold`} title={CATEGORY_TIPS[category]}>
-                  {categoryLabel(category)}
+                <th key={category} colSpan={judges.length} className={`${cell} font-semibold`} title={t.results.categoryTips[category]}>
+                  {categoryLabel(t, category)}
                 </th>
               ))}
               <th
@@ -478,13 +441,13 @@ export function PoolSummary({
                 className={`${cell} font-semibold`}
                 title={TIPS.totals}
               >
-                Totals
+                {t.results.totals}
               </th>
               <th rowSpan={2} className={`${cell} font-semibold`} title={TIPS.teamTotal}>
-                Team total
+                {t.results.teamTotal}
               </th>
               <th rowSpan={2} className={`${cell} font-semibold`} title={TIPS.place}>
-                Place
+                {t.results.place}
               </th>
             </tr>
             <tr>
@@ -496,16 +459,16 @@ export function PoolSummary({
                 ))
               )}
               {judgesByCategory.map(({ category }) => (
-                <th key={`${category}-total`} className={`${cell} font-medium`} title={TIPS.categoryTotal(category)}>
-                  {categoryLabel(category)}
+                <th key={`${category}-total`} className={`${cell} font-medium`} title={TIPS.categoryTotal(categoryLabel(t, category))}>
+                  {categoryLabel(t, category)}
                 </th>
               ))}
               {showAdjustment && (
                 <th
                   className={`${cell} font-medium`}
-                  title="A whole number added to every team's total so all of them are above zero"
+                  title={t.results.adjustmentTip}
                 >
-                  Adjustment
+                  {t.results.adjustment}
                 </th>
               )}
             </tr>
@@ -532,7 +495,7 @@ export function PoolSummary({
                   key={team.id}
                   onMouseEnter={() => onHighlight?.(team.id)}
                   onMouseLeave={() => onHighlight?.(null)}
-                  title={missing ? `Waiting for ${missingJudges.join(', ')}` : undefined}
+                  title={missing ? t.results.waitingFor(missingJudges.join(', ')) : undefined}
                   className={
                     team.id === highlightedTeamId
                       ? 'bg-yellow-100'
@@ -546,7 +509,7 @@ export function PoolSummary({
                   <td className="border border-gray-300 px-3 py-1.5 text-left">
                     <input
                       type="checkbox"
-                      aria-label={`Compare to ${teamName(team)}`}
+                      aria-label={t.results.compareTo(teamName(team))}
                       checked={team.id === baselineTeamId}
                       onChange={(e) => onSetBaseline?.(e.target.checked ? team.id : null)}
                       className={`mr-2 align-middle ${showCheckbox ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
@@ -567,7 +530,7 @@ export function PoolSummary({
                       >
                         {scoreCell?.(team.id, judgesByCategory[k].judges[j].playerId, score) ??
                           (missing && score === null
-                            ? 'waiting'
+                            ? t.results.waiting
                             : compareRow
                               ? scoreDelta(score, compareRow.categories[k].scores[j])
                               : score === null
@@ -595,7 +558,7 @@ export function PoolSummary({
                   </td>
                   <td className={`${cell} font-semibold`}>
                     {place ?? dash}
-                    {tieBreak && <span className="ml-1 text-xs font-normal text-gray-500">(tie, won on {tieBreak})</span>}
+                    {tieBreak && <span className="ml-1 text-xs font-normal text-gray-500">{t.results.tieWonOn(tieBreak)}</span>}
                   </td>
                 </tr>
               );
@@ -625,6 +588,8 @@ export function DifficultyTable({
   // null = picked but that team has no result yet, an object = picked with data.
   baselineResult?: TeamResult | null;
 }) {
+  const t = useT();
+  const TIPS = t.results.tips;
   const round2 = (v: number) => Math.round(v * 100) / 100;
   const scores = judges.map((j) => result.judges[j.playerId]?.submitted?.score).filter((s): s is number => s !== undefined);
   const baselines = judges
@@ -655,19 +620,19 @@ export function DifficultyTable({
         <thead>
           <tr>
             <th className="border border-gray-300 px-3 py-1.5 text-left font-medium" title={TIPS.judge}>
-              Judge
+              {t.results.judge}
             </th>
             <th className={`${cell} font-medium`} title={TIPS.diffNotes}>
-              Notes (numberline / rating)
+              {t.results.diffNotes}
             </th>
             <th className={`${cell} font-medium`} title={TIPS.rawPoints}>
-              Raw Points
+              {t.results.rawPoints}
             </th>
-            <th className={`${cell} font-medium`} title={baselineTip(rows)}>
-              {baselineHeading(rows)}
+            <th className={`${cell} font-medium`} title={baselineTip(t, rows)}>
+              {baselineHeading(t, rows)}
             </th>
             <th className={`${cell} font-medium`} title={TIPS.score}>
-              Score
+              {t.results.score}
             </th>
           </tr>
         </thead>
@@ -699,7 +664,7 @@ export function DifficultyTable({
                                   : NOTE_TINT[m.rating]
                             }`}
                           >
-                            {scaled(m.position)} / {noteFullLabel('Diff', m.rating)}
+                            {scaled(m.position)} / {noteName(t, m.rating)}
                           </li>
                         ))}
                       </ul>
@@ -720,9 +685,9 @@ export function DifficultyTable({
         </tbody>
         <tfoot>
           <tr className="bg-gray-50 font-semibold dark:bg-transparent">
-            <td className="border border-gray-300 px-3 py-1.5 text-left">{comparing ? 'Delta' : 'Total'}</td>
+            <td className="border border-gray-300 px-3 py-1.5 text-left">{comparing ? t.results.delta : t.results.total}</td>
             <td className="border border-gray-300 px-2 py-1.5 text-left">
-              {comparing ? scoreDelta(notesTotal, compareNotesTotal) : notesTotal} notes
+              {comparing ? scoreDelta(notesTotal, compareNotesTotal) : notesTotal} {t.results.notesWord}
             </td>
             <td className={cell}>{pointsTotal}</td>
             <td className={cell}>{comparing ? scoreDelta(baselineTotal, compareBaselineTotal) : baselineTotalText(rows)}</td>
@@ -745,6 +710,8 @@ export function NotesTable({
   result: TeamResult;
   baselineResult?: TeamResult | null;
 }) {
+  const t = useT();
+  const TIPS = t.results.tips;
   if (category === 'Diff') return <DifficultyTable judges={judges} result={result} baselineResult={baselineResult} />;
   const groups = noteGroups(category);
   const hasHeadings = groups.some((g) => g.heading !== null);
@@ -776,7 +743,7 @@ export function NotesTable({
     : [];
   const compareBaselineTotal = compareBaselines.length > 0 ? Math.round(compareBaselines.reduce((a, b) => a + b, 0) * 100) / 100 : null;
   const rows = judges.map((j) => result.judges[j.playerId]);
-  const heading = baselineHeading(rows);
+  const heading = baselineHeading(t, rows);
   // With a limit of positive notes, those columns read "counted / taken".
   const limitedType = (type: string) => rows.some((r) => r?.used && Object.hasOwn(r.used, type));
   const counted = (row: JudgeResult | undefined, type: string) =>
@@ -790,48 +757,48 @@ export function NotesTable({
           {hasHeadings && (
             <tr>
               <th rowSpan={2} className="border border-gray-300 px-3 py-1.5 text-left font-medium" title={TIPS.judge}>
-                Judge
+                {t.results.judge}
               </th>
               {groups.map((group) => (
                 <th
                   key={group.heading}
                   colSpan={group.notes.length}
                   className={`${cell} font-semibold`}
-                  title={group.heading ? GROUP_TIPS[group.heading] : undefined}
+                  title={group.heading ? groupTip(t, group.heading) : undefined}
                 >
-                  {group.heading}
+                  {group.heading && noteGroupLabel(t, group.heading)}
                 </th>
               ))}
-              <th rowSpan={2} className={`${cell} font-medium`} title={baselineTip(rows)}>
+              <th rowSpan={2} className={`${cell} font-medium`} title={baselineTip(t, rows)}>
                 {heading}
               </th>
               <th rowSpan={2} className={`${cell} font-medium`} title={TIPS.score}>
-                Score
+                {t.results.score}
               </th>
             </tr>
           )}
           <tr>
             {!hasHeadings && (
               <th className="border border-gray-300 px-3 py-1.5 text-left font-medium" title={TIPS.judge}>
-                Judge
+                {t.results.judge}
               </th>
             )}
             {notes.map((note) => (
               <th
                 key={note.type}
                 className={`${cell} font-medium ${NOTE_TINT[note.type]}`}
-                title={NOTE_TIPS[note.type] + (limitedType(note.type) ? LIMIT_TIP : '')}
+                title={noteTip(t, note.type) + (limitedType(note.type) ? t.results.limitTip : '')}
               >
-                {note.label}
+                {noteLabel(t, note.type)}
               </th>
             ))}
             {!hasHeadings && (
               <>
-                <th className={`${cell} font-medium`} title={baselineTip(rows)}>
+                <th className={`${cell} font-medium`} title={baselineTip(t, rows)}>
                   {heading}
                 </th>
                 <th className={`${cell} font-medium`} title={TIPS.score}>
-                  Score
+                  {t.results.score}
                 </th>
               </>
             )}
@@ -862,7 +829,7 @@ export function NotesTable({
         </tbody>
         <tfoot>
           <tr className="bg-gray-50 font-semibold dark:bg-transparent">
-            <td className="border border-gray-300 px-3 py-1.5 text-left">{comparing ? 'Delta' : 'Total'}</td>
+            <td className="border border-gray-300 px-3 py-1.5 text-left">{comparing ? t.results.delta : t.results.total}</td>
             {totals.map((total, i) => (
               <td key={notes[i].type} className={cell}>
                 {comparing

@@ -2,9 +2,10 @@ import { getAllSettings } from '@/lib/settings-queries';
 import { SETTINGS } from '@/lib/settings';
 import { SettingForm } from '../_components/SettingForm';
 import { PublicApiSection } from './_components/PublicApiSection';
+import { getT } from '@/lib/i18n/server';
 
 export default async function PublicApiPage() {
-  const current = await getAllSettings();
+  const [current, t] = await Promise.all([getAllSettings(), getT()]);
   // A setting's saved value, or its documented default.
   const value = (key: string) => current[key]?.trim() || SETTINGS.find((d) => d.key === key)?.default || '';
 
@@ -14,7 +15,7 @@ export default async function PublicApiPage() {
 
   return (
     <main className="flex flex-col gap-8">
-      <h1 className="text-xl font-semibold">Public API</h1>
+      <h1 className="text-xl font-semibold">{t.tools.public_api.label}</h1>
       <PublicApiSection
         site={(value('public_site_url') || 'https://freestylejudge.com').replace(/\/+$/, '')}
         limitForms={limitForms}

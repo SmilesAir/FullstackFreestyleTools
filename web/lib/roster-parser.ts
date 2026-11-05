@@ -4,7 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
 import { requirePermission } from './authz';
-import { OUT_OF_CREDIT_MESSAGE, isOutOfCredit } from './claude-errors';
+import { isOutOfCredit } from './claude-errors';
 import { promptById } from './claude-prompts';
 import { recordClaudeUsage } from './claude-usage';
 import { DIVISION_NAMES } from './event-creator';
@@ -12,6 +12,7 @@ import { matchAll, matchName } from './player-match';
 import type { ParsedSlot } from './player-match-types';
 import { resolveDivision } from './results-parser/build';
 import { getSetting } from './settings-queries';
+import { getT } from './i18n/server';
 
 export type { Candidate, ParsedSlot } from './player-match-types';
 export type ParseResult =
@@ -52,7 +53,7 @@ export async function parseRosterText(text: string): Promise<ParseResult> {
   } catch (err) {
     if (err instanceof Anthropic.AuthenticationError) return { error: 'The saved Anthropic API key was rejected. Ask an admin to update it in Settings.' };
     if (err instanceof Anthropic.RateLimitError) return { error: 'Anthropic is rate limiting requests right now. Try again shortly.' };
-    if (isOutOfCredit(err)) return { error: OUT_OF_CREDIT_MESSAGE };
+    if (isOutOfCredit(err)) return { error: (await getT()).supportChat.outOfCredit };
     if (err instanceof Anthropic.APIError) return { error: `Anthropic API error (${err.status}). Try again shortly.` };
     return { error: 'Failed to parse the teams.' };
   }
@@ -114,7 +115,7 @@ export async function parseEventRosterText(text: string): Promise<EventParseResu
   } catch (err) {
     if (err instanceof Anthropic.AuthenticationError) return { error: 'The saved Anthropic API key was rejected. Ask an admin to update it in Settings.' };
     if (err instanceof Anthropic.RateLimitError) return { error: 'Anthropic is rate limiting requests right now. Try again shortly.' };
-    if (isOutOfCredit(err)) return { error: OUT_OF_CREDIT_MESSAGE };
+    if (isOutOfCredit(err)) return { error: (await getT()).supportChat.outOfCredit };
     if (err instanceof Anthropic.APIError) return { error: `Anthropic API error (${err.status}). Try again shortly.` };
     console.error('Roster parser: Claude request failed', err);
     return { error: 'Failed to parse the teams.' };

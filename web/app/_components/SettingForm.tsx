@@ -3,10 +3,12 @@
 import { useActionState } from 'react';
 import { saveSetting, type ActionState } from '@/lib/settings-actions';
 import type { SettingDef } from '@/lib/settings';
+import { useT } from '@/lib/i18n/client';
 
 export function SettingForm({ def, currentValue }: { def: SettingDef; currentValue: string | null }) {
   const boundSave = (prevState: ActionState, formData: FormData) => saveSetting(def.key, prevState, formData);
   const [state, formAction, pending] = useActionState(boundSave, { error: null });
+  const t = useT();
 
   // Secrets are never echoed back into the page — blank means "leave as-is".
   // Plain tunables show their live value (or documented default) so an admin
@@ -21,7 +23,7 @@ export function SettingForm({ def, currentValue }: { def: SettingDef; currentVal
         name="value"
         type={def.type}
         defaultValue={isSecret ? undefined : currentValue ?? def.default ?? ''}
-        placeholder={isSecret ? (currentValue ? 'Currently set — leave blank to keep it' : 'Not set') : undefined}
+        placeholder={isSecret ? (currentValue ? t.admin.currentlySet : t.admin.notSet) : undefined}
         className="rounded border border-gray-300 px-3 py-2 text-sm"
       />
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
@@ -30,7 +32,7 @@ export function SettingForm({ def, currentValue }: { def: SettingDef; currentVal
         disabled={pending}
         className="self-start rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
-        {pending ? 'Saving…' : 'Save'}
+        {pending ? t.common.saving : t.common.save}
       </button>
     </form>
   );

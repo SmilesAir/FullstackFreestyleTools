@@ -64,9 +64,10 @@ export function monthGrid(key: MonthKey): MonthGridWeek[] {
   return weeks;
 }
 
-export const monthLabel = (key: MonthKey): string => {
+// `intlLocale` is the viewer's language for Intl ('en-US', 'es-419').
+export const monthLabel = (key: MonthKey, intlLocale = 'en-US'): string => {
   const { year, month0 } = parseMonthKey(key);
-  return new Date(year, month0, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  return new Date(year, month0, 1).toLocaleDateString(intlLocale, { month: 'long', year: 'numeric' });
 };
 
 // A starting window of months around (and including) `around`.

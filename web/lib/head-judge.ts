@@ -1,5 +1,6 @@
 // Shared (client + server) shapes for the Head Judge tool.
 import { ROUNDS } from './event-creator';
+import type { Dictionary } from './i18n/dictionaries';
 
 // `place` is the recorded final result for this team (NULL until the pool has
 // played) - threaded through by getHeadJudgePools for the Event Editor's detail
@@ -40,8 +41,9 @@ export const poolKey = (divisionId: string, roundNumber: number, letter: string)
 export const roundName = (roundNumber: number) =>
   ROUNDS.find((r) => r.number === roundNumber)?.name ?? `Round ${roundNumber}`;
 
-// "Open Pairs · Semifinals · Pool A"
-export const poolTitle = (pool: HeadJudgePool) => `${pool.divisionName} · ${pool.roundName} · Pool ${pool.letter}`;
+// "Open Pairs · Semifinals · Pool A", in the viewer's language.
+export const poolTitle = (t: Dictionary, pool: Pick<HeadJudgePool, 'divisionName' | 'roundNumber' | 'letter'>) =>
+  `${pool.divisionName} · ${t.common.roundName(pool.roundNumber)} · ${t.common.pool(pool.letter)}`;
 
 export const teamName = (team: HeadJudgeTeam) => team.players.join(' / ') || '(no players)';
 
@@ -56,9 +58,9 @@ export const DEFAULT_TIMECALLS = [0];
 export const PRESET_TIMECALLS = [0, 10, 15, 30];
 export const MAX_TIMECALL_SECONDS = 3600;
 
-// "Time", "10 s", "1:30"
-export function timecallLabel(seconds: number): string {
-  if (seconds === 0) return 'Time';
+// "Time", "10 s", "1:30" (`time` is the word for 0 in the viewer's language).
+export function timecallLabel(seconds: number, time = 'Time'): string {
+  if (seconds === 0) return time;
   if (seconds < 60) return `${seconds} s`;
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }

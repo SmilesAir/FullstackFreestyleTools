@@ -4,6 +4,7 @@ import { getJudgeAssignment, getJudgeState } from '@/lib/judging-queries';
 import { JudgeShell, NotJudging } from '@/app/judge/_components/JudgeShell';
 import { NotesJudge } from '@/app/judge/_components/NotesJudge';
 import { PinPad } from '@/app/judge/_components/PinPad';
+import { getT } from '@/lib/i18n/server';
 
 const CATEGORY = categoryBySlug('execution')!;
 
@@ -22,7 +23,7 @@ export default async function ExecutionJudgePage({
   if (!pinOk) {
     return (
       <JudgeShell>
-        <PinPad eventId={eventId} judgeName={judge.name} categoryLabel={CATEGORY.label} />
+        <PinPad eventId={eventId} judgeName={judge.name} categoryLabel={(await getT()).judging.category[CATEGORY.type]} />
       </JudgeShell>
     );
   }

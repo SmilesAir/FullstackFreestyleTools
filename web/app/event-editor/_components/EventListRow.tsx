@@ -1,4 +1,5 @@
 import type { CalendarEvent } from '@/lib/event-editor-queries';
+import { useT } from '@/lib/i18n/client';
 
 export function EventListRow({
   event,
@@ -11,6 +12,7 @@ export function EventListRow({
   pulsing: boolean;
   onClick: () => void;
 }) {
+  const t = useT();
   const muted = event.is_test || event.is_hidden;
 
   return (
@@ -25,8 +27,8 @@ export function EventListRow({
     >
       <div className={`font-medium ${muted ? 'text-gray-400' : 'text-gray-900'}`}>
         {event.event_name}
-        {event.is_test && <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">Test</span>}
-        {event.is_hidden && <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">Hidden</span>}
+        {event.is_test && <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">{t.eventEditor.test}</span>}
+        {event.is_hidden && <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">{t.eventEditor.hidden}</span>}
       </div>
       <div className="text-xs text-gray-500">
         {event.start_date} → {event.end_date} · {event.player_count} players

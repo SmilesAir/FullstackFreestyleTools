@@ -2,6 +2,7 @@
 
 import { useRef } from 'react';
 import type { DifficultyLine } from '@/lib/judging';
+import { useT } from '@/lib/i18n/client';
 
 // Room above the top and below the bottom of the line, so a move name at either
 // end isn't cut off.
@@ -36,6 +37,7 @@ export function Numberline({
   popup?: React.ReactNode;
   disabled?: boolean;
 }) {
+  const t = useT();
   const track = useRef<HTMLDivElement>(null);
 
   function pickAt(clientY: number) {
@@ -49,7 +51,7 @@ export function Numberline({
   return (
     <div
       role="group"
-      aria-label="Difficulty numberline"
+      aria-label={t.judging.numberline}
       onPointerDown={(e) => {
         if (disabled || (e.pointerType === 'mouse' && e.button !== 0)) return;
         pickAt(e.clientY);

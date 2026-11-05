@@ -7,6 +7,7 @@ import { EventsTab } from './_components/EventsTab';
 import { HeadJudgeShell } from './_components/HeadJudgeShell';
 import { JudgePinBadge } from './_components/JudgePinBadge';
 import { SettingsTab } from './_components/SettingsTab';
+import { getT } from '@/lib/i18n/server';
 
 const TABS = ['events', 'pools', 'play', 'results', 'settings'] as const;
 
@@ -38,15 +39,16 @@ export default async function HeadJudgePage({
     eventParam ? getJudgePinForHeadJudge(eventParam) : null,
   ]);
   const initialTab = TABS.find((t) => t === tabParam) ?? 'events';
+  const t = await getT();
 
   return (
     <main className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Head Judge</h1>
+        <h1 className="text-xl font-semibold">{t.tools.head_judge.label}</h1>
         {selected && (
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
             <span>
-              Event: <span className="font-medium text-gray-700">{selected.event_name}</span>
+              {t.headJudge.eventLabel} <span className="font-medium text-gray-700">{selected.event_name}</span>
             </span>
             <AnnouncerLinkButton eventId={selected.id} />
             {judgePin && <JudgePinBadge key={judgePin.pin} eventId={selected.id} {...judgePin} />}

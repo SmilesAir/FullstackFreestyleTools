@@ -5,6 +5,7 @@ import { songLabel, type TeamMusicMap, type TeamSongs } from '@/lib/event-music'
 import type { TeamMusicByRound } from '@/lib/team-music-links';
 import { SetMusicButton } from './SetMusicButton';
 import { TeamTimecalls, type TimecallEdits } from './TeamTimecalls';
+import { useT } from '@/lib/i18n/client';
 
 const NO_MUSIC: TeamMusicByRound = {};
 
@@ -30,10 +31,11 @@ export function PoolTeamList({
   edits: TimecallEdits;
   onPlay: (teamId: string) => void;
 }) {
+  const t = useT();
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-lg font-semibold">{poolTitle(pool)}</h2>
-      {pool.locked && <p className="text-sm text-gray-600">🔒 This pool is locked: its time calls can&apos;t be changed.</p>}
+      <h2 className="text-lg font-semibold">{poolTitle(t, pool)}</h2>
+      {pool.locked && <p className="text-sm text-gray-600">{t.eventMusic.poolLocked}</p>}
       <ol className="flex flex-col divide-y divide-gray-200 rounded border border-gray-300">
         {pool.teams.map((team, i) => {
           const song = songs[team.id];
@@ -50,10 +52,10 @@ export function PoolTeamList({
               <div className="min-w-48 flex-1">
                 <div className="font-medium">
                   {teamName(team)}
-                  {active && <span className="ml-2 rounded bg-green-600 px-1.5 text-xs font-semibold text-white">Up</span>}
+                  {active && <span className="ml-2 rounded bg-green-600 px-1.5 text-xs font-semibold text-white">{t.eventMusic.up}</span>}
                 </div>
                 <div className={`text-sm ${song ? 'text-gray-500' : 'font-medium text-amber-700'}`}>
-                  {song ? songLabel(song) : 'No song'}
+                  {song ? songLabel(song, t.eventMusic.file) : t.eventMusic.noSong}
                 </div>
               </div>
               <TeamTimecalls team={team} pool={pool} edits={edits} />

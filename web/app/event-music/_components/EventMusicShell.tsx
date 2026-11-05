@@ -11,6 +11,7 @@ import { PoolTeamList } from './PoolTeamList';
 import { RefreshButton } from './RefreshButton';
 import { useTimecallEdits } from './TeamTimecalls';
 import { useEventMusicPoll } from './useEventMusicPoll';
+import { useT } from '@/lib/i18n/client';
 
 // Whether this device's time call callouts are muted (on unless it says otherwise).
 const MUTED_KEY = 'event-music-muted';
@@ -35,6 +36,7 @@ export function EventMusicShell({
   music: TeamMusicMap;
   initialPoll: EventMusicPoll;
 }) {
+  const t = useT();
   const { poll, connection, clockOffset } = useEventMusicPoll(eventId, initialPoll);
   const edits = useTimecallEdits();
 
@@ -134,7 +136,7 @@ export function EventMusicShell({
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Pools</h2>
+          <h2 className="text-lg font-semibold">{t.eventMusic.pools}</h2>
           <RefreshButton />
         </div>
         <MusicPoolGrid
@@ -158,7 +160,7 @@ export function EventMusicShell({
           onPlay={(teamId) => setTest((current) => ({ teamId, press: (current?.press ?? 0) + 1 }))}
         />
       ) : (
-        <p className="text-sm text-gray-500">Choose a pool to see its teams and their songs.</p>
+        <p className="text-sm text-gray-500">{t.eventMusic.choosePool}</p>
       )}
 
       {/* Room to scroll the page's end out from under the player. */}

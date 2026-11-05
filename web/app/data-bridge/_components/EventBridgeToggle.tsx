@@ -3,11 +3,13 @@
 import { useOptimistic, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setEventBridgeEnabled } from '@/lib/bridge-actions';
+import { useT } from '@/lib/i18n/client';
 
 // Opts this one event into the Dynamo bridge (see web/lib/bridge/) or back out. Off by
 // default for every event; nothing bidirectional happens for an event until this is on.
 export function EventBridgeToggle({ eventId, enabled }: { eventId: string; enabled: boolean }) {
   const router = useRouter();
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [shown, setShown] = useOptimistic(enabled);
   const [error, setError] = useState<string | null>(null);
@@ -30,10 +32,10 @@ export function EventBridgeToggle({ eventId, enabled }: { eventId: string; enabl
         aria-checked={shown}
         onClick={toggle}
         disabled={pending}
-        title={shown ? 'Synced with the live app’s DynamoDB table' : 'Not synced with the live app'}
+        title={shown ? t.admin.synced : t.admin.notSynced}
         className="flex cursor-pointer items-center gap-2 text-sm disabled:cursor-wait"
       >
-        <span className={shown ? 'font-medium text-indigo-700' : 'text-gray-500'}>Bridge</span>
+        <span className={shown ? 'font-medium text-indigo-700' : 'text-gray-500'}>{t.admin.bridge}</span>
         <span className={`relative inline-block h-5 w-9 rounded-full transition-colors ${shown ? 'bg-indigo-600' : 'bg-gray-300'}`}>
           <span
             className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${shown ? 'left-[18px]' : 'left-0.5'}`}

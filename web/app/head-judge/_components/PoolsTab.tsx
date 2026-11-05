@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { JUDGE_CATEGORY_LABELS } from '@/lib/event-creator';
 import { clearPoolResults, ensurePoolLink, setPoolLocked, setPoolResultsPublished } from '@/lib/head-judge-actions';
-import { teamName, type HeadJudgeDivision, type HeadJudgePool } from '@/lib/head-judge';
+import { poolTitle, teamName, type HeadJudgeDivision, type HeadJudgePool } from '@/lib/head-judge';
+import { useT } from '@/lib/i18n/client';
+import { categoryShort } from '@/lib/i18n/labels';
 
 // Every pool that has teams, grouped by division and then round. A pool row
 // expands to show its teams and judges and has the button that makes it the
@@ -21,6 +22,7 @@ export function PoolsTab({
   routineRunning: boolean;
   onSetPlaying: (key: string) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState<Set<string>>(new Set());
 
   function toggle(key: string) {
@@ -32,7 +34,7 @@ export function PoolsTab({
   }
 
   if (divisions.every((d) => d.rounds.length === 0)) {
-    return <p className="text-sm text-gray-500">No pools with teams yet. Set them up in the Event Creator.</p>;
+    return <p className="text-sm text-gray-500">{t.headJudge.noPoolsWithTeams}</p>;
   }
 
   return (
@@ -44,7 +46,7 @@ export function PoolsTab({
             <h2 className="text-lg font-semibold">{division.name}</h2>
             {division.rounds.map((round) => (
               <div key={round.number} className="flex flex-col gap-2">
-                <h3 className="text-sm font-medium text-gray-600">{round.name}</h3>
+                <h3 className="text-sm font-medium text-gray-600">{t.common.roundName(round.number)}</h3>
                 {round.pools.map((pool) => (
                   <PoolRow
                     key={pool.key}
@@ -81,6 +83,7 @@ function PoolRow({
   onSetPlaying: () => void;
 }) {
   const router = useRouter();
+  const t = useT();
   const [lockPending, startLockTransition] = useTransition();
   const [lockError, setLockError] = useState<string | null>(null);
   const [publishPending, startPublishTransition] = useTransition();
@@ -106,18 +109,18 @@ function PoolRow({
       const result = await setPoolResultsPublished(pool.divisionId, pool.roundNumber, pool.letter, !pool.resultsPublished);
       if (result.error) return setPublishError(result.error);
       // Published either way; say so if the event's Discord post didn't go out.
-      if (result.discord?.status === 'failed') setPublishError(`Published, but not posted to Discord: ${result.discord.error}`);
+      if (result.discord?.status === 'failed') setPublishError(t.headJudge.publishedNotPosted(result.discord.error));
       router.refresh();
     });
   }
 
   // Test events only: throws away the pool's scores so it can be judged again.
   function clearResults() {
-    if (!confirm(`Clear every score in ${pool.divisionName} ${pool.roundName} pool ${pool.letter} so it can be judged again? This can't be undone.`)) return;
+    if (!confirm(t.headJudge.clearConfirm(poolTitle(t, pool)))) return;
     setClearMessage(null);
     startClearTransition(async () => {
       const result = await clearPoolResults(pool.divisionId, pool.roundNumber, pool.letter);
-      setClearMessage(result.error ? { text: result.error, error: true } : { text: 'Results cleared', error: false });
+      setClearMessage(result.error ? { text: result.error, error: true } : { text: t.headJudge.resultsCleared, error: false });
       if (!result.error) router.refresh();
     });
   }
@@ -139,9 +142,9 @@ function PoolRow({
   }
 
   const disabledReason = pool.locked
-    ? 'This pool is locked. Unlock it to change the playing pool.'
+    ? t.headJudge.poolLockedReason
     : locked && !playing
-      ? 'A routine is running. Cancel it before changing the pool.'
+      ? t.headJudge.routineRunningReason
       : undefined;
 
   return (
@@ -156,11 +159,11 @@ function PoolRow({
           <span aria-hidden className={`inline-block text-sm text-gray-500 transition-transform ${expanded ? 'rotate-90' : ''}`}>
             ▶
           </span>
-          <span className="font-medium">Pool {pool.letter}</span>
+          <span className="font-medium">{t.common.pool(pool.letter)}</span>
           <span className="text-sm text-gray-500">
-            {pool.teams.length} {pool.teams.length === 1 ? 'team' : 'teams'} ·{' '}
+            {t.headJudge.teams(pool.teams.length)} ·{' '}
             <span className={noJudges ? 'rounded bg-amber-200 px-1.5 py-0.5 font-semibold text-amber-900' : ''}>
-              {pool.judges.length} {pool.judges.length === 1 ? 'judge' : 'judges'}
+              {t.headJudge.judges(pool.judges.length)}
             </span>
           </span>
         </button>
@@ -171,7 +174,7 @@ function PoolRow({
           title={disabledReason}
           className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
         >
-          Set as playing pool
+          {t.headJudge.setAsPlaying}
         </button>
         <button
           type="button"
@@ -179,7 +182,7 @@ function PoolRow({
           disabled={lockPending}
           className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
         >
-          {lockPending ? 'Saving…' : pool.locked ? 'Unlock' : 'Lock'}
+          {lockPending ? t.common.saving : pool.locked ? t.headJudge.unlock : t.headJudge.lock}
         </button>
         <button
           type="button"
@@ -187,7 +190,7 @@ function PoolRow({
           disabled={publishPending}
           className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
         >
-          {publishPending ? 'Saving…' : pool.resultsPublished ? 'Unpublish' : 'Publish results'}
+          {publishPending ? t.common.saving : pool.resultsPublished ? t.headJudge.unpublish : t.headJudge.publishResults}
         </button>
         <button
           type="button"
@@ -195,22 +198,22 @@ function PoolRow({
           disabled={copyState === 'copying'}
           className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
         >
-          {copyState === 'copying' ? 'Getting link…' : copyState === 'copied' ? 'Copied!' : copyState === 'error' ? 'Could not copy' : 'Copy link'}
+          {copyState === 'copying' ? t.headJudge.gettingLink : copyState === 'copied' ? t.headJudge.copied : copyState === 'error' ? t.headJudge.couldNotCopy : t.headJudge.copyLink}
         </button>
         {pool.testEvent && (
           <button
             type="button"
             onClick={clearResults}
             disabled={clearPending || pool.locked}
-            title={pool.locked ? 'Unlock the pool to clear its results' : undefined}
+            title={pool.locked ? t.headJudge.unlockToClear : undefined}
             className="rounded border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
           >
-            {clearPending ? 'Clearing…' : 'Clear results'}
+            {clearPending ? t.headJudge.clearingResults : t.headJudge.clearResults}
           </button>
         )}
-        {playing && <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">Playing</span>}
-        {pool.locked && <span className="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">🔒 Locked</span>}
-        {pool.resultsPublished && <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">📢 Published</span>}
+        {playing && <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">{t.headJudge.playing}</span>}
+        {pool.locked && <span className="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">{t.headJudge.locked}</span>}
+        {pool.resultsPublished && <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">{t.headJudge.published}</span>}
       </div>
       {lockError && <p className="px-3 pb-2 text-xs text-red-600">{lockError}</p>}
       {publishError && <p className="px-3 pb-2 text-xs text-red-600">{publishError}</p>}
@@ -221,7 +224,7 @@ function PoolRow({
       {expanded && (
         <div className="grid gap-4 border-t border-gray-200 px-3 py-3 sm:grid-cols-2">
           <div>
-            <h4 className="mb-1 text-sm font-medium text-gray-600">Teams</h4>
+            <h4 className="mb-1 text-sm font-medium text-gray-600">{t.headJudge.teamsHeading}</h4>
             <ol className="flex flex-col gap-0.5">
               {pool.teams.map((team, i) => (
                 <li key={team.id}>
@@ -232,15 +235,15 @@ function PoolRow({
             </ol>
           </div>
           <div>
-            <h4 className="mb-1 text-sm font-medium text-gray-600">Judges</h4>
+            <h4 className="mb-1 text-sm font-medium text-gray-600">{t.headJudge.judgesHeading}</h4>
             {pool.judges.length === 0 ? (
-              <p className="text-sm text-gray-500">No judges set.</p>
+              <p className="text-sm text-gray-500">{t.headJudge.noJudgesSet}</p>
             ) : (
               <ul className="flex flex-col gap-0.5">
                 {pool.judges.map((judge) => (
                   <li key={judge.playerId}>
                     {judge.name}{' '}
-                    <span className="text-sm text-gray-500">({JUDGE_CATEGORY_LABELS[judge.categoryType] ?? judge.categoryType})</span>
+                    <span className="text-sm text-gray-500">({categoryShort(t, judge.categoryType)})</span>
                   </li>
                 ))}
               </ul>

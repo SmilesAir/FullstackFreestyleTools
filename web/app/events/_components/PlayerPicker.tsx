@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { searchPlayersForPicker } from '@/lib/players-actions';
+import { useT } from '@/lib/i18n/client';
 
 export type PickedPlayer = { id: string; name: string };
 
@@ -9,11 +10,12 @@ type Result = { id: string; first_name: string; last_name: string; country: stri
 
 export function PlayerPicker({
   onPick,
-  placeholder = 'Search players…',
+  placeholder,
 }: {
   onPick: (player: PickedPlayer) => void;
   placeholder?: string;
 }) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Result[]>([]);
   const [open, setOpen] = useState(false);
@@ -36,7 +38,7 @@ export function PlayerPicker({
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t.events.searchPlayers}
         className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
       />
       {open && (

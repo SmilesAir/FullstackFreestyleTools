@@ -3,6 +3,8 @@ import { pool } from './db';
 import { isMissingTable } from './db-errors';
 import { SETTINGS } from './settings';
 import { getSettings } from './settings-queries';
+import { getT } from './i18n/server';
+import type { Dictionary } from './i18n/dictionaries';
 
 // The support chat's limits (Settings → Support chat), counted from the Claude
 // usage log: one row per question answered (feature 'support-chat', or
@@ -41,17 +43,19 @@ export async function isSupportChatAvailable(): Promise<boolean> {
 }
 
 const minutesUntil = (ms: number) => Math.max(1, Math.ceil(ms / 60_000));
-const wait = (ms: number) => {
+const waitText = (t: Dictionary, ms: number) => {
   const minutes = minutesUntil(ms);
-  return minutes < 90 ? `about ${minutes} minute${minutes === 1 ? '' : 's'}` : `about ${Math.round(minutes / 60)} hours`;
+  return minutes < 90 ? t.supportChat.aboutMinutes(minutes) : t.supportChat.aboutHours(Math.round(minutes / 60));
 };
 
 // null when this person may ask now, else the message to show them. When a
 // limit is reached, the wait is until the oldest question in that window ages out.
 export async function checkSupportChatLimits(userId: string): Promise<string | null> {
   const { limits, apiKey } = await readLimits();
-  if (!apiKey) return "The support chat isn't set up yet: an admin needs to add the Anthropic API key in Settings.";
-  if (Object.values(limits).some((n) => n === 0)) return 'The support chat is turned off. An admin can turn it on in Settings.';
+  const t = await getT();
+  const wait = (ms: number) => waitText(t, ms);
+  if (!apiKey) return t.supportChat.noKey;
+  if (Object.values(limits).some((n) => n === 0)) return t.supportChat.turnedOff;
 
   let row;
   try {
@@ -81,7 +85,7 @@ export async function checkSupportChatLimits(userId: string): Promise<string | n
     row = result.rows[0];
   } catch (err) {
     // Without the usage log the limits can't be counted, so the chat stays off.
-    if (isMissingTable(err)) return "The support chat isn't set up on this database yet.";
+    if (isMissingTable(err)) return t.supportChat.noTable;
     throw err;
   }
 
@@ -90,16 +94,16 @@ export async function checkSupportChatLimits(userId: string): Promise<string | n
   const DAY = 24 * HOUR;
 
   if (Number(row.month_cost) >= limits.monthlyBudget) {
-    return "The support chat has used this month's budget. It starts again next month, or an admin can raise the budget in Settings.";
+    return t.supportChat.budgetUsed;
   }
   if (Number(row.all_day) >= limits.allUsersDay) {
-    return `The support chat has answered as many questions as it can today. Try again in ${wait(left(row.all_day_oldest, DAY))}.`;
+    return t.supportChat.dayFull(wait(left(row.all_day_oldest, DAY)));
   }
   if (Number(row.user_day) >= limits.perUserDay) {
-    return `You've asked ${limits.perUserDay} questions in the last day. Try again in ${wait(left(row.user_day_oldest, DAY))}.`;
+    return t.supportChat.userDay(limits.perUserDay, wait(left(row.user_day_oldest, DAY)));
   }
   if (Number(row.user_hour) >= limits.perUserHour) {
-    return `You've asked ${limits.perUserHour} questions in the last hour. Try again in ${wait(left(row.user_hour_oldest, HOUR))}.`;
+    return t.supportChat.userHour(limits.perUserHour, wait(left(row.user_hour_oldest, HOUR)));
   }
   return null;
 }

@@ -327,6 +327,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_id text;
 -- address synthesized for a Discord account with no email of its own (lib/auth-logins.ts).
 ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_username text;
 
+-- The language the site is shown in for this account ('en' or 'es'), chosen on Profile or
+-- with the language switch. Signed-out devices keep theirs in the `lang` cookie instead.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS language text NOT NULL DEFAULT 'en';
+
 -- Each Google/Discord sign-in connected to an account, by the provider's permanent
 -- account id (not its email, which can differ between providers or change). A sign-in
 -- found here opens its account; otherwise the account with the same email does (and

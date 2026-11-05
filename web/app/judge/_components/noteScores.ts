@@ -1,4 +1,6 @@
-import { noteFullLabel, notePoints, notesFromStart, type JudgeNote, type NoteCategory } from '@/lib/judging';
+import { notePoints, notesFromStart, type JudgeNote, type NoteCategory } from '@/lib/judging';
+import type { Dictionary } from '@/lib/i18n/dictionaries';
+import { noteFullLabel } from '@/lib/i18n/labels';
 import { limitScores, type CurveScore } from '@/lib/score-curve';
 import { NOTE_COLOR, NOTE_DOT_SCALE } from './noteStyles';
 
@@ -12,11 +14,13 @@ export function noteScores(
   routineStartedAt: number,
   category: NoteCategory,
   routineSeconds: number,
-  secondsPerScore: number
+  secondsPerScore: number,
+  // For each note's name on the graph.
+  t: Dictionary
 ): CurveScore[] {
   const scores = notesFromStart(notes, routineStartedAt).map((n) => ({
     id: n.id,
-    label: noteFullLabel(category, n.noteType),
+    label: noteFullLabel(t, n.noteType),
     t: (n.notedAt - routineStartedAt) / 1000,
     s: notePoints(n, noteWeights),
     color: NOTE_COLOR[n.noteType],

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { TimecallControls } from '@/app/head-judge/_components/TimecallControls';
 import { setMusicTeamTimecalls } from '@/lib/event-music-actions';
 import { DEFAULT_TIMECALLS, type HeadJudgePool, type HeadJudgeTeam } from '@/lib/head-judge';
+import { useT } from '@/lib/i18n/client';
 
 type Edit = { from: number[]; value: number[] };
 
@@ -17,6 +18,7 @@ function without<T>(record: Record<string, T>, key: string): Record<string, T> {
 // and is kept on top of the saved value it was made from, until the saved
 // value changes (the page's data is read again once the server has it).
 export function useTimecallEdits() {
+  const t = useT();
   const [edited, setEdited] = useState<Record<string, Edit>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -39,7 +41,7 @@ export function useTimecallEdits() {
       (result) => {
         if (result.error) fail(result.error);
       },
-      () => fail('Time calls not saved. Check the connection and try again.')
+      () => fail(t.eventMusic.timecallsNotSaved)
     );
   };
 

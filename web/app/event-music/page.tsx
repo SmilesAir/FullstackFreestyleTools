@@ -2,9 +2,11 @@ import Link from 'next/link';
 import { getHeadJudgePools } from '@/lib/head-judge-queries';
 import { getEventMusicPoll, getTeamSongs, listPlayingEvents } from '@/lib/event-music-queries';
 import { EventMusicShell } from './_components/EventMusicShell';
+import { getT } from '@/lib/i18n/server';
 
 export default async function EventMusicPage({ searchParams }: { searchParams: Promise<{ event?: string; choose?: string }> }) {
   const { event: eventParam, choose } = await searchParams;
+  const t = await getT();
   const events = await listPlayingEvents();
   // Only a playing event can be chosen; the only one is chosen by itself,
   // unless the list was asked for (Change event).
@@ -21,17 +23,17 @@ export default async function EventMusicPage({ searchParams }: { searchParams: P
   return (
     <main className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Event Music</h1>
+        <h1 className="text-xl font-semibold">{t.tools.event_music.label}</h1>
         {/* Once chosen, the event list gives way to the event's name. */}
         {selected && (
           <div className="mt-1 text-xs text-gray-500">
-            Event: <span className="font-medium text-gray-700">{selected.name}</span>
-            {selected.isTest && ' (test)'}
+            {t.headJudge.eventLabel} <span className="font-medium text-gray-700">{selected.name}</span>
+            {selected.isTest && t.eventMusic.test}
             {events.length > 1 && (
               <>
                 {' · '}
                 <Link href="/event-music?choose" className="text-blue-600 underline">
-                  Change event
+                  {t.eventMusic.changeEvent}
                 </Link>
               </>
             )}
@@ -40,9 +42,9 @@ export default async function EventMusicPage({ searchParams }: { searchParams: P
       </div>
 
       {selected ? null : events.length === 0 ? (
-        <p className="text-sm text-gray-500">No events are playing. Turn an event on as Playing in the Event Creator.</p>
+        <p className="text-sm text-gray-500">{t.eventMusic.noEventsPlaying}</p>
       ) : (
-        <nav className="flex flex-wrap gap-2" aria-label="Playing events">
+        <nav className="flex flex-wrap gap-2" aria-label={t.eventMusic.playingEvents}>
           {events.map((e) => (
             <Link
               key={e.id}
@@ -50,13 +52,13 @@ export default async function EventMusicPage({ searchParams }: { searchParams: P
               className="rounded border border-gray-300 px-4 py-2 hover:bg-gray-50"
             >
               {e.name}
-              {e.isTest && <span className="ml-2 text-xs opacity-70">(test)</span>}
+              {e.isTest && <span className="ml-2 text-xs opacity-70">{t.eventMusic.testTag}</span>}
             </Link>
           ))}
         </nav>
       )}
 
-      {events.length > 0 && !selected && <p className="text-sm text-gray-500">Choose an event.</p>}
+      {events.length > 0 && !selected && <p className="text-sm text-gray-500">{t.eventMusic.chooseEvent}</p>}
 
       {selected && poll && (
         // Keyed by event so choosing another event starts with a clean slate.

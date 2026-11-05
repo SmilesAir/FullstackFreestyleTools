@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { PRESET_TIMECALLS, parseTimecall, timecallLabel } from '@/lib/head-judge';
+import { useT } from '@/lib/i18n/client';
 
 const ON = 'border-green-600 bg-green-600 text-white hover:bg-green-700';
 const OFF = 'border-gray-300 bg-background text-gray-700 hover:bg-gray-50';
@@ -31,6 +32,7 @@ export function TimecallControls({
   // sits under a heading of the caller's.
   align?: 'start' | 'end';
 }) {
+  const t = useT();
   const dialog = useRef<HTMLDialogElement>(null);
   const [text, setText] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
@@ -47,8 +49,8 @@ export function TimecallControls({
   };
   const addCustom = () => {
     const seconds = parseTimecall(text);
-    if (seconds === null || seconds <= 0) return setProblem('Enter seconds (45) or minutes:seconds (1:30).');
-    if (seconds >= routineSeconds) return setProblem('It has to be shorter than the routine.');
+    if (seconds === null || seconds <= 0) return setProblem(t.headJudge.timecallFormat);
+    if (seconds >= routineSeconds) return setProblem(t.headJudge.timecallTooLong);
     if (!on.has(seconds)) onChange([...timecalls, seconds]);
     dialog.current?.close();
   };
@@ -67,7 +69,7 @@ export function TimecallControls({
               on.has(seconds) ? ON : OFF
             }`}
           >
-            {timecallLabel(seconds)}
+            {timecallLabel(seconds, t.headJudge.time)}
           </button>
         ))}
         <button
@@ -76,23 +78,23 @@ export function TimecallControls({
           disabled={disabled}
           className={`cursor-pointer rounded border px-3 py-1.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${OFF}`}
         >
-          Custom…
+          {t.headJudge.custom}
         </button>
         {onToggleMute && (
           <button
             type="button"
             onClick={onToggleMute}
             aria-pressed={muted}
-            title={muted ? 'Callouts muted: click to hear them' : 'Callouts on: click to mute'}
+            title={muted ? t.headJudge.mutedTip : t.headJudge.soundOnTip}
             className={`cursor-pointer rounded border px-3 py-1.5 text-sm font-semibold ${
               muted ? 'border-red-300 bg-red-50 text-red-800 hover:bg-red-100' : OFF
             }`}
           >
-            {muted ? '🔇 Muted' : '🔊 Sound on'}
+            {muted ? t.headJudge.muted : t.headJudge.soundOn}
           </button>
         )}
       </div>
-      {align === 'end' && <div className="text-xs text-gray-500">Time calls</div>}
+      {align === 'end' && <div className="text-xs text-gray-500">{t.headJudge.timeCalls}</div>}
 
       <dialog
         ref={dialog}
@@ -106,14 +108,14 @@ export function TimecallControls({
             addCustom();
           }}
         >
-          <h3 className="text-lg font-semibold">Custom time call</h3>
+          <h3 className="text-lg font-semibold">{t.headJudge.customTimecall}</h3>
           <label className="flex flex-col gap-1 text-sm">
-            Time left when it is called
+            {t.headJudge.timeLeft}
             <input
               autoFocus
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="1:00 or 45"
+              placeholder={t.headJudge.timecallPlaceholder}
               inputMode="numeric"
               className="rounded border border-gray-300 bg-background px-3 py-2 text-base"
             />
@@ -125,13 +127,13 @@ export function TimecallControls({
               onClick={() => dialog.current?.close()}
               className="cursor-pointer rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
             >
-              Cancel
+              {t.common.cancel}
             </button>
             <button
               type="submit"
               className="cursor-pointer rounded bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700"
             >
-              Add
+              {t.headJudge.add}
             </button>
           </div>
         </form>

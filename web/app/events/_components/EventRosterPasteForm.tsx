@@ -6,6 +6,7 @@ import { parseEventRosterText } from '@/lib/roster-parser';
 import { addEventRosters } from '@/lib/event-creator-actions';
 import { applyResolution, completeTeams, slotCounts, toSlots, type Slot } from '@/lib/roster-review';
 import { TeamsReview } from './division/TeamsReview';
+import { useT } from '@/lib/i18n/client';
 
 type Found = { divisionName: string; teams: Slot[][] };
 
@@ -14,6 +15,7 @@ type Found = { divisionName: string; teams: Slot[][] };
 // event doesn't have yet is created (and published straight away) when the teams are added.
 export function EventRosterPasteForm({ eventId, existing }: { eventId: string; existing: string[] }) {
   const router = useRouter();
+  const t = useT();
   const [text, setText] = useState('');
   const [found, setFound] = useState<Found[] | null>(null);
   const [unparsed, setUnparsed] = useState<string[]>([]);
@@ -59,9 +61,9 @@ export function EventRosterPasteForm({ eventId, existing }: { eventId: string; e
         return;
       }
       const lines = (result.results ?? []).map(
-        (r) => `${r.divisionName}: ${r.added} added${r.created ? ' (new division)' : ''}${r.duplicates ? `, ${r.duplicates} already there` : ''}`
+        (r) => t.events.addedLine(r.divisionName, r.added, !!r.created, r.duplicates ?? 0)
       );
-      setNotice(`${lines.join('; ')}.${skipped ? ` Skipped ${skipped} team(s) with unresolved players.` : ''}`);
+      setNotice(t.events.addedNotice(lines.join('; '), skipped));
       setFound(null);
       setUnparsed([]);
       setText('');
@@ -74,8 +76,7 @@ export function EventRosterPasteForm({ eventId, existing }: { eventId: string; e
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-gray-500">
-        Paste the teams for one or more divisions, for example a spreadsheet with a heading row per division (Mixed pairs, Women pairs, Open
-        pairs, Open coop) followed by its teams. Claude sorts them into this event&apos;s divisions.
+        {t.events.pasteHelp}
       </p>
       <textarea
         value={text}
@@ -90,18 +91,18 @@ export function EventRosterPasteForm({ eventId, existing }: { eventId: string; e
         disabled={parsing || !text.trim()}
         className="self-start rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
-        {parsing ? 'Parsing with Claude…' : 'Parse with Claude'}
+        {parsing ? t.events.parsing : t.events.parse}
       </button>
       {error && <p className="text-sm text-red-600">{error}</p>}
       {notice && <p className="text-sm text-green-700">{notice}</p>}
 
       {found && (
         <div className="flex flex-col gap-4 rounded border border-gray-300 p-3">
-          {found.length === 0 && <p className="text-sm text-amber-800">Claude didn&apos;t find teams for any known division in that text.</p>}
+          {found.length === 0 && <p className="text-sm text-amber-800">{t.events.noneFound}</p>}
 
           {unparsed.length > 0 && (
             <div className="rounded border border-amber-300 bg-amber-50 p-2 text-sm">
-              <div className="font-medium text-amber-800">Couldn&apos;t parse these lines:</div>
+              <div className="font-medium text-amber-800">{t.events.couldntParse}</div>
               <ul className="list-disc pl-5 text-amber-900">
                 {unparsed.map((line, i) => (
                   <li key={i}>{line}</li>
@@ -116,10 +117,10 @@ export function EventRosterPasteForm({ eventId, existing }: { eventId: string; e
               <section key={division.divisionName} className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-gray-200 pb-1">
                   <h3 className="font-semibold">{division.divisionName}</h3>
-                  <span className="text-xs text-gray-500">{existing.includes(division.divisionName) ? 'existing division' : 'new division'}</span>
+                  <span className="text-xs text-gray-500">{existing.includes(division.divisionName) ? t.events.existingDivision : t.events.newDivisionTag}</span>
                   <span className="text-sm">
-                    <strong>{division.teams.length}</strong> team(s) — <span className="text-green-700">{counts.matched} matched</span>
-                    {counts.created > 0 && <span className="text-green-700">, {counts.created} created</span>},{' '}
+                    <strong>{division.teams.length}</strong> {t.events.teamsFound} <span className="text-green-700">{t.events.matched(counts.matched)}</span>
+                    {counts.created > 0 && <span className="text-green-700">{t.events.created(counts.created)}</span>},{' '}
                     <span className={counts.review ? 'font-medium text-amber-700' : ''}>{counts.review} need review</span>,{' '}
                     <span className={counts.unresolved ? 'font-medium text-red-700' : ''}>{counts.unresolved} new player(s)</span>
                   </span>
@@ -139,13 +140,13 @@ export function EventRosterPasteForm({ eventId, existing }: { eventId: string; e
               disabled={saving || totalTeams === 0}
               className="rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              {saving ? 'Adding…' : `Add ${totalTeams} team(s) to ${found.length} division(s)`}
+              {saving ? t.events.adding : t.events.addToDivisions(totalTeams, found.length)}
             </button>
             <button type="button" onClick={() => setFound(null)} className="rounded border border-gray-300 px-3 py-2 text-sm">
-              Discard
+              {t.events.discard}
             </button>
           </div>
-          <p className="text-xs text-gray-500">Teams with any unresolved player are skipped, and teams already in a division are not added twice.</p>
+          <p className="text-xs text-gray-500">{t.events.skippedNote}</p>
         </div>
       )}
     </div>

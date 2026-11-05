@@ -6,6 +6,7 @@ import { startIdlePoller } from '@/lib/idle-poller';
 import { JUDGE_POLL_MS, type PollMode } from '@/lib/poll-intervals';
 import { submitSimpleRanking } from '@/lib/simple-ranking-actions';
 import { isComplete, pressArrow } from '@/lib/simple-ranking';
+import { useT } from '@/lib/i18n/client';
 
 const IDLE_MS = 10 * 60 * 1000;
 
@@ -55,6 +56,7 @@ type PollResponse = { pool: { key: string; title: string; teams: Team[] } | null
 const sameOrder = (a: readonly string[], b: readonly string[] | null) => b !== null && a.length === b.length && a.every((id, i) => id === b[i]);
 
 export function SimpleRankingJudge({ eventId }: { eventId: string }) {
+  const t = useT();
   const [token] = useState(getJudgeToken);
   const [poolKey, setPoolKey] = useState<string | null>(null);
   const [poolTitle, setPoolTitle] = useState<string | null>(null);
@@ -141,7 +143,7 @@ export function SimpleRankingJudge({ eventId }: { eventId: string }) {
   if (!poolKey) {
     return (
       <div className="flex flex-1 items-center justify-center px-4 text-center text-gray-500">
-        <p>There is nothing to rank right now.</p>
+        <p>{t.judging.nothingToRank}</p>
       </div>
     );
   }
@@ -151,9 +153,9 @@ export function SimpleRankingJudge({ eventId }: { eventId: string }) {
       <div>
         <h1 className="text-lg font-semibold">{poolTitle}</h1>
         <p className="text-sm text-gray-500">
-          Rank the teams from best (1) to worst. {ranking.length} of {teams.length} ranked.
+          {t.judging.rankTeams(ranking.length, teams.length)}
         </p>
-        {!connected && <p className="mt-1 text-xs text-amber-700">Connection lost. Your ranking is kept and will send once it&apos;s back.</p>}
+        {!connected && <p className="mt-1 text-xs text-amber-700">{t.judging.rankingKept}</p>}
       </div>
 
       <ol className="flex flex-col gap-2">
@@ -168,7 +170,7 @@ export function SimpleRankingJudge({ eventId }: { eventId: string }) {
               <span className="flex shrink-0 items-center gap-1">
                 <button
                   type="button"
-                  aria-label={`Move ${team.name} down`}
+                  aria-label={t.judging.moveDown(team.name)}
                   disabled={place !== -1 && atBottom}
                   onClick={() => setRanking((r) => [...pressArrow(r, team.id, 'down')])}
                   className="flex h-11 w-11 items-center justify-center rounded border border-gray-300 text-xl disabled:opacity-30"
@@ -184,7 +186,7 @@ export function SimpleRankingJudge({ eventId }: { eventId: string }) {
                 </span>
                 <button
                   type="button"
-                  aria-label={`Move ${team.name} up`}
+                  aria-label={t.judging.moveUp(team.name)}
                   disabled={place !== -1 && atTop}
                   onClick={() => setRanking((r) => [...pressArrow(r, team.id, 'up')])}
                   className="flex h-11 w-11 items-center justify-center rounded border border-gray-300 text-xl disabled:opacity-30"
@@ -200,7 +202,7 @@ export function SimpleRankingJudge({ eventId }: { eventId: string }) {
       <div className="fixed inset-x-0 bottom-0 border-t border-gray-300 bg-background p-3">
         {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
         {!dirty && submittedRanking !== null ? (
-          <p className="text-center text-sm font-medium text-green-700">Sent to the head judge ✓</p>
+          <p className="text-center text-sm font-medium text-green-700">{t.judging.sentToHeadJudge}</p>
         ) : (
           <button
             type="button"
@@ -208,7 +210,7 @@ export function SimpleRankingJudge({ eventId }: { eventId: string }) {
             disabled={!complete || saving}
             className="w-full rounded bg-black py-3 text-base font-medium text-white disabled:opacity-40"
           >
-            {saving ? 'Sending…' : submittedRanking === null ? 'Submit' : 'Send changes'}
+            {saving ? t.judging.sending : submittedRanking === null ? t.judging.submit : t.judging.sendChanges}
           </button>
         )}
       </div>

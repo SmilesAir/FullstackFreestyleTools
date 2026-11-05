@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { LocaleProvider } from "@/lib/i18n/client";
+import { INTL_LOCALE } from "@/lib/i18n/locales";
+import { getLocale, getT } from "@/lib/i18n/server";
+import { LanguageSwitch } from "./_components/LanguageSwitch";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,18 +16,24 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Fullstack Freestyle Tools",
-  description: "Freestyle frisbee tournament data tools",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT();
+  return { title: t.common.siteName, description: t.common.siteDescription };
+}
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const locale = await getLocale();
   return (
     <html
-      lang="en"
+      lang={INTL_LOCALE[locale]}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <LocaleProvider locale={locale}>
+          {children}
+          <LanguageSwitch />
+        </LocaleProvider>
+      </body>
     </html>
   );
 }

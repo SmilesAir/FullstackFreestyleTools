@@ -5,18 +5,20 @@ import { useRouter } from 'next/navigation';
 import { DIVISION_NAMES } from '@/lib/event-creator';
 import { navigateToPool } from '@/lib/public-results-actions';
 import type { DivisionNavEntry } from '@/lib/public-results';
+import { useT } from '@/lib/i18n/client';
 
 // An event's pools as buttons, laid out like the Head Judge's Results tab: one
 // column per division and one row per round, so the same round lines up
 // across divisions. A button opens that pool's public results page.
 export function PoolGrid({ divisions }: { divisions: DivisionNavEntry[] }) {
   const router = useRouter();
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [opening, setOpening] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const withPools = divisions.filter((d) => d.rounds.length > 0);
-  if (withPools.length === 0) return <p className="text-sm text-gray-500">No pools set up yet.</p>;
+  if (withPools.length === 0) return <p className="text-sm text-gray-500">{t.home.noPoolsYet}</p>;
 
   // The standard divisions this event has, in their usual order, then any others.
   const standard = DIVISION_NAMES.flatMap((name) => withPools.filter((d) => d.name === name));
@@ -24,8 +26,8 @@ export function PoolGrid({ divisions }: { divisions: DivisionNavEntry[] }) {
   const columns = [...standard, ...others];
 
   // Rounds that any division has, in playing order (earliest round first).
-  const rounds = [...new Map(withPools.flatMap((d) => d.rounds).map((r) => [r.number, r.name])).entries()]
-    .map(([number, name]) => ({ number, name }))
+  const rounds = [...new Set(withPools.flatMap((d) => d.rounds).map((r) => r.number))]
+    .map((number) => ({ number, name: t.common.roundName(number) }))
     .sort((a, b) => b.number - a.number);
 
   function open(divisionId: string, roundNumber: number, letter: string) {
@@ -35,7 +37,7 @@ export function PoolGrid({ divisions }: { divisions: DivisionNavEntry[] }) {
     startTransition(async () => {
       const { code } = await navigateToPool(divisionId, roundNumber, letter);
       if (!code) {
-        setError('Could not open that pool.');
+        setError(t.home.couldNotOpenPool);
         setOpening(null);
         return;
       }
@@ -78,7 +80,7 @@ export function PoolGrid({ divisions }: { divisions: DivisionNavEntry[] }) {
                                 opening === key ? 'border-black bg-black text-white' : 'border-gray-300 hover:bg-gray-50 disabled:opacity-50'
                               }`}
                             >
-                              Pool {p.letter}
+                              {t.common.pool(p.letter)}
                             </button>
                           );
                         })}

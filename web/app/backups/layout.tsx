@@ -1,18 +1,20 @@
-import Link from 'next/link';
 import { requireAdmin } from '@/lib/authz';
 import type { Metadata } from 'next';
+import { getT } from '@/lib/i18n/server';
 import { toolTitle } from '@/lib/tools';
+import { ControlPanelLink } from '@/app/_components/ControlPanelLink';
 
-export const metadata: Metadata = { title: toolTitle('/backups') };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: toolTitle(await getT(), '/backups') };
+}
 
 export default async function BackupsLayout({ children }: { children: React.ReactNode }) {
   await requireAdmin();
+  const t = await getT();
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
-      <Link href="/control-panel" className="mb-6 inline-block text-sm text-blue-600 underline">
-        ← Control panel
-      </Link>
+      <ControlPanelLink label={t.common.backToControlPanel} className="mb-6" linkClassName="text-sm text-blue-600 underline" />
       {children}
     </div>
   );

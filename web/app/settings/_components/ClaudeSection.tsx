@@ -1,64 +1,65 @@
 import { MODEL_PRICES, formatUsd } from '@/lib/claude-pricing';
 import { CLAUDE_MODEL, CLAUDE_PROMPTS } from '@/lib/claude-prompts';
 import type { ClaudeUsage, UsageTotals } from '@/lib/claude-usage';
+import { getT } from '@/lib/i18n/server';
 
-const number = (n: number) => n.toLocaleString('en-US');
 const when = (iso: string) => `${iso.slice(0, 16).replace('T', ' ')} UTC`;
-const OUTCOME: Record<string, string> = { end_turn: 'ok', refusal: 'refused', max_tokens: 'cut off' };
 
 const promptName = (id: string) => CLAUDE_PROMPTS.find((p) => p.id === id)?.name ?? id;
 
-function Totals({ label, totals }: { label: string; totals: UsageTotals }) {
+async function Totals({ label, totals }: { label: string; totals: UsageTotals }) {
+  const t = await getT();
+  const number = (n: number) => n.toLocaleString(t.common.intlLocale);
   return (
     <div className="flex flex-col gap-0.5 rounded border border-gray-200 p-3">
       <div className="text-xs text-gray-500">{label}</div>
       <div className="text-lg font-semibold">{formatUsd(totals.cost)}</div>
       <div className="text-xs text-gray-500">
-        {number(totals.calls)} call{totals.calls === 1 ? '' : 's'} · {number(totals.inputTokens)} in · {number(totals.outputTokens)} out
+        {t.admin.callsLine(number(totals.calls), totals.calls, number(totals.inputTokens), number(totals.outputTokens))}
       </div>
-      {totals.unpriced > 0 && <div className="text-xs text-amber-700">{totals.unpriced} call(s) on a model with no known price are not in this cost.</div>}
+      {totals.unpriced > 0 && <div className="text-xs text-amber-700">{t.admin.unpriced(totals.unpriced)}</div>}
     </div>
   );
 }
 
 // Everything about the app's use of Claude, apart from the key form itself (passed in):
 // what the calls have cost, every prompt that is sent, and the recent calls.
-export function ClaudeSection({ keyForm, usage }: { keyForm: React.ReactNode; usage: ClaudeUsage }) {
+export async function ClaudeSection({ keyForm, usage }: { keyForm: React.ReactNode; usage: ClaudeUsage }) {
+  const t = await getT();
+  const number = (n: number) => n.toLocaleString(t.common.intlLocale);
+  const OUTCOME: Record<string, string> = t.admin.outcome;
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">Claude integration</h2>
+      <h2 className="text-lg font-semibold">{t.admin.claudeIntegration}</h2>
       {keyForm}
 
       <div className="flex flex-col gap-3 rounded border border-gray-300 p-3">
-        <div className="font-medium">Usage and cost</div>
+        <div className="font-medium">{t.admin.usageAndCost}</div>
         {!usage.available ? (
           <p className="text-sm text-amber-700">
-            This database has no usage log yet. Add it with the <code>claude_usage</code> table in <code>backend/schema.sql</code> (on the local
-            database, Head Judge → database button → Set up tables).
+            {t.admin.noUsageLog}
           </p>
         ) : (
           <>
             <div className="grid gap-3 sm:grid-cols-3">
-              <Totals label="This month" totals={usage.month} />
-              <Totals label="Last 30 days" totals={usage.last30Days} />
-              <Totals label="All time" totals={usage.allTime} />
+              <Totals label={t.admin.thisMonth} totals={usage.month} />
+              <Totals label={t.admin.last30Days} totals={usage.last30Days} />
+              <Totals label={t.admin.allTime} totals={usage.allTime} />
             </div>
             <p className="text-xs text-gray-500">
               {usage.firstCallAt
-                ? `Counted since the first logged call, ${when(new Date(usage.firstCallAt).toISOString())}; earlier calls are not included.`
-                : 'No calls logged yet: the first time someone uses Fill from Claude or Parse with Claude it shows up here.'}{' '}
-              Cost is worked out from each call&apos;s token counts at the list prices below (no discounts), so it is an estimate: the Anthropic
-              Console has the actual bill. Calls made while the server runs on the local database are logged in that database only.
+                ? t.admin.countedSince(when(new Date(usage.firstCallAt).toISOString()))
+                : t.admin.noCallsYet}{' '}
+              {t.admin.costNote}
             </p>
           </>
         )}
       </div>
 
       <div className="flex flex-col gap-3 rounded border border-gray-300 p-3">
-        <div className="font-medium">Prompts ({CLAUDE_PROMPTS.length})</div>
+        <div className="font-medium">{t.admin.prompts(CLAUDE_PROMPTS.length)}</div>
         <p className="text-xs text-gray-500">
-          Every prompt the app sends. Each call is one system prompt (below) and one user message, which is always the text the person pasted.
-          These are read from the same place the calls are made from, so this is exactly what is sent.
+          {t.admin.promptsHelp}
         </p>
         {CLAUDE_PROMPTS.map((prompt) => {
           const month = usage.byFeature[prompt.id]?.month;
@@ -69,19 +70,19 @@ export function ClaudeSection({ keyForm, usage }: { keyForm: React.ReactNode; us
                 <div className="font-medium">{prompt.name}</div>
                 <div className="text-xs text-gray-500">
                   {usage.available && all
-                    ? `${number(all.calls)} call${all.calls === 1 ? '' : 's'}, ${formatUsd(all.cost)} all time · ${formatUsd(month?.cost ?? 0)} this month`
+                    ? t.admin.promptUsage(number(all.calls), all.calls, formatUsd(all.cost), formatUsd(month?.cost ?? 0))
                     : usage.available
-                      ? 'not used yet'
+                      ? t.admin.notUsedYet
                       : ''}
                 </div>
               </div>
-              <p className="text-xs text-gray-600">Used in: {prompt.usedIn}</p>
-              <p className="text-xs text-gray-600">Returns: {prompt.outputSummary}</p>
+              <p className="text-xs text-gray-600">{t.admin.usedIn(prompt.usedIn)}</p>
+              <p className="text-xs text-gray-600">{t.admin.returns(prompt.outputSummary)}</p>
               <p className="text-xs text-gray-500">
-                Model {prompt.model} · effort {prompt.effort} · up to {number(prompt.maxTokens)} output tokens
+                {t.admin.modelLine(prompt.model, prompt.effort, number(prompt.maxTokens))}
               </p>
               <details className="text-sm">
-                <summary className="cursor-pointer text-blue-600">Show the system prompt</summary>
+                <summary className="cursor-pointer text-blue-600">{t.admin.showPrompt}</summary>
                 <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded bg-gray-50 p-3 text-xs">{prompt.system}</pre>
               </details>
             </div>
@@ -91,21 +92,21 @@ export function ClaudeSection({ keyForm, usage }: { keyForm: React.ReactNode; us
 
       {usage.available && (
         <div className="flex flex-col gap-2 rounded border border-gray-300 p-3">
-          <div className="font-medium">Recent calls</div>
+          <div className="font-medium">{t.admin.recentCalls}</div>
           {usage.recent.length === 0 ? (
-            <p className="text-sm text-gray-500">None yet.</p>
+            <p className="text-sm text-gray-500">{t.admin.noneYet}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-gray-200 text-gray-500">
-                    <th className="py-1 pr-3 font-normal">When</th>
-                    <th className="py-1 pr-3 font-normal">Prompt</th>
-                    <th className="py-1 pr-3 font-normal">By</th>
-                    <th className="py-1 pr-3 text-right font-normal">In</th>
-                    <th className="py-1 pr-3 text-right font-normal">Out</th>
-                    <th className="py-1 pr-3 text-right font-normal">Cost</th>
-                    <th className="py-1 font-normal">Ended</th>
+                    <th className="py-1 pr-3 font-normal">{t.admin.when}</th>
+                    <th className="py-1 pr-3 font-normal">{t.admin.prompt}</th>
+                    <th className="py-1 pr-3 font-normal">{t.admin.by}</th>
+                    <th className="py-1 pr-3 text-right font-normal">{t.admin.in}</th>
+                    <th className="py-1 pr-3 text-right font-normal">{t.admin.out}</th>
+                    <th className="py-1 pr-3 text-right font-normal">{t.admin.cost}</th>
+                    <th className="py-1 font-normal">{t.admin.ended}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -130,14 +131,14 @@ export function ClaudeSection({ keyForm, usage }: { keyForm: React.ReactNode; us
       )}
 
       <div className="flex flex-col gap-2 rounded border border-gray-300 p-3">
-        <div className="font-medium">Prices used (US dollars per million tokens)</div>
+        <div className="font-medium">{t.admin.prices}</div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-gray-200 text-gray-500">
-                <th className="py-1 pr-3 font-normal">Model</th>
-                <th className="py-1 pr-3 text-right font-normal">Input</th>
-                <th className="py-1 text-right font-normal">Output</th>
+                <th className="py-1 pr-3 font-normal">{t.admin.model}</th>
+                <th className="py-1 pr-3 text-right font-normal">{t.admin.input}</th>
+                <th className="py-1 text-right font-normal">{t.admin.output}</th>
               </tr>
             </thead>
             <tbody>
@@ -145,7 +146,7 @@ export function ClaudeSection({ keyForm, usage }: { keyForm: React.ReactNode; us
                 <tr key={model} className="border-b border-gray-100">
                   <td className="py-1 pr-3">
                     {model}
-                    {model === CLAUDE_MODEL && <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 text-green-800">in use</span>}
+                    {model === CLAUDE_MODEL && <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 text-green-800">{t.admin.inUse}</span>}
                   </td>
                   <td className="py-1 pr-3 text-right">${price.input}</td>
                   <td className="py-1 text-right">${price.output}</td>

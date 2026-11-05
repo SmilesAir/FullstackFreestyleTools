@@ -2,6 +2,7 @@
 
 import { adjustedScore } from '@/lib/judging-estimate';
 import { ScoreAdjuster } from './ScoreAdjuster';
+import { useT } from '@/lib/i18n/client';
 
 // A routine's score as a square next to its graph (it fills the square it is
 // given): the judge's score, its baseline and change, and the buttons that
@@ -33,6 +34,7 @@ export function ScoreCard({
   onAdjust: (step: number) => void;
   canEnter?: boolean;
 }) {
+  const t = useT();
   // Before a score is in, a press already shows the score it will submit.
   const entering = !submitted && canEnter && percent !== 0;
   const limited = unrestricted !== null;
@@ -40,7 +42,7 @@ export function ScoreCard({
     <div className="flex h-full w-full flex-col gap-1 rounded border border-gray-300 p-1.5">
       <div className="flex flex-col items-center text-center leading-tight">
         <span className="text-[11px]">
-          {submitted || entering ? 'Your score' : limited ? 'Baseline / Unrestricted' : 'Baseline estimate'}
+          {submitted || entering ? t.judging.yourScore : limited ? t.judging.baselineUnrestricted : t.judging.baselineEstimate}
         </span>
         <span className="font-mono text-2xl font-bold tabular-nums">
           {adjustedScore(submitted ? submitted.baseline : estimate, percent, unit)}
@@ -52,9 +54,9 @@ export function ScoreCard({
           {submitted
             ? (status ??
               (limited
-                ? `Baseline / Unrestricted ${submitted.baseline} / ${unrestricted} · ${percent}%`
-                : `Baseline ${submitted.baseline} · ${percent}%`))
-            : (status ?? (canEnter ? 'Not submitted. Press to enter' : 'Not submitted'))}
+                ? t.judging.baselineUnrestrictedValues(submitted.baseline, unrestricted, percent)
+                : t.judging.baselineValue(submitted.baseline, percent)))
+            : (status ?? (canEnter ? t.judging.notSubmittedPress : t.judging.notSubmitted))}
         </span>
       </div>
       {(submitted || canEnter) && (

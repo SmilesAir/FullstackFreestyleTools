@@ -5,6 +5,8 @@ import { redirect } from 'next/navigation';
 import { pool } from './db';
 import { normalizeGender } from './players';
 import { listPlayers } from './players-queries';
+import { getT } from './i18n/server';
+import type { Dictionary } from './i18n/dictionaries';
 
 export async function searchPlayersList(q: string, page: number) {
   return listPlayers(q, page);
@@ -39,7 +41,7 @@ type ParsedPlayerData = {
 
 type ParseResult = { error: string } | { data: ParsedPlayerData };
 
-function parseFormData(formData: FormData): ParseResult {
+function parseFormData(formData: FormData, t: Dictionary): ParseResult {
   const parsed = playerSchema.safeParse({
     first_name: formData.get('first_name'),
     last_name: formData.get('last_name'),
@@ -57,7 +59,7 @@ function parseFormData(formData: FormData): ParseResult {
   const membershipRaw = blankToNull(parsed.data.membership);
   const membership = membershipRaw === null ? null : Number(membershipRaw);
   if (membership !== null && !Number.isFinite(membership)) {
-    return { error: 'Membership must be a number' } as const;
+    return { error: t.players.membershipNumber } as const;
   }
 
   return {
@@ -74,7 +76,7 @@ function parseFormData(formData: FormData): ParseResult {
 }
 
 export async function createPlayer(_prevState: ActionState, formData: FormData): Promise<ActionState> {
-  const parsed = parseFormData(formData);
+  const parsed = parseFormData(formData, await getT());
   if (!('data' in parsed)) return { error: parsed.error };
 
   const { first_name, last_name, gender, country, fpa_website_id, membership, alias_id } = parsed.data;
@@ -98,13 +100,13 @@ export async function createPlayer(_prevState: ActionState, formData: FormData):
 }
 
 export async function updatePlayer(id: string, _prevState: ActionState, formData: FormData): Promise<ActionState> {
-  const parsed = parseFormData(formData);
+  const parsed = parseFormData(formData, await getT());
   if (!('data' in parsed)) return { error: parsed.error };
 
   const { first_name, last_name, gender, country, fpa_website_id, membership, alias_id } = parsed.data;
 
   if (alias_id === id) {
-    return { error: 'A player cannot be their own alias' };
+    return { error: (await getT()).players.ownAlias };
   }
 
   try {

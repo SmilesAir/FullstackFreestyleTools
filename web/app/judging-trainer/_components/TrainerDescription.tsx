@@ -5,11 +5,13 @@
 // screens change.
 
 import Image from 'next/image';
+import { useLocale } from '@/lib/i18n/client';
+import { TrainerDescriptionEs } from './TrainerDescriptionEs';
 
 const DOC_URL =
   'https://docs.google.com/document/d/e/2PACX-1vRskNk2d0YvphJ49_W0yIWAH9JkRYS_piyiQEWD3tA7CGe4Fb_bBpPJViHHi-D0mxrEsX9vxP9uF-El/pub';
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+export function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-2">
       <h2 className="border-b border-gray-300 pb-1 text-lg font-semibold">{title}</h2>
@@ -18,12 +20,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Code({ children }: { children: React.ReactNode }) {
+export function Code({ children }: { children: React.ReactNode }) {
   return <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[0.85em] dark:bg-gray-800">{children}</code>;
 }
 
 // A picture of a real screen (in public/images/judging-trainer/), with a caption.
-function Shot({ src, alt, width = 1100, height = 800, children }: {
+export function Shot({ src, alt, width = 1100, height = 800, children }: {
   src: string;
   alt: string;
   width?: number;
@@ -44,11 +46,16 @@ function Shot({ src, alt, width = 1100, height = 800, children }: {
   );
 }
 
-const table = 'w-full border-collapse text-sm';
-const th = 'border border-gray-300 px-2 py-1 text-left font-medium';
-const td = 'border border-gray-300 px-2 py-1';
+export const table = 'w-full border-collapse text-sm';
+export const th = 'border border-gray-300 px-2 py-1 text-left font-medium';
+export const td = 'border border-gray-300 px-2 py-1';
 
+// The Description in the viewer's language (the Spanish one is TrainerDescriptionEs.tsx).
 export function TrainerDescription() {
+  return useLocale() === 'es' ? <TrainerDescriptionEs /> : <TrainerDescriptionEn />;
+}
+
+function TrainerDescriptionEn() {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 text-sm leading-relaxed">
       <header className="flex flex-col gap-1">

@@ -5,6 +5,7 @@ import { addNote, deleteNote, editNote, submitBackupScore, submitScore } from '@
 import { fetchJson } from '@/lib/fetch-json';
 import { startIdlePoller } from '@/lib/idle-poller';
 import { JUDGE_PIN_ERROR, type JudgeNote, type JudgeState } from '@/lib/judging';
+import { useT } from '@/lib/i18n/client';
 import { JUDGE_POLL_MS, type PollMode } from '@/lib/poll-intervals';
 
 export type SaveStatus = 'saved' | 'saving' | 'retrying';
@@ -107,6 +108,7 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
     pinNeededRef.current = true;
     setPinNeeded(true);
   }, []);
+  const t = useT();
   const [submitting, setSubmitting] = useState(false);
   // Which database answers: the local server is asked every second.
   const [mode, setMode] = useState<PollMode>(initial.mode);
@@ -303,7 +305,7 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
     try {
       for (let waited = 0; queue.current.length > 0 || draining.current; waited += 200) {
         if (waited >= 15000) {
-          setError('Your notes are still saving. Try again in a moment.');
+          setError(t.judging.stillSaving);
           return false;
         }
         await sleep(200);
@@ -320,7 +322,7 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
       await poll();
       return true;
     } catch {
-      setError('Could not submit. Check the connection and try again.');
+      setError(t.judging.couldNotSubmit);
       return false;
     } finally {
       setSubmitting(false);
@@ -347,7 +349,7 @@ export function useJudgeNotes(eventId: string, playerId: string, categoryType: s
       await poll();
       return true;
     } catch {
-      setError('Could not submit. Check the connection and try again.');
+      setError(t.judging.couldNotSubmit);
       return false;
     } finally {
       setSubmitting(false);

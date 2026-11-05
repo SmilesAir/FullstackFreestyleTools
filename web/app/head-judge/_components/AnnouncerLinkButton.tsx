@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import { ensureAnnouncerLink } from '@/lib/head-judge-actions';
+import { useT } from '@/lib/i18n/client';
 
 // Copies the event's unlisted Announcer link (/a/<code>): the pool on stage,
 // who is up and the routine timer, for an announcer without an account. The
 // link is shown too, for when the browser blocks the clipboard.
 export function AnnouncerLinkButton({ eventId }: { eventId: string }) {
+  const t = useT();
   const [url, setUrl] = useState<string | null>(null);
   const [state, setState] = useState<'idle' | 'working' | 'copied'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -16,10 +18,10 @@ export function AnnouncerLinkButton({ eventId }: { eventId: string }) {
     setError(null);
     let link = url;
     if (!link) {
-      const result = await ensureAnnouncerLink(eventId).catch(() => ({ error: 'Could not get a link', code: undefined }));
+      const result = await ensureAnnouncerLink(eventId).catch(() => ({ error: t.headJudge.couldNotGetLink, code: undefined }));
       if (result.error || !result.code) {
         setState('idle');
-        return setError(result.error ?? 'Could not get a link');
+        return setError(result.error ?? t.headJudge.couldNotGetLink);
       }
       link = `${window.location.origin}/a/${result.code}`;
       setUrl(link);
@@ -42,7 +44,7 @@ export function AnnouncerLinkButton({ eventId }: { eventId: string }) {
         disabled={state === 'working'}
         className="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-900 hover:bg-gray-100 disabled:opacity-50"
       >
-        {state === 'copied' ? 'Copied!' : state === 'working' ? 'Getting link…' : 'Copy announcer link'}
+        {state === 'copied' ? t.headJudge.copied : state === 'working' ? t.headJudge.gettingLink : t.headJudge.copyAnnouncerLink}
       </button>
       {url && (
         <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">

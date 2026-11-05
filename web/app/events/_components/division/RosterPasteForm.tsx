@@ -6,9 +6,11 @@ import { parseRosterText } from '@/lib/roster-parser';
 import { addRosterTeams } from '@/lib/event-creator-actions';
 import { applyResolution, completeTeams, slotCounts, toSlots, type Slot } from '@/lib/roster-review';
 import { TeamsReview } from './TeamsReview';
+import { useT } from '@/lib/i18n/client';
 
 export function RosterPasteForm({ divisionId }: { divisionId: string }) {
   const router = useRouter();
+  const t = useT();
   const [text, setText] = useState('');
   const [teams, setTeams] = useState<Slot[][] | null>(null);
   const [unparsed, setUnparsed] = useState<string[]>([]);
@@ -42,7 +44,7 @@ export function RosterPasteForm({ divisionId }: { divisionId: string }) {
         setError(result.error);
         return;
       }
-      setNotice(`Added ${result.added} team(s)${skipped ? `; skipped ${skipped} with unresolved players` : ''}.`);
+      setNotice(t.events.addedRoster(result.added ?? 0, skipped));
       setTeams(null);
       setUnparsed([]);
       setText('');
@@ -65,7 +67,7 @@ export function RosterPasteForm({ divisionId }: { divisionId: string }) {
         disabled={parsing || !text.trim()}
         className="self-start rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
-        {parsing ? 'Parsing with Claude…' : 'Parse with Claude'}
+        {parsing ? t.events.parsing : t.events.parse}
       </button>
       {error && <p className="text-sm text-red-600">{error}</p>}
       {notice && <p className="text-sm text-green-700">{notice}</p>}
@@ -73,15 +75,15 @@ export function RosterPasteForm({ divisionId }: { divisionId: string }) {
       {teams && (
         <div className="flex flex-col gap-3 rounded border border-gray-300 p-3">
           <p className="text-sm">
-            <strong>{teams.length}</strong> team(s) found — <span className="text-green-700">{counts.matched} matched</span>
-            {counts.created > 0 && <span className="text-green-700">, {counts.created} created</span>},{' '}
+            <strong>{teams.length}</strong> {t.events.teamsFoundRoster} <span className="text-green-700">{t.events.matched(counts.matched)}</span>
+            {counts.created > 0 && <span className="text-green-700">{t.events.created(counts.created)}</span>},{' '}
             <span className={counts.review ? 'font-medium text-amber-700' : ''}>{counts.review} need review</span>,{' '}
             <span className={counts.unresolved ? 'font-medium text-red-700' : ''}>{counts.unresolved} new player(s)</span>
           </p>
 
           {unparsed.length > 0 && (
             <div className="rounded border border-amber-300 bg-amber-50 p-2 text-sm">
-              <div className="font-medium text-amber-800">Couldn&apos;t parse these lines:</div>
+              <div className="font-medium text-amber-800">{t.events.couldntParse}</div>
               <ul className="list-disc pl-5 text-amber-900">
                 {unparsed.map((line, i) => (
                   <li key={i}>{line}</li>
@@ -100,13 +102,13 @@ export function RosterPasteForm({ divisionId }: { divisionId: string }) {
               disabled={saving || teams.length === 0}
               className="rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              {saving ? 'Adding…' : 'Add teams'}
+              {saving ? t.events.adding : t.events.addTeams}
             </button>
             <button type="button" onClick={() => setTeams(null)} className="rounded border border-gray-300 px-3 py-2 text-sm">
-              Discard
+              {t.events.discard}
             </button>
           </div>
-          <p className="text-xs text-gray-500">Teams with any unresolved player are skipped.</p>
+          <p className="text-xs text-gray-500">{t.events.skippedNoteRoster}</p>
         </div>
       )}
     </div>

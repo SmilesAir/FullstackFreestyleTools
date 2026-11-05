@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { updateEventInfo } from '@/lib/event-editor-actions';
+import { useT } from '@/lib/i18n/client';
 
 export type EventInfoPatch = { event_name: string; start_date: string; end_date: string };
 
@@ -22,6 +23,7 @@ export function EventInfoEditor({
   summary: string;
   onChange: (patch: EventInfoPatch) => void;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(name);
   const [draftStart, setDraftStart] = useState(startDate);
@@ -64,7 +66,7 @@ export function EventInfoEditor({
           onClick={startEditing}
           className="shrink-0 rounded border border-gray-300 px-2 py-1 text-sm hover:bg-gray-50"
         >
-          Edit
+          {t.common.edit}
         </button>
       </div>
     );
@@ -73,7 +75,7 @@ export function EventInfoEditor({
   return (
     <form onSubmit={save} className="flex flex-col gap-2">
       <label className="flex flex-col gap-1 text-sm">
-        <span className="text-gray-600">Event name</span>
+        <span className="text-gray-600">{t.eventEditor.eventName}</span>
         <input
           value={draftName}
           onChange={(e) => setDraftName(e.target.value)}
@@ -84,7 +86,7 @@ export function EventInfoEditor({
       </label>
       <div className="flex gap-2">
         <label className="flex flex-1 flex-col gap-1 text-sm">
-          <span className="text-gray-600">Start</span>
+          <span className="text-gray-600">{t.events.start}</span>
           <input
             type="date"
             value={draftStart}
@@ -94,7 +96,7 @@ export function EventInfoEditor({
           />
         </label>
         <label className="flex flex-1 flex-col gap-1 text-sm">
-          <span className="text-gray-600">End</span>
+          <span className="text-gray-600">{t.events.end}</span>
           <input
             type="date"
             value={draftEnd}
@@ -112,7 +114,7 @@ export function EventInfoEditor({
           disabled={pending}
           className="rounded bg-black px-3 py-1 text-sm text-white disabled:opacity-50"
         >
-          {pending ? 'Saving…' : 'Save'}
+          {pending ? t.common.saving : t.common.save}
         </button>
         <button
           type="button"
@@ -120,7 +122,7 @@ export function EventInfoEditor({
           disabled={pending}
           className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50"
         >
-          Cancel
+          {t.common.cancel}
         </button>
       </div>
     </form>

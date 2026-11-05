@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { registerSupportChat } from './support-chat-ask';
+import { useT } from '@/lib/i18n/client';
 
 type Message = { role: 'user' | 'assistant'; content: string };
 type Position = { x: number; y: number };
@@ -39,24 +40,16 @@ function writeJson(storage: () => Storage, key: string, value: unknown) {
 // The tech support chat: a button in the corner that opens a box to ask Claude
 // how to use the tools. The box can be dragged by its title bar and stays inside
 // the window. Answers stream in as they are written.
-// What the box says on each page: the Judging Trainer's chat explains judging
-// rather than the tools.
-const TEXT = {
-  support: {
-    title: 'Tech support',
-    intro:
-      'Ask how to do something with these tools or how to run your event. For example: “How do I publish a pool’s results?” or “A judge’s screen isn’t updating.”',
-  },
-  trainer: {
-    title: 'Fpa2027 help',
-    intro:
-      'Ask how Fpa2027 judging and scoring work. For example: “How is the Difficulty baseline worked out?” or “What does +10% do to my score?”',
-  },
-};
 
 export function SupportChat({ page }: { page: 'head-judge' | 'events' | 'judging-trainer' }) {
   const chatKey = page === 'judging-trainer' ? TRAINER_CHAT_KEY : CHAT_KEY;
-  const text = page === 'judging-trainer' ? TEXT.trainer : TEXT.support;
+  const t = useT();
+  // What the box says on each page: the Judging Trainer's chat explains judging
+  // rather than the tools.
+  const text =
+    page === 'judging-trainer'
+      ? { title: t.supportChat.trainerTitle, intro: t.supportChat.trainerIntro }
+      : { title: t.supportChat.supportTitle, intro: t.supportChat.supportIntro };
   const [open, setOpen] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -194,7 +187,7 @@ export function SupportChat({ page }: { page: 'head-judge' | 'events' | 'judging
         // Not asked after all: put the question back to try again.
         setMessages(before);
         setInput(question);
-        setError(data?.error ?? 'Something went wrong. Try again.');
+        setError(data?.error ?? t.supportChat.somethingWrong);
         return;
       }
       const reader = response.body.getReader();
@@ -212,13 +205,13 @@ export function SupportChat({ page }: { page: 'head-judge' | 'events' | 'judging
       else {
         setMessages(before);
         setInput(question);
-        setError('No answer came back. Try again.');
+        setError(t.supportChat.noAnswer);
       }
     } catch {
       if (controller.signal.aborted) return;
       setMessages(before);
       setInput(question);
-      setError("Couldn't reach the server. Check the connection and try again.");
+      setError(t.supportChat.couldntReachServer);
     } finally {
       if (request.current === controller) {
         request.current = null;
@@ -251,7 +244,7 @@ export function SupportChat({ page }: { page: 'head-judge' | 'events' | 'judging
     <div
       ref={panel}
       role="dialog"
-      aria-label={`${text.title} chat`}
+      aria-label={t.supportChat.chat(text.title)}
       onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
       style={position ? { left: position.x, top: position.y } : { right: 16, bottom: 16 }}
       className="fixed z-50 flex h-[min(34rem,calc(100dvh-1rem))] w-[min(24rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-lg border border-gray-300 bg-background shadow-2xl print:hidden"
@@ -270,12 +263,12 @@ export function SupportChat({ page }: { page: 'head-judge' | 'events' | 'judging
           disabled={messages.length === 0 && !busy}
           className="ml-auto cursor-pointer rounded px-2 py-0.5 text-xs hover:bg-blue-500 disabled:cursor-default disabled:opacity-50"
         >
-          New chat
+          {t.supportChat.newChat}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          aria-label="Close"
+          aria-label={t.common.close}
           className="cursor-pointer rounded px-2 text-lg leading-none hover:bg-blue-500"
         >
           ×
@@ -293,7 +286,7 @@ export function SupportChat({ page }: { page: 'head-judge' | 'events' | 'judging
               m.role === 'user' ? 'self-end bg-blue-600 text-white' : 'self-start bg-gray-100 text-gray-900'
             }`}
           >
-            {m.content || (busy && i === messages.length - 1 ? <span className="text-gray-500">Thinking…</span> : null)}
+            {m.content || (busy && i === messages.length - 1 ? <span className="text-gray-500">{t.supportChat.thinking}</span> : null)}
           </div>
         ))}
       </div>
@@ -319,7 +312,7 @@ export function SupportChat({ page }: { page: 'head-judge' | 'events' | 'judging
           }}
           rows={2}
           maxLength={2000}
-          placeholder="Ask a question…"
+          placeholder={t.supportChat.askPlaceholder}
           className="max-h-32 min-h-10 flex-1 resize-y rounded border border-gray-300 bg-background px-2 py-1 text-sm"
         />
         <button
@@ -327,11 +320,11 @@ export function SupportChat({ page }: { page: 'head-judge' | 'events' | 'judging
           disabled={busy || !input.trim()}
           className="cursor-pointer rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-default disabled:opacity-50"
         >
-          Send
+          {t.supportChat.send}
         </button>
       </form>
       <p className="px-3 pb-2 text-[11px] leading-snug text-gray-500">
-        Answers are from Claude and can be wrong. Chats are kept 90 days so admins can improve this help.
+        {t.supportChat.disclaimer}
       </p>
     </div>
   );

@@ -7,6 +7,7 @@ import { disconnectLogin, isOAuthProvider, setConnectIntent } from './auth-login
 import { pool } from './db';
 import { isUniqueViolation } from './db-errors';
 import { sendDiscordDM } from './discord';
+import { getT } from './i18n/server';
 
 export type ActionState = { error: string | null };
 
@@ -19,7 +20,8 @@ async function currentUserId(): Promise<string> {
 export async function linkPlayer(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const userId = await currentUserId();
   const playerId = String(formData.get('player_id') ?? '').trim();
-  if (!playerId) return { error: 'Pick a player to link' };
+  const t = await getT();
+  if (!playerId) return { error: t.profile.pickPlayer };
 
   try {
     // If the selected player is itself an alias (a duplicate entry), link to
@@ -33,8 +35,8 @@ export async function linkPlayer(_prevState: ActionState, formData: FormData): P
     await pool.query('UPDATE users SET player_id = $1 WHERE id = $2', [targetId, userId]);
     return { error: null };
   } catch (err) {
-    if (isUniqueViolation(err)) return { error: 'That player is already linked to another account.' };
-    return { error: err instanceof Error ? err.message : 'Failed to link player' };
+    if (isUniqueViolation(err)) return { error: t.profile.playerTaken };
+    return { error: err instanceof Error ? err.message : t.profile.linkFailed };
   }
 }
 
@@ -50,7 +52,7 @@ export async function connectSignIn(provider: string): Promise<void> {
 
 export async function disconnectSignIn(provider: string): Promise<ActionState> {
   const userId = await currentUserId();
-  if (!isOAuthProvider(provider)) return { error: 'Unknown sign-in' };
+  if (!isOAuthProvider(provider)) return { error: (await getT()).profile.unknownSignIn };
   const error = await disconnectLogin(userId, provider);
   if (!error) revalidatePath('/profile');
   return { error };
@@ -67,12 +69,7 @@ export async function setDiscordId(_prevState: ActionState, formData: FormData):
   const userId = await currentUserId();
   const raw = String(formData.get('discord_id') ?? '').trim();
 
-  if (raw && !DISCORD_ID_RE.test(raw)) {
-    return {
-      error:
-        'That doesn\'t look like a Discord user ID — it should be a numeric ID (enable Developer Mode in Discord, then right-click your name → Copy User ID).',
-    };
-  }
+  if (raw && !DISCORD_ID_RE.test(raw)) return { error: (await getT()).profile.badDiscordId };
 
   await pool.query('UPDATE users SET discord_id = $1 WHERE id = $2', [raw || null, userId]);
   return { error: null };
@@ -95,21 +92,20 @@ export async function sendTestDiscordDM(): Promise<ActionState> {
     [userId]
   );
   const row = result.rows[0];
-  if (!row?.discord_id) return { error: 'Set your Discord ID first.' };
+  const t = await getT();
+  if (!row?.discord_id) return { error: t.profile.setDiscordFirst };
 
-  const lines = [
-    'This is a test message from Fullstack Freestyle Tools — if you got this, Discord notifications are working!',
-  ];
+  const lines = [t.discord.testDm];
 
   if (row.first_name) {
     lines.push('');
-    lines.push('Linked player:');
+    lines.push(t.discord.testDmLinkedPlayer);
     lines.push(`${row.first_name} ${row.last_name}`);
     const details = [row.country, row.membership ? `FPA# ${row.membership}` : null].filter(Boolean).join(' · ');
     if (details) lines.push(details);
   } else {
     lines.push('');
-    lines.push("(No player linked yet — you can link one on your profile page.)");
+    lines.push(t.discord.testDmNoPlayer);
   }
 
   const sent = await sendDiscordDM(row.discord_id, lines.join('\n'));

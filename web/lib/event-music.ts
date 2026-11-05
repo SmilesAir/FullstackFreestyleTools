@@ -35,5 +35,5 @@ export const songKind = (music: TeamMusic): string => {
 };
 
 // "MP3 · song.mp3", "YouTube", "Spotify"
-export const songLabel = (music: TeamMusic): string =>
-  music.fileUrl ? `MP3 · ${music.fileName ?? 'file'}` : songKind(music);
+export const songLabel = (music: TeamMusic, file = 'file'): string =>
+  music.fileUrl ? `MP3 · ${music.fileName ?? file}` : songKind(music);

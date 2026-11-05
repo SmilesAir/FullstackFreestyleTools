@@ -3,6 +3,7 @@
 import { DIVISION_NAMES } from '@/lib/event-creator';
 import type { HeadJudgeDivision } from '@/lib/head-judge';
 import type { TeamSongs } from '@/lib/event-music';
+import { useT } from '@/lib/i18n/client';
 
 // The event's pools as buttons, laid out like the Head Judge's Results tab (one
 // column per division, one row per round), each saying how many of its teams
@@ -20,8 +21,9 @@ export function MusicPoolGrid({
   playingKey: string | null;
   onSelect: (key: string) => void;
 }) {
+  const t = useT();
   const withPools = divisions.filter((d) => d.rounds.length > 0);
-  if (withPools.length === 0) return <p className="text-sm text-gray-500">No pools set up yet.</p>;
+  if (withPools.length === 0) return <p className="text-sm text-gray-500">{t.eventMusic.noPoolsYet}</p>;
 
   // The standard divisions this event has, in their usual order, then any others.
   const standard = DIVISION_NAMES.flatMap((name) => withPools.filter((d) => d.name === name));
@@ -29,8 +31,8 @@ export function MusicPoolGrid({
   const columns = [...standard, ...others];
 
   // Rounds that any division has, in playing order (earliest round first).
-  const rounds = [...new Map(withPools.flatMap((d) => d.rounds).map((r) => [r.number, r.name])).entries()]
-    .map(([number, name]) => ({ number, name }))
+  const rounds = [...new Set(withPools.flatMap((d) => d.rounds).map((r) => r.number))]
+    .map((number) => ({ number, name: t.common.roundName(number) }))
     .sort((a, b) => b.number - a.number);
 
   return (
@@ -69,9 +71,9 @@ export function MusicPoolGrid({
                             }`}
                           >
                             <span className="flex items-center gap-2 font-medium">
-                              Pool {p.letter}
+                              {t.common.pool(p.letter)}
                               {p.key === playingKey && (
-                                <span className="rounded bg-green-600 px-1.5 text-xs font-semibold text-white">Playing</span>
+                                <span className="rounded bg-green-600 px-1.5 text-xs font-semibold text-white">{t.eventMusic.playing}</span>
                               )}
                             </span>
                             <span
@@ -85,7 +87,7 @@ export function MusicPoolGrid({
                                     : 'text-amber-700'
                               }`}
                             >
-                              {missing === 0 ? '✓ All songs' : `${missing} of ${p.teams.length} missing`}
+                              {missing === 0 ? t.eventMusic.allSongs : t.eventMusic.missing(missing, p.teams.length)}
                             </span>
                           </button>
                         );

@@ -1,5 +1,6 @@
 import 'server-only';
 import { pool } from './db';
+import { getT } from './i18n/server';
 
 // A pool (division + round + pool letter, in its stored "poolA" form) is
 // locked exactly when its row in `pools` has locked = true; a missing row
@@ -53,7 +54,7 @@ export async function setPoolLockedRow(
        WHERE s.division_id = $1 AND s.round_number = $2 AND s.pool_id = $3 AND s.routine_started_at IS NOT NULL`,
       [divisionId, roundNumber, poolIdValue]
     );
-    if (running.rows.length > 0) return { error: 'A routine is running in this pool. Finish or cancel it before locking.' };
+    if (running.rows.length > 0) return { error: (await getT()).errors.routineRunningLock };
   }
   await pool.query(
     `INSERT INTO pools (division_id, round_number, pool_id, locked) VALUES ($1, $2, $3, $4)
@@ -63,4 +64,4 @@ export async function setPoolLockedRow(
   return { error: null };
 }
 
-export const POOL_LOCKED_ERROR = 'This pool is locked.';
+export const poolLockedError = async (): Promise<string> => (await getT()).errors.poolLocked;

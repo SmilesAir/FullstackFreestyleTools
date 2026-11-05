@@ -6,17 +6,18 @@ import { sortPoolTeams } from './event-creator-layout';
 import { getPoolResults } from './head-judge-queries';
 import { roundName, type HeadJudgeJudge, type HeadJudgeTeam } from './head-judge';
 import type { PoolResultsData } from './head-judge-results';
-import { NOTE_CATEGORIES, JUDGING_CATEGORIES, type NoteCategory } from './judging';
+import { NOTE_CATEGORIES, type NoteCategory } from './judging';
 import { isPoolResultsPublished } from './pool-publish';
 import { getOrCreateShortCode } from './pool-shortlink';
 import { getSimpleRankingResults, type SimpleRankingResultsRow } from './simple-ranking-queries';
+import { getT } from './i18n/server';
 
 // The public results page's only data source: no permission check anywhere
 // here, and the anonymization for a published Fpa2027 pool happens here, on
 // the server, so a real judge name or id is never read into a value that
 // reaches the page.
 
-const categoryLabel = (category: NoteCategory) => JUDGING_CATEGORIES.find((c) => c.type === category)!.label;
+
 
 export type PoolNavEntry = { letter: string };
 export type RoundNavEntry = { number: number; name: string; pools: PoolNavEntry[] };
@@ -152,12 +153,13 @@ export async function getPublicPoolResults(
   // replace every one with a fake id and a "<Category> #n" name. The real
   // name and id are only ever read here, never placed in a value below.
   const idMap = new Map<string, string>();
+  const t = await getT();
   const judgesByCategory = NOTE_CATEGORIES.map((category) => {
     const real = realJudges.filter((j) => j.category_type === category).sort((a, b) => a.name.localeCompare(b.name));
     const anon: HeadJudgeJudge[] = real.map((j, i) => {
       const anonId = `anon-${category}-${i + 1}`;
       idMap.set(j.player_id, anonId);
-      return { playerId: anonId, name: `${categoryLabel(category)} #${i + 1}`, categoryType: category };
+      return { playerId: anonId, name: `${t.judging.category[category]} #${i + 1}`, categoryType: category };
     });
     return { category, judges: anon };
   }).filter((c) => c.judges.length > 0);

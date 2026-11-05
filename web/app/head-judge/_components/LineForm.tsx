@@ -20,6 +20,7 @@ import {
   validText,
   type Draft,
 } from './settingsDraft';
+import { useT } from '@/lib/i18n/client';
 
 // Difficulty's numberline on the Settings tab: its max (the numberline score at
 // the top; the bottom is 0) and the moves named on it. A move sits at a position from 0
@@ -36,6 +37,7 @@ export function LineForm({
   // Changes the whole draft (adding or removing a move).
   onChange: (change: (draft: Draft) => Draft) => void;
 }) {
+  const t = useT();
   const count = moveCount(draft);
   const max = Number(draft[LINE_MAX_KEY]);
   const maxValid = validText(draft, LINE_MAX_KEY);
@@ -43,15 +45,13 @@ export function LineForm({
 
   return (
     <div className="flex flex-col gap-3">
-      <h4 className="mt-2 font-medium">Difficulty numberline</h4>
+      <h4 className="mt-2 font-medium">{t.headJudge.numberline}</h4>
       <p className="text-sm text-gray-500">
-        The judge places each move on a vertical line with no numbers on it. A tap&apos;s numberline score is its
-        position (0 at the bottom, 1 at the top) times the max, then the rating&apos;s multiplier applies. Moves are
-        placed by position, so they stay put when the max changes.
+        {t.headJudge.numberlineHelp}
       </p>
 
       <div className="flex flex-wrap items-center gap-3">
-        <span className="w-52 text-sm font-medium">Numberline max (score at the top)</span>
+        <span className="w-52 text-sm font-medium">{t.headJudge.numberlineMax}</span>
         <input
           type="number"
           inputMode="decimal"
@@ -60,12 +60,12 @@ export function LineForm({
           max={MAX_LINE_MAX}
           value={draft[LINE_MAX_KEY]}
           onChange={(e) => onEdit(LINE_MAX_KEY, e.target.value)}
-          aria-label="Numberline max"
+          aria-label={t.headJudge.numberlineMaxLabel}
           aria-invalid={!maxValid}
           className={`w-28 ${field} ${maxValid ? 'border-gray-300' : 'border-red-500'}`}
         />
         <span className="text-sm text-gray-500">
-          default {defaults.Diff.line!.max}, range {MIN_LINE_MAX} to {MAX_LINE_MAX}
+          {t.headJudge.defaultRange(defaults.Diff.line!.max, MIN_LINE_MAX, MAX_LINE_MAX)}
         </span>
       </div>
 
@@ -81,8 +81,8 @@ export function LineForm({
                 value={draft[moveKey(i, 'name')]}
                 maxLength={MAX_MOVE_NAME}
                 onChange={(e) => onEdit(moveKey(i, 'name'), e.target.value)}
-                placeholder="Move name"
-                aria-label={`Move ${i + 1} name`}
+                placeholder={t.headJudge.moveName}
+                aria-label={t.headJudge.moveNameLabel(i + 1)}
                 aria-invalid={!nameValid}
                 className={`w-52 ${field} ${nameValid ? 'border-gray-300' : 'border-red-500'}`}
               />
@@ -94,19 +94,19 @@ export function LineForm({
                 max={1}
                 value={draft[moveKey(i, 'position')]}
                 onChange={(e) => onEdit(moveKey(i, 'position'), e.target.value)}
-                aria-label={`Move ${i + 1} position`}
+                aria-label={t.headJudge.movePositionLabel(i + 1)}
                 aria-invalid={!positionValid}
                 className={`w-28 ${field} ${positionValid ? 'border-gray-300' : 'border-red-500'}`}
               />
               <span className="text-sm text-gray-500">
-                {positionValid && maxValid ? `numberline score ${Math.round(position * max * 100) / 100}` : 'position 0 to 1'}
+                {positionValid && maxValid ? t.headJudge.numberlineScore(Math.round(position * max * 100) / 100) : t.headJudge.position01}
               </span>
               <button
                 type="button"
                 onClick={() => onChange((d) => removeMove(d, i))}
                 className="cursor-pointer text-sm text-gray-500 underline"
               >
-                Remove
+                {t.headJudge.remove}
               </button>
             </li>
           );
@@ -120,7 +120,7 @@ export function LineForm({
           disabled={count >= MAX_MOVES}
           className="cursor-pointer rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Add a move
+          {t.headJudge.addMove}
         </button>
       </div>
     </div>

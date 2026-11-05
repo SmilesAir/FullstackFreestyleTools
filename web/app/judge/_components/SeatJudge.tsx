@@ -8,6 +8,7 @@ import { JUDGE_POLL_MS, type PollMode } from '@/lib/poll-intervals';
 import { IDLE_MS } from './useJudgeNotes';
 import { NotesJudge } from './NotesJudge';
 import { PinPad } from './PinPad';
+import { useT } from '@/lib/i18n/client';
 
 type Holder = { playerId: string; name: string; initial: JudgeState };
 
@@ -32,6 +33,7 @@ export function SeatJudge({
   initialTab: string;
   initial: Holder | null;
 }) {
+  const t = useT();
   // `shown` is the judge on screen; `next` the one to switch to once the shown
   // one's presses are all saved (undefined = no switch waiting; null = the seat
   // is now empty).
@@ -104,14 +106,11 @@ export function SeatJudge({
     return (
       <main className="mx-auto mt-24 max-w-sm px-4 text-center">
         <h1 className="mb-2 text-xl font-semibold">
-          {categoryLabel} seat {seat}
+          {t.judging.seatTitle(categoryLabel, seat)}
         </h1>
-        <p className="text-sm text-gray-500">
-          Nobody is in this seat in the pool that is playing. Keep this screen open: it switches to the judge as soon as
-          the head judge sets a pool with one.
-        </p>
+        <p className="text-sm text-gray-500">{t.judging.emptySeat}</p>
         {pinNeeded && (
-          <PinPad eventId={eventId} judgeName={`Seat ${seat}`} categoryLabel={categoryLabel} onUnlocked={() => setPinNeeded(false)} />
+          <PinPad eventId={eventId} judgeName={t.judging.seat(seat)} categoryLabel={categoryLabel} onUnlocked={() => setPinNeeded(false)} />
         )}
       </main>
     );

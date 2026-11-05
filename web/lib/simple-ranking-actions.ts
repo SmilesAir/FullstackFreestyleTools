@@ -2,8 +2,9 @@
 
 import { requirePermission } from './authz';
 import { poolId } from './event-creator';
-import { isPoolLocked, POOL_LOCKED_ERROR } from './pool-locks';
+import { isPoolLocked, poolLockedError } from './pool-locks';
 import { deleteBallots, getPlayingSimpleRankingPool, saveBallot } from './simple-ranking-queries';
+import { getT } from './i18n/server';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // The judge screen makes this up once and keeps it in localStorage.
@@ -17,18 +18,19 @@ export async function submitSimpleRanking(
   judgeToken: string,
   ranking: string[]
 ): Promise<{ error: string | null }> {
-  if (!UUID.test(eventId) || !TOKEN.test(judgeToken)) return { error: 'Invalid request' };
+  const t = await getT();
+  if (!UUID.test(eventId) || !TOKEN.test(judgeToken)) return { error: t.judging.invalidRequest };
 
   const playing = await getPlayingSimpleRankingPool(eventId);
-  if (!playing) return { error: "This pool isn't playing anymore. Reload to see what's current." };
+  if (!playing) return { error: t.judging.poolNotPlaying };
   if (await isPoolLocked(playing.divisionId, playing.roundNumber, poolId(playing.poolLetter))) {
-    return { error: POOL_LOCKED_ERROR };
+    return { error: await poolLockedError() };
   }
 
   const teamIds = playing.teams.map((t) => t.id);
   const seen = new Set(ranking);
   if (seen.size !== ranking.length || ranking.length !== teamIds.length || !teamIds.every((id) => seen.has(id))) {
-    return { error: "That ranking doesn't match the current teams. Reload and try again." };
+    return { error: t.judging.rankingMismatch };
   }
 
   await saveBallot(eventId, playing.divisionId, playing.roundNumber, playing.poolLetter, judgeToken, ranking);
@@ -43,7 +45,7 @@ export async function clearSimpleRankings(
   poolLetter: string
 ): Promise<{ error: string | null; removed?: number }> {
   await requirePermission('head_judge');
-  if (await isPoolLocked(divisionId, roundNumber, poolId(poolLetter))) return { error: POOL_LOCKED_ERROR };
+  if (await isPoolLocked(divisionId, roundNumber, poolId(poolLetter))) return { error: await poolLockedError() };
   const removed = await deleteBallots(divisionId, roundNumber, poolLetter);
   return { error: null, removed };
 }

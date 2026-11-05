@@ -5,17 +5,20 @@ import type { PermissionGroup, UserAccess } from '@/lib/permissions-queries';
 import { createUser, setUserAccess, type ActionState } from '@/lib/permissions-actions';
 import { isPlaceholderEmail } from '@/lib/oauth-placeholder';
 import { useRefreshOnSuccess } from '../../_components/useRefreshOnSuccess';
+import { useT } from '@/lib/i18n/client';
+import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 // What to show for this account: its email, unless that's the placeholder synthesized for
 // a Discord sign-in with no email of its own (lib/oauth-placeholder.ts) - then its Discord
 // username if we have one, or a plain fallback label.
-function userLabel(user: UserAccess): string {
+function userLabel(t: Dictionary, user: UserAccess): string {
   if (!isPlaceholderEmail(user.email)) return user.email;
-  return user.discord_username ? `${user.discord_username} (Discord, no email)` : 'Discord sign-in (no email)';
+  return user.discord_username ? t.admin.discordNoEmail(user.discord_username) : t.admin.discordSignIn;
 }
 
 function NewUserForm() {
   const [state, formAction, pending] = useActionState(createUser, { error: null });
+  const t = useT();
   // On success: refresh the list, and remount the form (via key) for a fresh, empty one.
   const [formKey, setFormKey] = useState(0);
   const wasPending = useRef(false);
@@ -30,14 +33,14 @@ function NewUserForm() {
       <input
         name="email"
         type="email"
-        placeholder="Email"
+        placeholder={t.admin.email}
         required
         className="rounded border border-gray-300 px-3 py-2 text-sm"
       />
       <input
         name="password"
         type="password"
-        placeholder="Temporary password (min 8 characters)"
+        placeholder={t.admin.tempPassword}
         required
         minLength={8}
         className="rounded border border-gray-300 px-3 py-2 text-sm"
@@ -48,24 +51,25 @@ function NewUserForm() {
         disabled={pending}
         className="self-start rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
-        {pending ? 'Creating…' : 'Create user'}
+        {pending ? t.admin.creating : t.admin.createUser}
       </button>
     </form>
   );
 }
 
 function UserRow({ user, groups }: { user: UserAccess; groups: PermissionGroup[] }) {
+  const t = useT();
   const boundUpdate = (prevState: ActionState, formData: FormData) => setUserAccess(user.id, prevState, formData);
   const [state, formAction, pending] = useActionState(boundUpdate, { error: null });
   useRefreshOnSuccess(state.error, pending);
 
   return (
     <form action={formAction} className="flex flex-col gap-2 rounded border border-gray-300 p-3">
-      <div className="font-medium">{userLabel(user)}</div>
+      <div className="font-medium">{userLabel(t, user)}</div>
 
       <label className="flex items-center gap-1 text-sm">
         <input type="checkbox" name="is_admin" defaultChecked={user.is_admin} />
-        Admin (access to everything)
+        {t.admin.adminAccess}
       </label>
 
       {groups.length > 0 && (
@@ -91,32 +95,33 @@ function UserRow({ user, groups }: { user: UserAccess; groups: PermissionGroup[]
         disabled={pending}
         className="self-start rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
-        {pending ? 'Saving…' : 'Save'}
+        {pending ? t.common.saving : t.common.save}
       </button>
     </form>
   );
 }
 
 export function UsersSection({ users, groups }: { users: UserAccess[]; groups: PermissionGroup[] }) {
+  const t = useT();
   const [search, setSearch] = useState('');
   const query = search.trim().toLowerCase();
   const filtered = query
-    ? users.filter((u) => userLabel(u).toLowerCase().includes(query) || u.email.toLowerCase().includes(query))
+    ? users.filter((u) => userLabel(t, u).toLowerCase().includes(query) || u.email.toLowerCase().includes(query))
     : users;
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">Users</h2>
+      <h2 className="text-lg font-semibold">{t.admin.users}</h2>
       <NewUserForm />
       <input
         type="search"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search users by email or Discord username…"
+        placeholder={t.admin.searchUsers}
         className="rounded border border-gray-300 px-3 py-2 text-sm"
       />
       {filtered.length === 0 ? (
-        <p className="text-sm text-gray-500">No users match &ldquo;{search}&rdquo;.</p>
+        <p className="text-sm text-gray-500">{t.admin.noUsersMatch(search)}</p>
       ) : (
         filtered.map((u) => <UserRow key={u.id} user={u} groups={groups} />)
       )}

@@ -17,6 +17,8 @@ import { graphDuration, noteScores } from "./noteScores";
 import { DifficultyPlay } from "./DifficultyPlay";
 import { ScoreDialog } from "./ScoreDialog";
 import { useOtherCurves } from "./useOtherCurves";
+import { useT } from "@/lib/i18n/client";
+import { noteFullLabel, noteGroupLabel, noteLabel } from "@/lib/i18n/labels";
 
 // A note-taking judge's Play tab: a row of buttons per note (best first for
 // Execution; by area, under its heading, for Artistic Impression).
@@ -68,6 +70,7 @@ export function NotesPlay({
   canEnterScore?: boolean;
 }) {
   const running = state.routineStartedAt !== null;
+  const t = useT();
 
   // Redraw the timer while a routine is running; the time itself comes from the
   // start time, so it is right whenever it's drawn.
@@ -138,6 +141,7 @@ export function NotesPlay({
       category,
       state.routineSeconds,
       state.secondsPerScore,
+      t,
     );
     const { baseline, unrestricted } = estimatesOf(
       points,
@@ -155,6 +159,7 @@ export function NotesPlay({
     state.routineSeconds,
     state.estimate,
     state.secondsPerScore,
+    t,
   ]);
 
   // Seven rows (Artistic Impression) get a lower floor than five, so they fit a phone.
@@ -162,25 +167,25 @@ export function NotesPlay({
     CATEGORY_NOTES[category].length > 5 ? "min-h-14" : "min-h-20";
 
   const waiting = !state.poolTitle
-    ? "No pool is playing yet."
+    ? t.judging.noPoolPlaying
     : !state.teamName
-      ? "Waiting for the head judge to choose the team."
+      ? t.judging.waitingForTeam
       : !running
         ? state.judgesReadyAt !== null
-          ? "Get ready: the routine is about to start. Your taps are kept."
-          : "Starting any moment — go ahead, your taps are kept."
+          ? t.judging.getReady
+          : t.judging.startingSoon
         : null;
 
   return (
     <div className="flex w-full flex-1 flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 text-[14.4px] font-bold leading-tight">
-          {state.teamName ?? "(no team up)"}
+          {state.teamName ?? t.judging.noTeamUp}
         </div>
         <div className="flex items-center gap-2">
           {submitted && state.submitted && (
             <span className="text-sm font-medium text-green-700">
-              Score submitted: {state.submitted.score}
+              {t.judging.scoreSubmitted(state.submitted.score)}
             </span>
           )}
           {/* A fixed-size dot, so saving never changes the layout. */}
@@ -188,9 +193,9 @@ export function NotesPlay({
             aria-hidden
             title={
               saveStatus === "saving"
-                ? "Saving"
+                ? t.judging.saving
                 : saveStatus === "retrying"
-                  ? "Not saved yet, retrying"
+                  ? t.judging.notSavedRetrying
                   : ""
             }
             className={`h-2.5 w-2.5 rounded-full ${
@@ -236,7 +241,7 @@ export function NotesPlay({
             >
               {group.heading && (
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-                  {group.heading}
+                  {noteGroupLabel(t, group.heading)}
                 </h3>
               )}
               <div className="flex flex-1 flex-col gap-3">
@@ -251,7 +256,7 @@ export function NotesPlay({
                         type="button"
                         disabled={!canNote || count === 0}
                         onClick={() => onRemove(note.type)}
-                        aria-label={`Remove one ${note.fullLabel}`}
+                        aria-label={t.judging.removeOne(noteFullLabel(t, note.type))}
                         className={`w-28 shrink-0 cursor-pointer rounded-xl text-3xl font-bold transition active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-30 disabled:active:scale-100 ${NOTE_TINT[note.type]}`}
                       >
                         −
@@ -262,7 +267,7 @@ export function NotesPlay({
                         onClick={() => onNote(note.type)}
                         className={`flex flex-1 cursor-pointer items-center justify-between gap-4 rounded-xl px-6 text-left text-2xl font-bold shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 ${NOTE_STYLE[note.type]}`}
                       >
-                        <span>{note.label}</span>
+                        <span>{noteLabel(t, note.type)}</span>
                         <span className="min-w-8 text-right font-mono text-xl tabular-nums opacity-80">
                           {count > 0 ? `×${count}` : ""}
                         </span>
@@ -288,7 +293,7 @@ export function NotesPlay({
               onClick={() => setDialogFor(routineKey)}
               className="attention-pulse fixed inset-x-0 top-(--judge-top-offset,0px) z-30 h-28 cursor-pointer rounded-b-2xl bg-blue-600 text-3xl font-bold text-white"
             >
-              Enter Score
+              {t.judging.enterScore}
             </button>
           )}
           <ScoreDialog

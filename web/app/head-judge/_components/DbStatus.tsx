@@ -5,6 +5,10 @@ import { useSearchParams } from 'next/navigation';
 import QRCode from 'qrcode';
 import type { DbStatus as Status, Ping } from '@/lib/db-diagnostics';
 import { fetchJson } from '@/lib/fetch-json';
+import { useLocale, useT } from '@/lib/i18n/client';
+import type { Dictionary } from '@/lib/i18n/dictionaries';
+import { formatDateTime } from '@/lib/i18n/format';
+import type { Locale } from '@/lib/i18n/locales';
 
 // Which database the server is using, how healthy each is, and the switch
 // between the head judge's local server and Postgres (Neon). A small pill next
@@ -19,15 +23,15 @@ const SETUP_DOCS = 'https://github.com/SmilesAir/FullstackFreestyleTools/blob/ma
 const dotOf = (ping: Ping | null | undefined) =>
   !ping || !ping.ok ? 'bg-red-500' : ping.ms !== null && ping.ms > SLOW_MS ? 'bg-amber-500' : 'bg-green-500';
 
-const pingText = (ping: Ping | null | undefined) => (ping?.ok ? `${ping.ms} ms` : 'No answer');
+const pingText = (t: Dictionary, ping: Ping | null | undefined) => (ping?.ok ? `${ping.ms} ms` : t.db.noAnswer);
 
-function ago(at: number | null, now: number): string {
-  if (at === null) return 'never';
+function ago(t: Dictionary, locale: Locale, at: number | null, now: number): string {
+  if (at === null) return t.db.never;
   const seconds = Math.max(0, Math.round((now - at) / 1000));
-  if (seconds < 5) return 'just now';
-  if (seconds < 90) return `${seconds} s ago`;
-  if (seconds < 5400) return `${Math.round(seconds / 60)} min ago`;
-  return new Date(at).toLocaleString();
+  if (seconds < 5) return t.db.justNow;
+  if (seconds < 90) return t.db.secondsAgo(seconds);
+  if (seconds < 5400) return t.db.minutesAgo(Math.round(seconds / 60));
+  return formatDateTime(locale, at);
 }
 
 function Qr({ text }: { text: string }) {
@@ -51,6 +55,8 @@ function Qr({ text }: { text: string }) {
 
 export function DbStatus() {
   const eventId = useSearchParams().get('event');
+  const t = useT();
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [lite, setLite] = useState<Lite | null>(null);
   const [full, setFull] = useState<Status | null>(null);
@@ -147,7 +153,7 @@ export function DbStatus() {
       const json: { ok?: boolean; message?: string; needsConfirm?: boolean } = await response.json();
       return json;
     } catch {
-      return { ok: false, message: 'No answer from the server.' } as { ok?: boolean; message?: string; needsConfirm?: boolean };
+      return { ok: false, message: t.db.noAnswerFromServer } as { ok?: boolean; message?: string; needsConfirm?: boolean };
     } finally {
       setBusy(null);
     }
@@ -157,7 +163,7 @@ export function DbStatus() {
 
   const switchTo = async (target: 'local' | 'remote', force = false) => {
     setConfirm(null);
-    const result = await post('/api/db/mode', { target, eventId: eventChoice || undefined, force }, target === 'local' ? 'Preparing the local server…' : 'Sending changes…');
+    const result = await post('/api/db/mode', { target, eventId: eventChoice || undefined, force }, target === 'local' ? t.db.preparingLocal : t.db.sendingChanges);
     if (result.needsConfirm) setConfirm({ text: result.message ?? '', target });
     else setNotice({ ok: Boolean(result.ok), text: result.message ?? '' });
     await read();
@@ -176,7 +182,7 @@ export function DbStatus() {
   const createDatabase = async () => {
     const body = { action: 'create', ...create };
     setCreate((c) => ({ ...c, adminPassword: '' }));
-    const result = await post('/api/db/local-config', body, 'Creating the database…');
+    const result = await post('/api/db/local-config', body, t.db.creatingDatabase);
     setUrlNotice({ ok: Boolean(result.ok), text: result.message ?? '' });
     if (result.ok) {
       setEditing(false);
@@ -196,9 +202,9 @@ export function DbStatus() {
       className="flex items-center gap-1.5 rounded-full border border-gray-300 px-2.5 py-0.5 text-xs font-medium hover:bg-gray-50 dark:hover:bg-white/10"
     >
       <span aria-hidden className={`inline-block h-2 w-2 rounded-full ${dotOf(pillPing)}`} />
-      <span>{mode === 'local' ? 'Local' : 'Postgres'}</span>
-      <span className="font-normal tabular-nums text-gray-500">{lite ? pingText(pillPing) : '…'}</span>
-      {lite?.syncing && <span className="font-normal text-gray-500">· syncing</span>}
+      <span>{mode === 'local' ? t.db.local : t.db.postgres}</span>
+      <span className="font-normal tabular-nums text-gray-500">{lite ? pingText(t, pillPing) : '…'}</span>
+      {lite?.syncing && <span className="font-normal text-gray-500">{t.db.syncingPill}</span>}
     </button>
   );
 
@@ -221,10 +227,10 @@ export function DbStatus() {
       {pill}
       {open && (
         <div className="absolute right-0 top-full z-40 mt-2 flex max-h-[80vh] w-[22rem] max-w-[calc(100vw-2rem)] flex-col gap-4 overflow-y-auto rounded-lg border border-gray-300 bg-background p-4 text-sm leading-normal shadow-lg">
-          {unreachable && <p className="rounded bg-red-50 px-2 py-1 text-xs text-red-800">The server isn&apos;t answering.</p>}
+          {unreachable && <p className="rounded bg-red-50 px-2 py-1 text-xs text-red-800">{t.db.serverNotAnswering}</p>}
 
           <section className="flex flex-col gap-2">
-            <h2 className={cellTitle}>Database in use</h2>
+            <h2 className={cellTitle}>{t.db.databaseInUse}</h2>
             <div className="grid grid-cols-2 gap-1 rounded border border-gray-300 p-1">
               {(['local', 'remote'] as const).map((target) => {
                 const active = mode === target;
@@ -239,7 +245,7 @@ export function DbStatus() {
                       active ? 'bg-blue-600 text-white' : 'cursor-pointer hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-white/10'
                     }`}
                   >
-                    {target === 'local' ? 'Local server' : 'Postgres (Neon)'}
+                    {target === 'local' ? t.db.localServer : t.db.postgresNeon}
                   </button>
                 );
               })}
@@ -250,7 +256,7 @@ export function DbStatus() {
               rel="noreferrer"
               className="text-xs text-blue-700 underline"
             >
-              How to set up the local Postgres server
+              {t.db.howToSetUp}
             </a>
             {busy && <p className="text-xs text-gray-500">{busy}</p>}
             {notice && <p className={`text-xs ${notice.ok ? 'text-green-700' : 'text-red-700'}`}>{notice.text}</p>}
@@ -263,30 +269,30 @@ export function DbStatus() {
                     onClick={() => void switchTo(confirm.target, true)}
                     className="cursor-pointer rounded bg-amber-600 px-2 py-1 font-medium text-white hover:bg-amber-700"
                   >
-                    Switch anyway
+                    {t.db.switchAnyway}
                   </button>
                   <button type="button" onClick={() => setConfirm(null)} className="cursor-pointer rounded border border-amber-600 px-2 py-1">
-                    Stay
+                    {t.db.stay}
                   </button>
                 </div>
               </div>
             )}
-            <p className="text-xs text-gray-500">Every screen switches at once: do it between routines.</p>
+            <p className="text-xs text-gray-500">{t.db.switchBetweenRoutines}</p>
           </section>
 
           {!full ? null : full.hosted ? (
             <p className="text-xs text-gray-500">
-              This is the hosted site. The local database is set on the laptop that runs the local server.
+              {t.db.hostedSite}
             </p>
           ) : (
             <section className="flex flex-col gap-2">
-              <h2 className={cellTitle}>Local database</h2>
+              <h2 className={cellTitle}>{t.db.localDatabase}</h2>
               {full?.localUrl && !editing ? (
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 text-xs">
                     <div className="break-all font-mono">{full.localUrl}</div>
                     <div className="text-gray-500">
-                      {full.localUrlSource === 'settings' ? 'Set here, kept on this computer.' : 'From LOCAL_DATABASE_URL.'}
+                      {full.localUrlSource === 'settings' ? t.db.setHere : t.db.fromEnv}
                     </div>
                   </div>
                   <button
@@ -298,7 +304,7 @@ export function DbStatus() {
                     }}
                     className="shrink-0 cursor-pointer rounded border border-gray-300 px-2 py-1 text-xs font-medium hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/10"
                   >
-                    Change
+                    {t.db.change}
                   </button>
                 </div>
               ) : (
@@ -316,18 +322,18 @@ export function DbStatus() {
                     <button
                       type="button"
                       disabled={busy !== null || !urlDraft.trim()}
-                      onClick={() => void configAction('test', 'Testing…')}
+                      onClick={() => void configAction('test', t.db.testing)}
                       className="cursor-pointer rounded border border-gray-300 px-2 py-1 text-xs font-medium hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/10"
                     >
-                      Test connection
+                      {t.db.testConnection}
                     </button>
                     <button
                       type="button"
                       disabled={busy !== null || mode === 'local' || !urlDraft.trim()}
-                      onClick={() => void configAction('save', 'Saving…')}
+                      onClick={() => void configAction('save', t.db.saving)}
                       className="cursor-pointer rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      Save
+                      {t.db.save}
                     </button>
                     {editing && (
                       <button
@@ -340,29 +346,28 @@ export function DbStatus() {
                         }}
                         className="cursor-pointer rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-white/10"
                       >
-                        Cancel
+                        {t.db.cancel}
                       </button>
                     )}
                     {editing && full?.localUrlSource === 'settings' && (
                       <button
                         type="button"
                         disabled={busy !== null || mode === 'local'}
-                        onClick={() => void configAction('clear', 'Removing…')}
+                        onClick={() => void configAction('clear', t.db.removing)}
                         className="cursor-pointer rounded border border-red-300 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        Remove
+                        {t.db.remove}
                       </button>
                     )}
                   </div>
                   <details className="rounded border border-gray-300 px-2 py-1.5">
-                    <summary className="cursor-pointer text-xs font-medium">Create the database and a login for me</summary>
+                    <summary className="cursor-pointer text-xs font-medium">{t.db.createForMe}</summary>
                     <div className="mt-2 flex flex-col gap-2 text-xs">
                       <p className="text-gray-500">
-                        For a computer with Postgres installed but no database yet. It makes the database and a login just for this
-                        app, so the saved address never holds the admin password. Do this on the laptop itself.
+                        {t.db.createHelp}
                       </p>
                       <label className="flex flex-col gap-1">
-                        Postgres admin password
+                        {t.db.adminPassword}
                         <input
                           type="password"
                           value={create.adminPassword}
@@ -374,7 +379,7 @@ export function DbStatus() {
                       </label>
                       <div className="grid grid-cols-2 gap-2">
                         <label className="flex flex-col gap-1">
-                          Database name
+                          {t.db.databaseName}
                           <input
                             value={create.database}
                             onChange={(e) => setCreate((c) => ({ ...c, database: e.target.value }))}
@@ -385,7 +390,7 @@ export function DbStatus() {
                           />
                         </label>
                         <label className="flex flex-col gap-1">
-                          App login name
+                          {t.db.appLoginName}
                           <input
                             value={create.appUser}
                             onChange={(e) => setCreate((c) => ({ ...c, appUser: e.target.value }))}
@@ -397,10 +402,10 @@ export function DbStatus() {
                         </label>
                       </div>
                       <details>
-                        <summary className="cursor-pointer text-gray-500">Advanced</summary>
+                        <summary className="cursor-pointer text-gray-500">{t.db.advanced}</summary>
                         <div className="mt-2 grid grid-cols-3 gap-2">
                           <label className="flex flex-col gap-1">
-                            Admin user
+                            {t.db.adminUser}
                             <input
                               value={create.adminUser}
                               onChange={(e) => setCreate((c) => ({ ...c, adminUser: e.target.value }))}
@@ -411,7 +416,7 @@ export function DbStatus() {
                             />
                           </label>
                           <label className="flex flex-col gap-1">
-                            Host
+                            {t.db.host}
                             <input
                               value={create.host}
                               onChange={(e) => setCreate((c) => ({ ...c, host: e.target.value }))}
@@ -422,7 +427,7 @@ export function DbStatus() {
                             />
                           </label>
                           <label className="flex flex-col gap-1">
-                            Port
+                            {t.db.port}
                             <input
                               value={create.port}
                               onChange={(e) => setCreate((c) => ({ ...c, port: e.target.value }))}
@@ -440,7 +445,7 @@ export function DbStatus() {
                         onClick={() => void createDatabase()}
                         className="cursor-pointer self-start rounded bg-blue-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        Create database and login
+                        {t.db.createDatabase}
                       </button>
                     </div>
                   </details>
@@ -451,34 +456,34 @@ export function DbStatus() {
                   <button
                     type="button"
                     disabled={busy !== null}
-                    onClick={() => void configAction('test', 'Testing…')}
+                    onClick={() => void configAction('test', t.db.testing)}
                     className="cursor-pointer rounded border border-gray-300 px-2 py-1 text-xs font-medium hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/10"
                   >
-                    Test connection
+                    {t.db.testConnection}
                   </button>
                   <button
                     type="button"
                     disabled={busy !== null || mode === 'local'}
-                    onClick={() => void configAction('setup', 'Setting up the tables…')}
+                    onClick={() => void configAction('setup', t.db.settingUpTables)}
                     className="cursor-pointer rounded border border-gray-300 px-2 py-1 text-xs font-medium hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/10"
                   >
-                    Set up tables
+                    {t.db.setUpTables}
                   </button>
                 </div>
               )}
               {!full?.localUrl && !editing && lite && (
-                <p className="text-xs text-gray-500">No local database yet. Enter its address, or use “Create the database and a login for me” above.</p>
+                <p className="text-xs text-gray-500">{t.db.noLocalDatabase}</p>
               )}
               {urlNotice && <p className={`text-xs ${urlNotice.ok ? 'text-green-700' : 'text-red-700'}`}>{urlNotice.text}</p>}
-              {mode === 'local' && <p className="text-xs text-gray-500">Switch to Postgres to change it.</p>}
+              {mode === 'local' && <p className="text-xs text-gray-500">{t.db.switchToChange}</p>}
             </section>
           )}
 
           <section className="flex flex-col gap-1">
-            <h2 className={cellTitle}>Ping</h2>
+            <h2 className={cellTitle}>{t.db.ping}</h2>
             {[
-              { label: 'Local server', ping: full?.local, off: full !== null && !full.configured },
-              { label: 'Postgres (Neon)', ping: full?.remote, off: false },
+              { label: t.db.localServer, ping: full?.local, off: full !== null && !full.configured },
+              { label: t.db.postgresNeon, ping: full?.remote, off: false },
             ].map((row) => (
               <div key={row.label} className="flex items-center justify-between gap-3">
                 <span className="flex items-center gap-2">
@@ -486,7 +491,7 @@ export function DbStatus() {
                   {row.label}
                 </span>
                 <span className="tabular-nums text-gray-600" title={row.ping?.error}>
-                  {row.off ? 'Not set up' : row.ping ? pingText(row.ping) : '…'}
+                  {row.off ? t.db.notSetUp : row.ping ? pingText(t, row.ping) : '…'}
                 </span>
               </div>
             ))}
@@ -494,7 +499,7 @@ export function DbStatus() {
 
           {configured && (
             <section className="flex flex-col gap-2">
-              <h2 className={cellTitle}>Event on the local server</h2>
+              <h2 className={cellTitle}>{t.db.eventOnLocal}</h2>
               <select
                 value={eventChoice}
                 disabled={busy !== null || mode === 'local'}
@@ -511,70 +516,70 @@ export function DbStatus() {
                 type="button"
                 disabled={busy !== null || mode === 'local' || !eventChoice}
                 onClick={async () => {
-                  const result = await post('/api/db/sync', { action: 'take-offline', eventId: eventChoice }, 'Downloading the event…');
+                  const result = await post('/api/db/sync', { action: 'take-offline', eventId: eventChoice }, t.db.downloadingEvent);
                   setNotice({ ok: Boolean(result.ok), text: result.message ?? '' });
                   await read();
                 }}
                 className="cursor-pointer rounded border border-gray-300 px-2 py-1.5 text-sm font-medium hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/10"
               >
-                Take event offline (download it)
+                {t.db.takeOffline}
               </button>
               <p className="text-xs text-gray-500">
-                {full?.localEventName ? `${full.localEventName}: copied ${ago(full.lastFullAt, now)}.` : 'No event downloaded yet.'}
-                {mode === 'local' && ' Switch to Postgres to download it again.'}
+                {full?.localEventName ? t.db.copiedAgo(full.localEventName, ago(t, locale, full.lastFullAt, now)) : t.db.noEventDownloaded}
+                {mode === 'local' && t.db.switchToDownload}
               </p>
             </section>
           )}
 
           {configured && (
             <section className="flex flex-col gap-2">
-              <h2 className={cellTitle}>Sync with Neon</h2>
+              <h2 className={cellTitle}>{t.db.syncWithNeon}</h2>
               <p className="text-xs">
                 {full?.lastSync ? (
                   <span className={full.lastSync.ok ? 'text-gray-700' : 'text-red-700'}>
-                    {full.lastSync.message} <span className="text-gray-500">({ago(full.lastSync.at, now)})</span>
+                    {full.lastSync.message} <span className="text-gray-500">({ago(t, locale, full.lastSync.at, now)})</span>
                   </span>
                 ) : (
-                  <span className="text-gray-500">Not synced yet.</span>
+                  <span className="text-gray-500">{t.db.notSynced}</span>
                 )}
               </p>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-xs text-gray-600">
-                  {full?.pending ? `${full.pending} change${full.pending === 1 ? '' : 's'} waiting to send.` : ''}
+                  {full?.pending ? t.db.waitingToSend(full.pending) : ''}
                 </span>
                 <button
                   type="button"
                   disabled={busy !== null || mode !== 'local'}
                   onClick={async () => {
-                    const result = await post('/api/db/sync', { action: 'sync' }, 'Syncing…');
+                    const result = await post('/api/db/sync', { action: 'sync' }, t.db.syncing);
                     setNotice({ ok: Boolean(result.ok), text: result.message ?? '' });
                     await read();
                   }}
                   className="cursor-pointer rounded border border-gray-300 px-2 py-1 text-xs font-medium hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/10"
                 >
-                  Sync now
+                  {t.db.syncNow}
                 </button>
               </div>
               {full?.backups[0] && (
                 <p className="text-xs text-gray-500" title={full.backups.map((b) => b.file).join('\n')}>
-                  Last local backup {ago(full.backups[0].at, now)}. Restore with npm run local:restore -- {full.backups[0].file}
+                  {t.db.lastBackup(ago(t, locale, full.backups[0].at, now), full.backups[0].file)}
                 </p>
               )}
             </section>
           )}
 
           <section className="flex flex-col gap-2">
-            <h2 className={cellTitle}>Judges</h2>
+            <h2 className={cellTitle}>{t.db.judges}</h2>
             <p className="text-xs">
               {full?.judges
-                ? `${full.judges.connected} of ${full.judges.total} judges of the playing pool connected (see the Play tab).`
-                : 'No playing pool with judges.'}
+                ? t.db.judgesConnected(full.judges.connected, full.judges.total)
+                : t.db.noPlayingPool}
             </p>
           </section>
 
           {configured && firstUrl && (
             <section className="flex flex-col gap-2">
-              <h2 className={cellTitle}>Judges open this on their phones</h2>
+              <h2 className={cellTitle}>{t.db.judgesOpenThis}</h2>
               <div className="flex items-start gap-3">
                 <Qr text={firstUrl} />
                 <div className="flex min-w-0 flex-col gap-1.5 text-xs">
@@ -584,12 +589,12 @@ export function DbStatus() {
                         type="button"
                         onClick={() => copy(item.url)}
                         className="cursor-pointer break-all text-left text-xs font-medium text-blue-700 underline"
-                        title="Copy"
+                        title={t.db.copy}
                       >
                         {item.url}
                       </button>
                       <span className="text-gray-500">
-                        {copied === item.url ? 'Copied' : `${item.name}${item.hotspot ? ' (hotspot)' : ''}`}
+                        {copied === item.url ? t.db.copied : `${item.name}${item.hotspot ? t.db.hotspot : ''}`}
                       </span>
                     </div>
                   ))}
@@ -598,11 +603,11 @@ export function DbStatus() {
                       type="button"
                       onClick={() => copy(full?.hostUrl ?? '')}
                       className="cursor-pointer break-all text-left text-xs text-blue-700 underline"
-                      title="Copy"
+                      title={t.db.copy}
                     >
                       {full?.hostUrl}
                     </button>
-                    <span className="text-gray-500">{copied === full?.hostUrl ? 'Copied' : 'By name, if the address changes'}</span>
+                    <span className="text-gray-500">{copied === full?.hostUrl ? t.db.copied : t.db.byName}</span>
                   </div>
                 </div>
               </div>

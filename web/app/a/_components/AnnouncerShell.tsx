@@ -7,6 +7,7 @@ import type { AnnouncerPoll } from '@/lib/announcer';
 import { useRoutineNow } from '../../head-judge/_components/useTimecallCallouts';
 import { useAnnouncerPoll } from './useAnnouncerPoll';
 import { PrintPicker, PrintSheets } from './PrintTeamLists';
+import { useT } from '@/lib/i18n/client';
 
 export function AnnouncerShell({
   code,
@@ -20,6 +21,7 @@ export function AnnouncerShell({
   initialPoll: AnnouncerPoll;
 }) {
   const { poll, connection, clockOffset } = useAnnouncerPoll(code, initialPoll);
+  const t = useT();
   const [printing, setPrinting] = useState(false);
   // The pools to print, by key.
   const [chosen, setChosen] = useState<string[]>([]);
@@ -46,7 +48,7 @@ export function AnnouncerShell({
       <div className="flex flex-col gap-6 print:hidden">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-xs uppercase tracking-wide text-gray-500">Announcer</div>
+            <div className="text-xs uppercase tracking-wide text-gray-500">{t.publicPages.announcerTitle}</div>
             <h1 className="text-xl font-semibold">{eventName}</h1>
           </div>
           <button
@@ -54,13 +56,13 @@ export function AnnouncerShell({
             onClick={togglePrinting}
             className="rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100"
           >
-            {printing ? 'Close printing' : 'Print team lists'}
+            {printing ? t.publicPages.closePrinting : t.publicPages.printTeamLists}
           </button>
         </div>
 
         {connection === 'lost' && (
           <p className="rounded border border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            Connection lost. Showing the last known state; trying again…
+            {t.publicPages.connectionLost}
           </p>
         )}
 
@@ -70,7 +72,7 @@ export function AnnouncerShell({
 
         {playing ? (
           <section className="flex flex-col gap-4">
-            <h2 className="text-lg font-semibold">{poolTitle(playing)}</h2>
+            <h2 className="text-lg font-semibold">{poolTitle(t, playing)}</h2>
 
             <div className="flex items-baseline gap-3 rounded border border-gray-200 px-4 py-3">
               <span className={`font-mono text-5xl font-semibold tabular-nums ${over ? 'text-red-600' : ''}`}>
@@ -80,7 +82,7 @@ export function AnnouncerShell({
                 / {formatElapsed(playing.routineSeconds * 1000)}
               </span>
               <span className={`ml-auto text-sm ${running ? 'text-green-700' : 'text-gray-500'}`}>
-                {running ? 'Routine running' : 'Not started'}
+                {running ? t.publicPages.routineRunning : t.publicPages.notStarted}
               </span>
             </div>
 
@@ -99,12 +101,12 @@ export function AnnouncerShell({
                     <span className={`text-lg ${isPlaying ? 'font-semibold' : ''}`}>{teamName(team)}</span>
                     {isPlaying && (
                       <span className="ml-auto rounded bg-green-600 px-2 py-0.5 text-xs font-medium text-white">
-                        {running ? 'Playing' : 'Up now'}
+                        {running ? t.publicPages.playing : t.publicPages.upNow}
                       </span>
                     )}
                     {isNext && (
                       <span className="ml-auto rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">
-                        Up next
+                        {t.publicPages.upNext}
                       </span>
                     )}
                   </li>
@@ -113,7 +115,7 @@ export function AnnouncerShell({
             </ol>
           </section>
         ) : (
-          <p className="text-sm text-gray-500">No pool on stage yet. This page follows the Head Judge on its own.</p>
+          <p className="text-sm text-gray-500">{t.publicPages.noPoolOnStage}</p>
         )}
       </div>
 

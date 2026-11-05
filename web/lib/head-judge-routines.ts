@@ -11,7 +11,8 @@ import {
   snapshotCategorySettings,
 } from "./judging-settings";
 import { ensureEventPresets } from "./judging-settings-store";
-import { isPoolLocked, POOL_LOCKED_ERROR } from "./pool-locks";
+import { isPoolLocked, poolLockedError } from "./pool-locks";
+import { getT } from "./i18n/server";
 
 // Starting and cancelling a routine, as the Head Judge's actions do it. No
 // permission check here (head-judge-actions.ts adds it) so it can be tested.
@@ -49,7 +50,7 @@ export async function startRoutineRow(
       playing.pool_id,
     ))
   ) {
-    return { error: POOL_LOCKED_ERROR };
+    return { error: await poolLockedError() };
   }
 
   // One statement starts the timer, creates the routine row (the judges' notes
@@ -103,7 +104,7 @@ export async function startRoutineRow(
   const row = current.rows[0];
   if (row?.started_ms != null)
     return { error: null, startedAt: Math.round(row.started_ms) };
-  return { error: "Choose the playing team first" };
+  return { error: (await getT()).errors.chooseTeamFirst };
 }
 
 // Readies the judges for the next routine (their screens clear their notes and
@@ -216,7 +217,7 @@ export async function adjustRoutineStartRow(
     [eventId, routineId],
   );
   const playing = state.rows[0];
-  if (!playing) return { error: "That routine is no longer running" };
+  if (!playing) return { error: (await getT()).errors.routineNotRunning };
   if (
     await isPoolLocked(
       playing.division_id,
@@ -224,7 +225,7 @@ export async function adjustRoutineStartRow(
       playing.pool_id,
     )
   ) {
-    return { error: POOL_LOCKED_ERROR };
+    return { error: await poolLockedError() };
   }
 
   const moved = await pool.query<{ started_ms: number }>(
@@ -244,7 +245,7 @@ export async function adjustRoutineStartRow(
     [eventId, routineId, startedAt],
   );
   if (!moved.rows[0])
-    return { error: "The start must be within the last 10 minutes" };
+    return { error: (await getT()).errors.startWithin10 };
   const newStart = Math.round(moved.rows[0].started_ms);
   await rescoreRoutine(routineId, newStart);
   return { error: null, startedAt: newStart };

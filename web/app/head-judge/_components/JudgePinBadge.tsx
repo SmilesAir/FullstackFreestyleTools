@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { newJudgePin } from '@/lib/head-judge-actions';
+import { useT } from '@/lib/i18n/client';
 
 // The event's judge PIN, for the Head Judge to read out: each judging device
 // enters it once after picking its judge. "New PIN" signs every device out (a
@@ -17,26 +18,27 @@ export function JudgePinBadge({
   testEvent: boolean;
   error: string | null;
 }) {
+  const t = useT();
   const [pin, setPin] = useState(initialPin);
   const [error, setError] = useState(initialError);
   const [working, setWorking] = useState(false);
 
-  if (testEvent) return <span>Judge PIN: none (test event)</span>;
+  if (testEvent) return <span>{t.headJudge.pinNoneTest}</span>;
 
   async function regenerate() {
-    if (!window.confirm('Make a new judge PIN? Every judge will need to enter the new one.')) return;
+    if (!window.confirm(t.headJudge.newPinConfirm)) return;
     setWorking(true);
     setError(null);
-    const result = await newJudgePin(eventId).catch(() => ({ error: 'Could not make a new PIN', pin: undefined }));
+    const result = await newJudgePin(eventId).catch(() => ({ error: t.headJudge.couldNotMakePin, pin: undefined }));
     setWorking(false);
-    if (result.error || !result.pin) return setError(result.error ?? 'Could not make a new PIN');
+    if (result.error || !result.pin) return setError(result.error ?? t.headJudge.couldNotMakePin);
     setPin(result.pin);
   }
 
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
       <span>
-        Judge PIN:{' '}
+        {t.headJudge.judgePin}{' '}
         <span className="rounded bg-gray-900 px-1.5 py-0.5 font-mono text-sm font-bold tracking-widest text-white">
           {pin ?? '--'}
         </span>
@@ -47,7 +49,7 @@ export function JudgePinBadge({
         disabled={working}
         className="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-900 hover:bg-gray-100 disabled:opacity-50"
       >
-        {working ? 'Making…' : 'New PIN'}
+        {working ? t.headJudge.making : t.headJudge.newPin}
       </button>
       {error && <span className="text-red-600">{error}</span>}
     </span>

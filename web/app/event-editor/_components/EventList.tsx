@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CalendarEvent } from '@/lib/event-editor-queries';
 import { EventListRow } from './EventListRow';
+import { useT } from '@/lib/i18n/client';
 
 export function EventList({
   events,
@@ -22,6 +23,7 @@ export function EventList({
   onSelect: (id: string) => void;
   onTrackMonth: (monthKey: string) => void;
 }) {
+  const t = useT();
   const [filter, setFilter] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number | null>(null);
@@ -73,12 +75,12 @@ export function EventList({
         type="search"
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
-        placeholder="Filter events by name…"
+        placeholder={t.eventEditor.filterPlaceholder}
         className="rounded border border-gray-300 px-3 py-2 text-sm"
       />
       <div ref={containerRef} onScroll={onScroll} className="flex-1 overflow-y-auto rounded border border-gray-200">
         {filtered.length === 0 ? (
-          <p className="p-3 text-sm text-gray-500">No events match.</p>
+          <p className="p-3 text-sm text-gray-500">{t.eventEditor.noMatch}</p>
         ) : (
           filtered.map((e) => (
             <EventListRow

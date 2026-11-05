@@ -3,13 +3,14 @@
 import type { Slot } from '@/lib/roster-review';
 import { quickCreatePlayer } from '@/lib/event-creator-actions';
 import { PlayerPicker } from '../PlayerPicker';
+import { useT } from '@/lib/i18n/client';
 
 const BADGE = {
   matched: 'bg-green-100 text-green-800',
   uncertain: 'bg-amber-100 text-amber-800',
   none: 'bg-red-100 text-red-800',
 } as const;
-const BADGE_LABEL = { matched: 'Matched', uncertain: 'Needs review', none: 'New player?' } as const;
+
 
 export function TeamsReview({
   teams,
@@ -24,6 +25,7 @@ export function TeamsReview({
   resolve: (input: string, patch: Partial<Slot>) => void;
   onError: (message: string | null) => void;
 }) {
+  const tr = useT();
   function updateSlot(t: number, s: number, patch: Partial<Slot>) {
     update((prev) => prev.map((team, ti) => (ti !== t ? team : team.map((slot, si) => (si !== s ? slot : { ...slot, ...patch })))));
   }
@@ -31,7 +33,7 @@ export function TeamsReview({
   async function createPlayer(t: number, s: number, name: string) {
     const result = await quickCreatePlayer(name);
     if (result.error || !result.player) {
-      onError(result.error ?? 'Failed to create player');
+      onError(result.error ?? tr.events.failedToCreatePlayer);
       return;
     }
     onError(null);
@@ -42,13 +44,13 @@ export function TeamsReview({
     <>
       {teams.map((team, t) => (
         <div key={t} className="flex flex-col gap-2 rounded bg-gray-50 p-2">
-          <div className="text-xs text-gray-500">Team {t + 1}</div>
+          <div className="text-xs text-gray-500">{tr.events.team(t + 1)}</div>
           {team.map((slot, s) => (
             <div key={s} className="flex flex-col gap-1 border-l-2 border-gray-300 pl-2">
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="font-medium">&ldquo;{slot.input}&rdquo;</span>
                 <span className={`rounded px-2 py-0.5 text-xs ${slot.created ? BADGE.matched : BADGE[slot.status]}`}>
-                  {slot.created ? 'Created' : BADGE_LABEL[slot.status]}
+                  {slot.created ? tr.events.createdBadge : tr.events.badge[slot.status]}
                 </span>
                 {slot.selectedName && <span className="text-gray-700">→ {slot.selectedName}</span>}
                 {slot.selectedId && (
@@ -78,11 +80,11 @@ export function TeamsReview({
                     <div className="w-64">
                       <PlayerPicker
                         onPick={(p) => resolve(slot.input, { selectedId: p.id, selectedName: p.name })}
-                        placeholder="Search for a different player…"
+                        placeholder={tr.events.searchDifferent}
                       />
                     </div>
                     <button type="button" onClick={() => createPlayer(t, s, slot.input)} className="rounded border border-gray-300 bg-white px-2 py-1 text-xs">
-                      Create &ldquo;{slot.input}&rdquo; as new player
+                      {tr.events.createAsNew(slot.input)}
                     </button>
                   </div>
                 </div>

@@ -1,114 +1,45 @@
+import type { Dictionary } from './i18n/dictionaries';
 import { PERMISSIONS, type PermissionKey } from './permissions';
 
-type ToolInfo = { label: string; description: string; href: string };
+// Each tool's name and description are in the dictionaries (lib/i18n/*/tools.ts), under
+// the tool's key.
+export type ToolKey = PermissionKey | 'permissions' | 'settings' | 'backups' | 'public_api' | 'profile' | 'activity' | 'judging_trainer';
+type ToolInfo = { key: ToolKey; href: string };
 
 // TypeScript enforces an entry here for every key in PERMISSIONS.
-const TOOL_INFO: Record<PermissionKey, ToolInfo> = {
-  player_editor: {
-    label: 'Player Editor',
-    description:
-      'Search, create, and edit player records; hide/unhide instead of deleting; link duplicate entries via an alias picker.',
-    href: '/players',
-  },
-  data_bridge: {
-    label: 'Data Bridge',
-    description: 'Keep events in sync with the live app’s DynamoDB table: per-event toggle, manual run/dry run, and conflict resolution.',
-    href: '/data-bridge',
-  },
-  event_creator: {
-    label: 'Event Creator',
-    description:
-      'Create events, set up divisions/rounds/pools, paste in teams (parsed by Claude), and seed rounds from rankings.',
-    href: '/events',
-  },
-  event_editor: {
-    label: 'Event Editor',
-    description:
-      "Browse every event on a scrolling monthly calendar, see each one's divisions/rounds/pools/teams, mark events test or hidden, and jump into Results Parser, Event Creator, or Head Judge for one.",
-    href: '/event-editor',
-  },
-  head_judge: {
-    label: 'Head Judge',
-    description: 'Run an event day: see every pool with its teams and judges, choose the playing pool, and follow results.',
-    href: '/head-judge',
-  },
-  event_music: {
-    label: 'Event Music',
-    description:
-      "Play each team's song at an event: pools with how many songs are missing, every team's song to test, a player that always has the team that's up, and their time calls.",
-    href: '/event-music',
-  },
-  pool_review: {
-    label: 'Pool Review',
-    description:
-      "Check the pools before they're played: every unpublished pool's teams in play order and its judges. A division's directors see it without being given this tool, and an event's committee sees all its divisions.",
-    href: '/pool-review',
-  },
-  rankings_generator: {
-    label: 'Rankings Generator',
-    description:
-      'Choose events, tune the ranking and rating settings, preview the rankings and ratings, and publish them for the public results pages.',
-    href: '/rankings-generator',
-  },
-  results_parser: {
-    label: 'Results Parser',
-    description:
-      'Enter the results of events run outside this system: paste them for Claude to fill in, check the rounds, pools, places and players, then save.',
-    href: '/results-parser',
-  },
+const TOOL_HREF: Record<PermissionKey, string> = {
+  player_editor: '/players',
+  data_bridge: '/data-bridge',
+  event_creator: '/events',
+  event_editor: '/event-editor',
+  head_judge: '/head-judge',
+  event_music: '/event-music',
+  pool_review: '/pool-review',
+  rankings_generator: '/rankings-generator',
+  results_parser: '/results-parser',
 };
 
-export const FLAGGED_TOOLS = PERMISSIONS.map((p) => ({ key: p.key, ...TOOL_INFO[p.key] }));
+export const FLAGGED_TOOLS: ToolInfo[] = PERMISSIONS.map((p) => ({ key: p.key, href: TOOL_HREF[p.key] }));
 
 // Not permission-flag-gated (the Permissions Editor is intentionally
 // admin-only, not assignable via a group) — shown only when access.isAdmin.
 export const ADMIN_ONLY_TOOLS: ToolInfo[] = [
-  {
-    label: 'Permissions Editor',
-    description: 'Create user accounts, toggle admin access, and manage permission groups.',
-    href: '/permissions',
-  },
-  {
-    label: 'Settings',
-    description: 'Configure app-wide settings, including the Discord bot token.',
-    href: '/settings',
-  },
-  {
-    label: 'Backups',
-    description: 'Create, download, upload, and restore full database backups.',
-    href: '/backups',
-  },
-  {
-    label: 'Public API',
-    description: 'Every public read-only endpoint with what it returns, plus its rate limit settings.',
-    href: '/public-api',
-  },
+  { key: 'permissions', href: '/permissions' },
+  { key: 'settings', href: '/settings' },
+  { key: 'backups', href: '/backups' },
+  { key: 'public_api', href: '/public-api' },
 ];
 
 // Available to any logged-in user regardless of permissions/admin status.
 export const ALWAYS_AVAILABLE_TOOLS: ToolInfo[] = [
-  {
-    label: 'Profile',
-    description: 'View your account details.',
-    href: '/profile',
-  },
-  {
-    label: 'Player Activity',
-    description:
-      'Every pool you played in or judged, newest first: results once a pool has played, the play order (and judges, when you judge) before.',
-    href: '/activity',
-  },
-  {
-    label: 'Judging Trainer',
-    description:
-      'Practice Fpa2027 judging on a test pool of 8 teams: play every judge and the head judge, then see how the scores and places are worked out. Everything stays in your browser.',
-    href: '/judging-trainer',
-  },
+  { key: 'profile', href: '/profile' },
+  { key: 'activity', href: '/activity' },
+  { key: 'judging_trainer', href: '/judging-trainer' },
 ];
 
 // The browser tab title for a tool's pages: its name in the Control Panel.
-export function toolTitle(href: string): string {
-  const tool = [...FLAGGED_TOOLS, ...ADMIN_ONLY_TOOLS, ...ALWAYS_AVAILABLE_TOOLS].find((t) => t.href === href);
+export function toolTitle(t: Dictionary, href: string): string {
+  const tool = [...FLAGGED_TOOLS, ...ADMIN_ONLY_TOOLS, ...ALWAYS_AVAILABLE_TOOLS].find((x) => x.href === href);
   if (!tool) throw new Error(`No tool at ${href}`);
-  return tool.label;
+  return t.tools[tool.key].label;
 }

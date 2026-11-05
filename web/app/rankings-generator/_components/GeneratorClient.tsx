@@ -11,6 +11,7 @@ import { EventsPanel, yearsBefore } from './EventsPanel';
 import { PreviewPanel, type PreviewTab } from './PreviewPanel';
 import { PublishedPanel } from './PublishedPanel';
 import { SettingsPanel } from './SettingsPanel';
+import { useT } from '@/lib/i18n/client';
 
 type Tab = 'events' | 'settings' | 'preview' | 'published';
 
@@ -40,6 +41,7 @@ export function GeneratorClient({
   today: string;
   local: boolean;
 }) {
+  const tr = useT();
   const [tab, setTab] = useState<Tab>('events');
   const [asOf, setAsOf] = useState(today);
   // The last 2 years to start with, as PointsService's page did.
@@ -104,7 +106,7 @@ export function GeneratorClient({
           setServerProblems(result.problems ?? []);
         }
       } catch {
-        if (id === requestId.current) setError('No answer from the server. Try again.');
+        if (id === requestId.current) setError(tr.rankings.noAnswer);
       } finally {
         if (id === requestId.current) setUpdating(false);
       }
@@ -133,7 +135,7 @@ export function GeneratorClient({
           setError(result.error);
         }
       } catch {
-        if (id === ratingsRequest.current) setError('No answer from the server. Try again.');
+        if (id === ratingsRequest.current) setError(tr.rankings.noAnswer);
       }
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
@@ -161,7 +163,7 @@ export function GeneratorClient({
               tab === t.id ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-600 hover:text-foreground'
             }`}
           >
-            {t.label}
+            {tr.rankings.tabs[t.id]}
             {t.id === 'events' && <span className="ml-1.5 text-xs opacity-70">{selected.size}</span>}
             {t.id === 'settings' && problems.length > 0 && <span className="ml-1.5 text-xs text-red-600">!</span>}
           </button>

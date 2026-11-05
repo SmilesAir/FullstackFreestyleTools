@@ -3,6 +3,7 @@
 import { auth } from '@/auth';
 import { cleanTimecalls } from './head-judge';
 import { checkMyTeam, saveTeamTimecalls } from './team-timecalls';
+import { getT } from './i18n/server';
 
 export type TimecallActionResult = { error: string | null };
 
@@ -12,7 +13,7 @@ export type TimecallActionResult = { error: string | null };
 // team-timecalls.ts).
 export async function setMyTeamTimecalls(teamId: string, seconds: number[]): Promise<TimecallActionResult> {
   const session = await auth();
-  if (!session?.user?.id) return { error: 'Sign in to set time calls.' };
+  if (!session?.user?.id) return { error: (await getT()).errors.signInTimecalls };
   const values = cleanTimecalls(seconds);
   if (!values) return { error: 'Bad time call' };
 

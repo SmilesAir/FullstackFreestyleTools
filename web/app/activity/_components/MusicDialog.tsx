@@ -8,11 +8,11 @@ import {
   ALL_ROUNDS,
   MAX_MUSIC_BYTES,
   musicFileSrc,
-  musicRoundName,
   parseMusicLink,
   teamMusicPathPrefix,
   type TeamMusicByRound,
 } from '@/lib/team-music-links';
+import { useT } from '@/lib/i18n/client';
 
 const BUTTON = 'cursor-pointer rounded border px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50';
 const PLAIN = `${BUTTON} border-gray-300 bg-background hover:bg-gray-50`;
@@ -58,6 +58,7 @@ export function MusicDialog({
   // Shown under the title (the team's names, where it isn't obvious).
   subtitle?: string;
 }) {
+  const t = useT();
   const [round, setRound] = useState(ALL_ROUNDS);
   // The chosen file, not uploaded yet, and its local preview address.
   const [pending, setPendingState] = useState<{ file: File; url: string } | null>(null);
@@ -99,7 +100,7 @@ export function MusicDialog({
       onChange(result.music);
       return true;
     } catch {
-      setError('Not saved. Check the connection and try again.');
+      setError(t.activity.notSaved);
     } finally {
       setBusy(false);
       setProgress(null);
@@ -110,9 +111,9 @@ export function MusicDialog({
     setError(null);
     if (!picked) return setFile(null);
     if (picked.type !== 'audio/mpeg' && !picked.name.toLowerCase().endsWith('.mp3')) {
-      return setError('Choose an MP3 file.');
+      return setError(t.activity.chooseMp3);
     }
-    if (picked.size > MAX_MUSIC_BYTES) return setError(`The file is over ${MAX_MUSIC_BYTES / 1024 / 1024} MB.`);
+    if (picked.size > MAX_MUSIC_BYTES) return setError(t.activity.tooBig(MAX_MUSIC_BYTES / 1024 / 1024));
     setFile(picked);
   };
 
@@ -141,19 +142,19 @@ export function MusicDialog({
       <div className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h3 className="text-lg font-semibold">Music</h3>
+            <h3 className="text-lg font-semibold">{t.activity.music}</h3>
             {subtitle && <p className="font-medium">{subtitle}</p>}
             <p className="text-sm text-gray-500">
-              All rounds plays in every round, unless a round has its own.
+              {t.activity.allRoundsHelp}
             </p>
           </div>
           <button type="button" onClick={() => dialog.current?.close()} className={PLAIN}>
-            Close
+            {t.common.close}
           </button>
         </div>
 
         <fieldset className="flex flex-wrap gap-1.5" disabled={busy}>
-          <legend className="sr-only">Round</legend>
+          <legend className="sr-only">{t.activity.round}</legend>
           {[ALL_ROUNDS, ...rounds].map((n) => {
             const isOpen = n === ALL_ROUNDS || openRounds.includes(n);
             return (
@@ -162,7 +163,7 @@ export function MusicDialog({
                 className={`flex cursor-pointer items-center gap-1.5 rounded border px-3 py-1.5 text-sm has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 ${
                   round === n ? 'border-green-600 bg-green-50 font-semibold text-green-900' : 'border-gray-300'
                 }`}
-                title={isOpen ? undefined : 'Finished or locked'}
+                title={isOpen ? undefined : t.activity.finishedOrLocked}
               >
                 <input
                   type="radio"
@@ -172,8 +173,8 @@ export function MusicDialog({
                   disabled={!isOpen}
                   className="accent-green-600"
                 />
-                {musicRoundName(n)}
-                {music[n] && <span className="text-green-600" aria-label="has music">●</span>}
+                {n === ALL_ROUNDS ? t.common.allRounds : t.common.roundName(n)}
+                {music[n] && <span className="text-green-600" aria-label={t.activity.hasMusic}>●</span>}
               </label>
             );
           })}
@@ -182,14 +183,14 @@ export function MusicDialog({
         {fallback !== null && (
           <p className="text-sm text-gray-600">
             {fallback
-              ? `No music of its own: uses All rounds (${fallback.fileName ?? 'link'}).`
-              : 'No music set for this round or All rounds.'}
+              ? t.activity.usesAllRounds(fallback.fileName ?? t.activity.link)
+              : t.activity.noMusic}
           </p>
         )}
-        {locked && <p className="text-sm text-gray-600">This round is finished or locked.</p>}
+        {locked && <p className="text-sm text-gray-600">{t.activity.roundLocked}</p>}
 
         <section className="flex flex-col gap-2">
-          <h4 className="text-sm font-semibold">MP3 file</h4>
+          <h4 className="text-sm font-semibold">{t.activity.mp3File}</h4>
           {own?.fileUrl && (
             <div className="flex flex-col gap-1">
               <p className="text-sm">{own.fileName}</p>
@@ -206,7 +207,7 @@ export function MusicDialog({
           />
           {pending && (
             <div className="flex flex-col gap-1">
-              <p className="text-xs text-gray-500">Preview (not uploaded yet)</p>
+              <p className="text-xs text-gray-500">{t.activity.preview}</p>
               <audio controls src={pending.url} className="w-full" />
             </div>
           )}
@@ -217,7 +218,7 @@ export function MusicDialog({
           )}
           <div className="flex gap-2">
             <button type="button" onClick={uploadFile} disabled={!file || busy || locked} className={GREEN}>
-              {own?.fileUrl ? 'Upload and replace' : 'Upload'}
+              {own?.fileUrl ? t.activity.uploadReplace : t.activity.upload}
             </button>
             {own?.fileUrl && (
               <button
@@ -226,14 +227,14 @@ export function MusicDialog({
                 disabled={busy || locked}
                 className={PLAIN}
               >
-                Remove file
+                {t.activity.removeFile}
               </button>
             )}
           </div>
         </section>
 
         <section className="flex flex-col gap-2">
-          <h4 className="text-sm font-semibold">YouTube or Spotify link</h4>
+          <h4 className="text-sm font-semibold">{t.activity.linkHeading}</h4>
           <input
             value={linkText}
             onChange={(e) => setLinkText(e.target.value)}
@@ -241,7 +242,7 @@ export function MusicDialog({
             disabled={busy || locked}
             className="rounded border border-gray-300 bg-background px-3 py-2 text-sm"
           />
-          {linkText.trim() && !parsed && <p className="text-xs text-red-700">Not a YouTube video or Spotify track link.</p>}
+          {linkText.trim() && !parsed && <p className="text-xs text-red-700">{t.activity.notALink}</p>}
           {(parsed ?? savedLink) && <MusicEmbed embedUrl={(parsed ?? savedLink)!.embedUrl} kind={(parsed ?? savedLink)!.kind} />}
           <div className="flex gap-2">
             <button
@@ -250,7 +251,7 @@ export function MusicDialog({
               disabled={!parsed || parsed.link === own?.link || busy || locked}
               className={GREEN}
             >
-              Save link
+              {t.activity.saveLink}
             </button>
             {own?.link && (
               <button
@@ -261,16 +262,16 @@ export function MusicDialog({
                 disabled={busy || locked}
                 className={PLAIN}
               >
-                Remove link
+                {t.activity.removeLink}
               </button>
             )}
           </div>
         </section>
 
         {own?.fileUrl && own.link && (
-          <p className="text-xs text-gray-500">Both are set: the MP3 file is played.</p>
+          <p className="text-xs text-gray-500">{t.activity.bothSet}</p>
         )}
-        {busy && <p className="text-xs text-gray-400">Saving…</p>}
+        {busy && <p className="text-xs text-gray-400">{t.activity.saving}</p>}
         {error && <p className="text-sm font-medium text-red-700">{error}</p>}
       </div>
     </dialog>

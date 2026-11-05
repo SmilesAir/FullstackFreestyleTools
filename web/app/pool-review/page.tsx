@@ -3,9 +3,11 @@ import { redirect } from 'next/navigation';
 import { getCurrentUserAccess } from '@/lib/authz';
 import { getPoolReviewScope, getReviewPools, listReviewEvents } from '@/lib/pool-review-queries';
 import { ReviewPoolCard } from './_components/ReviewPoolCard';
+import { getT } from '@/lib/i18n/server';
 
 export default async function PoolReviewPage({ searchParams }: { searchParams: Promise<{ event?: string; choose?: string }> }) {
   const { event: eventParam, choose } = await searchParams;
+  const t = await getT();
   const access = await getCurrentUserAccess();
   if (!access) redirect('/login');
   const scope = await getPoolReviewScope(access);
@@ -21,16 +23,16 @@ export default async function PoolReviewPage({ searchParams }: { searchParams: P
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Pool Review</h1>
+        <h1 className="text-xl font-semibold">{t.tools.pool_review.label}</h1>
         {selected && (
           <div className="mt-1 text-xs text-gray-500">
-            Event: <span className="font-medium text-gray-700">{selected.name}</span>
-            {selected.isTest && ' (test)'}
+            {t.headJudge.eventLabel} <span className="font-medium text-gray-700">{selected.name}</span>
+            {selected.isTest && t.eventMusic.test}
             {events.length > 1 && (
               <>
                 {' · '}
                 <Link href="/pool-review?choose" className="text-blue-600 underline">
-                  Change event
+                  {t.eventMusic.changeEvent}
                 </Link>
               </>
             )}
@@ -39,10 +41,10 @@ export default async function PoolReviewPage({ searchParams }: { searchParams: P
       </div>
 
       {selected ? null : events.length === 0 ? (
-        <p className="text-sm text-gray-500">No upcoming events to review.</p>
+        <p className="text-sm text-gray-500">{t.activity.noUpcoming}</p>
       ) : (
         <>
-          <nav className="flex flex-wrap gap-2" aria-label="Events">
+          <nav className="flex flex-wrap gap-2" aria-label={t.activity.events}>
             {events.map((e) => (
               <Link
                 key={e.id}
@@ -50,16 +52,16 @@ export default async function PoolReviewPage({ searchParams }: { searchParams: P
                 className="rounded border border-gray-300 px-4 py-2 hover:bg-gray-50"
               >
                 {e.name}
-                {e.isTest && <span className="ml-2 text-xs opacity-70">(test)</span>}
+                {e.isTest && <span className="ml-2 text-xs opacity-70">{t.eventMusic.testTag}</span>}
               </Link>
             ))}
           </nav>
-          <p className="text-sm text-gray-500">Choose an event.</p>
+          <p className="text-sm text-gray-500">{t.eventMusic.chooseEvent}</p>
         </>
       )}
 
       {selected && divisions.length === 0 && (
-        <p className="text-sm text-gray-500">No pools to review: none have teams yet, or every pool is published.</p>
+        <p className="text-sm text-gray-500">{t.activity.nothingToReview}</p>
       )}
 
       {divisions.map((division) => (
@@ -67,7 +69,7 @@ export default async function PoolReviewPage({ searchParams }: { searchParams: P
           <h2 className="text-lg font-semibold">{division.name}</h2>
           {division.rounds.map((round) => (
             <div key={round.number} className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium text-gray-600">{round.name}</h3>
+              <h3 className="text-sm font-medium text-gray-600">{t.common.roundName(round.number)}</h3>
               <ul className="flex flex-col gap-3">
                 {round.pools.map((p) => (
                   <ReviewPoolCard key={p.key} pool={p} />

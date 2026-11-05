@@ -3,6 +3,7 @@ import type { OtherCurve } from '@/lib/judging';
 import { teamColorVar } from '@/app/judge/_components/noteStyles';
 import { graphExtent } from '@/app/judge/_components/ScoreGraph';
 import { axisRange, curveSegments, signed } from '@/lib/score-curve';
+import { useT } from '@/lib/i18n/client';
 
 const MARGIN = { l: 38, r: 12, t: 20, b: 28 };
 const WIDTH = 800;
@@ -36,6 +37,7 @@ export function PoolOverviewGraph({
   routineSeconds: number;
   highlightedTeamId: string | null;
 }) {
+  const t = useT();
   if (teams.length === 0) return null;
 
   const duration = Math.max(30, ...teams.map((t) => (t.curve.ys.length - 1) * t.curve.step));
@@ -74,7 +76,7 @@ export function PoolOverviewGraph({
       width={WIDTH}
       height={HEIGHT}
       role="img"
-      aria-label="Every team's judges averaged into one line each, over the routine."
+      aria-label={t.results.graphLabel}
       className="h-auto w-full text-gray-500"
     >
       <defs>
@@ -104,8 +106,8 @@ export function PoolOverviewGraph({
       <line x1={MARGIN.l} x2={MARGIN.l + iw} y1={zeroY} y2={zeroY} stroke="currentColor" strokeOpacity="0.6" strokeWidth="1.25" />
 
       {[
-        { t: 0, label: 'Start', anchor: 'start' as const, dx: 5 },
-        { t: routineSeconds, label: 'End', anchor: 'end' as const, dx: -5 },
+        { t: 0, label: t.judging.start, anchor: 'start' as const, dx: 5 },
+        { t: routineSeconds, label: t.judging.end, anchor: 'end' as const, dx: -5 },
       ]
         .filter((mark) => mark.t >= 0 && mark.t <= duration)
         .map((mark) => (

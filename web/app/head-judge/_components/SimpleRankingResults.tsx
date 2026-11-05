@@ -6,14 +6,11 @@ import { clearSimpleRankings } from '@/lib/simple-ranking-actions';
 import type { SimpleRankingResultsRow } from '@/lib/simple-ranking-queries';
 import { PublicLinkControl } from './PublicLinkControl';
 import { SortToggle, type ResultsSortOrder } from './SortToggle';
+import { useT } from '@/lib/i18n/client';
 
 const POLL_MS = 5000;
 
-const ordinal = (n: number) => {
-  const s = ['th', 'st', 'nd', 'rd'];
-  const v = n % 100;
-  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
-};
+
 
 // The results table itself: how many of each place a team got, its total
 // (fewest wins) and its final place, ties broken toward the team with the
@@ -21,10 +18,11 @@ const ordinal = (n: number) => {
 // judges are never named to begin with) — so both the Head Judge's live view
 // and the public results page render this same piece from already-loaded data.
 export function SimpleRankingTable({ data }: { data: SimpleRankingResultsRow }) {
+  const t = useT();
   const [sort, setSort] = useState<ResultsSortOrder>('play');
 
   if (data.judgeCount === 0) {
-    return <p className="text-sm text-gray-500">No rankings yet.</p>;
+    return <p className="text-sm text-gray-500">{t.results.noRankings}</p>;
   }
 
   const maxPlace = Math.max(...data.rows.map((r) => r.counts.length));
@@ -44,22 +42,22 @@ export function SimpleRankingTable({ data }: { data: SimpleRankingResultsRow }) 
       <div className="flex flex-wrap items-center gap-3">
         <SortToggle value={sort} onChange={setSort} />
         <p className="text-sm text-gray-600">
-          {data.judgeCount} judge{data.judgeCount === 1 ? '' : 's'}
-          {data.outdatedCount > 0 && ` · ${data.outdatedCount} outdated ranking${data.outdatedCount === 1 ? '' : 's'} ignored`}
+          {t.results.judgesCount(data.judgeCount)}
+          {data.outdatedCount > 0 && t.results.outdatedIgnored(data.outdatedCount)}
         </p>
       </div>
       <div className="overflow-x-auto">
         <table className="border-collapse text-sm tabular-nums">
           <thead>
             <tr>
-              <th className="border border-gray-300 px-3 py-1.5 text-left font-medium">Team</th>
+              <th className="border border-gray-300 px-3 py-1.5 text-left font-medium">{t.results.team}</th>
               {Array.from({ length: maxPlace }, (_, i) => (
                 <th key={i} className="border border-gray-300 px-2 py-1.5 text-center font-medium">
-                  {ordinal(i + 1)}
+                  {t.common.ordinal(i + 1)}
                 </th>
               ))}
-              <th className="border border-gray-300 px-2 py-1.5 text-center font-semibold">Total</th>
-              <th className="border border-gray-300 px-3 py-1.5 text-left font-medium">Place</th>
+              <th className="border border-gray-300 px-2 py-1.5 text-center font-semibold">{t.results.total}</th>
+              <th className="border border-gray-300 px-3 py-1.5 text-left font-medium">{t.results.place}</th>
             </tr>
           </thead>
           <tbody>
@@ -67,7 +65,7 @@ export function SimpleRankingTable({ data }: { data: SimpleRankingResultsRow }) 
               <tr key={row.teamId}>
                 <td className="border border-gray-300 px-3 py-1.5 text-left">
                   <span className="mr-2 text-gray-400">{row.playIndex + 1}.</span>
-                  {data.teams.find((t) => t.id === row.teamId)?.name ?? '(unknown team)'}
+                  {data.teams.find((t) => t.id === row.teamId)?.name ?? t.results.unknownTeam}
                 </td>
                 {row.counts.map((count, place) => (
                   <td key={place} className={`border border-gray-300 px-2 py-1.5 text-center ${count === 0 ? 'text-gray-400' : 'font-semibold'}`}>
@@ -77,7 +75,7 @@ export function SimpleRankingTable({ data }: { data: SimpleRankingResultsRow }) 
                 <td className="border border-gray-300 px-2 py-1.5 text-center font-semibold">{row.total}</td>
                 <td className="border border-gray-300 px-3 py-1.5 text-left font-semibold">
                   {row.place}
-                  {row.tie && <span className="ml-1 text-xs font-normal text-gray-500">(tie, won on seed)</span>}
+                  {row.tie && <span className="ml-1 text-xs font-normal text-gray-500">{t.results.tieWonOnSeed}</span>}
                 </td>
               </tr>
             ))}
@@ -92,6 +90,7 @@ export function SimpleRankingTable({ data }: { data: SimpleRankingResultsRow }) 
 // teams (best to worst). The numbers come in live: read again every few
 // seconds while `active`.
 export function SimpleRankingResults({ pool, active }: { pool: HeadJudgePool; active: boolean }) {
+  const t = useT();
   const [data, setData] = useState<SimpleRankingResultsRow | null>(null);
   const [failed, setFailed] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -124,7 +123,7 @@ export function SimpleRankingResults({ pool, active }: { pool: HeadJudgePool; ac
   }, [active, pool.divisionId, pool.roundNumber, pool.letter]);
 
   async function clear() {
-    if (!window.confirm('Remove every ranking submitted for this pool? This cannot be undone.')) return;
+    if (!window.confirm(t.results.clearRankingsConfirm)) return;
     setClearing(true);
     const result = await clearSimpleRankings(pool.divisionId, pool.roundNumber, pool.letter);
     setClearing(false);
@@ -134,11 +133,11 @@ export function SimpleRankingResults({ pool, active }: { pool: HeadJudgePool; ac
   return (
     <div className="flex flex-col gap-3">
       <PublicLinkControl pool={pool} />
-      {failed && <p className="text-xs text-amber-700">Could not load the latest results. Trying again.</p>}
+      {failed && <p className="text-xs text-amber-700">{t.results.couldNotLoadLatest}</p>}
       {data === null ? (
-        <p className="text-sm text-gray-500">{failed ? 'Could not load the results. Trying again.' : 'Loading…'}</p>
+        <p className="text-sm text-gray-500">{failed ? t.results.couldNotLoad : t.common.loading}</p>
       ) : data.judgeCount === 0 ? (
-        <p className="text-sm text-gray-500">No rankings yet. Judges rank from the main landing page.</p>
+        <p className="text-sm text-gray-500">{t.results.noRankingsJudges}</p>
       ) : (
         <div className="flex flex-col gap-2">
           <div className="flex justify-end">
@@ -148,7 +147,7 @@ export function SimpleRankingResults({ pool, active }: { pool: HeadJudgePool; ac
               disabled={clearing}
               className="cursor-pointer rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {clearing ? 'Clearing…' : 'Clear rankings'}
+              {clearing ? t.results.clearing : t.results.clearRankings}
             </button>
           </div>
           <SimpleRankingTable data={data} />

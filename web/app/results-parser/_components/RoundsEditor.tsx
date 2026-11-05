@@ -1,9 +1,10 @@
 'use client';
 
 import { POOL_LETTERS } from '@/lib/event-creator';
-import { MAX_ROUND, newKey, roundName, type EditorRound } from '@/lib/results-parser/types';
+import { MAX_ROUND, newKey, type EditorRound } from '@/lib/results-parser/types';
 import { nameKey } from '@/lib/roster-review';
 import { PlayerSlotEditor } from './PlayerSlotEditor';
+import { useT } from '@/lib/i18n/client';
 
 type Mutate = (fn: (draft: EditorRound[]) => void) => void;
 
@@ -18,6 +19,7 @@ export function RoundsEditor({
   mutate: Mutate;
   createPlayer: (name: string) => Promise<{ error: string | null; player?: { id: string; name: string } }>;
 }) {
+  const t = useT();
   const nextRound = Array.from({ length: MAX_ROUND }, (_, i) => i + 1).find((n) => !rounds.some((r) => r.round === n));
 
   return (
@@ -27,44 +29,44 @@ export function RoundsEditor({
         return (
           <section key={round.round} className="flex flex-col gap-3 rounded border border-gray-300 p-3">
             <div className="flex flex-wrap items-center gap-3">
-              <h3 className="font-semibold">{roundName(round.round)}</h3>
+              <h3 className="font-semibold">{t.common.roundName(round.round)}</h3>
               <button
                 type="button"
                 onClick={() => {
-                  if (window.confirm(`Remove ${roundName(round.round)} and all its teams?`)) mutate((d) => void d.splice(ri, 1));
+                  if (window.confirm(t.resultsParser.removeRoundConfirm(t.common.roundName(round.round)))) mutate((d) => void d.splice(ri, 1));
                 }}
                 className="ml-auto text-xs text-red-600 underline"
               >
-                remove round
+                {t.resultsParser.removeRound}
               </button>
             </div>
 
             {round.pools.map((pool, pi) => (
               <div key={pool.letter} className="flex flex-col gap-2 rounded bg-gray-50 p-2">
                 <div className="flex flex-wrap items-center gap-3 text-sm">
-                  <span className="font-medium">Pool {pool.letter}</span>
+                  <span className="font-medium">{t.common.pool(pool.letter)}</span>
                   <button
                     type="button"
                     onClick={() => mutate((d) => void d[ri].pools[pi].teams.sort((a, b) => (a.place ?? Infinity) - (b.place ?? Infinity)))}
                     className="text-xs text-blue-600 underline"
                   >
-                    sort by place
+                    {t.resultsParser.sortByPlace}
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      if (pool.teams.length === 0 || window.confirm(`Remove Pool ${pool.letter} and its teams?`)) mutate((d) => void d[ri].pools.splice(pi, 1));
+                      if (pool.teams.length === 0 || window.confirm(t.resultsParser.removePoolConfirm(t.common.pool(pool.letter)))) mutate((d) => void d[ri].pools.splice(pi, 1));
                     }}
                     className="ml-auto text-xs text-red-600 underline"
                   >
-                    remove pool
+                    {t.resultsParser.removePool}
                   </button>
                 </div>
 
                 {pool.teams.map((team, ti) => (
                   <div key={team.key} className="flex flex-col gap-2 rounded border border-gray-200 bg-white p-2 sm:flex-row">
                     <label className="flex items-center gap-2 text-sm sm:w-28 sm:flex-col sm:items-start">
-                      <span className="text-xs text-gray-500">Place</span>
+                      <span className="text-xs text-gray-500">{t.resultsParser.place}</span>
                       <input
                         type="number"
                         min={1}
@@ -101,7 +103,7 @@ export function RoundsEditor({
                         onClick={() => mutate((d) => void d[ri].pools[pi].teams[ti].players.push({ id: null, name: '' }))}
                         className="self-start text-xs text-blue-600 underline"
                       >
-                        + add player
+                        {t.resultsParser.addPlayer}
                       </button>
                     </div>
                     <button
@@ -109,7 +111,7 @@ export function RoundsEditor({
                       onClick={() => mutate((d) => void d[ri].pools[pi].teams.splice(ti, 1))}
                       className="self-start text-xs text-red-600 underline"
                     >
-                      remove team
+                      {t.resultsParser.removeTeam}
                     </button>
                   </div>
                 ))}
@@ -119,7 +121,7 @@ export function RoundsEditor({
                   onClick={() => mutate((d) => void d[ri].pools[pi].teams.push(emptyTeam(d[ri].pools[pi].teams.length + 1)))}
                   className="self-start rounded border border-gray-300 bg-white px-2 py-1 text-xs"
                 >
-                  + Add team
+                  {t.resultsParser.addTeam}
                 </button>
               </div>
             ))}
@@ -130,7 +132,7 @@ export function RoundsEditor({
                 onClick={() => mutate((d) => void d[ri].pools.push({ letter: nextPool, teams: [emptyTeam(1)] }))}
                 className="self-start rounded border border-gray-300 px-2 py-1 text-xs"
               >
-                + Add pool {nextPool}
+                {t.resultsParser.addPool(t.common.pool(nextPool))}
               </button>
             )}
           </section>
@@ -148,7 +150,7 @@ export function RoundsEditor({
           }
           className="self-start rounded border border-gray-300 px-3 py-2 text-sm"
         >
-          + Add round ({roundName(nextRound)})
+          {t.resultsParser.addRound(t.common.roundName(nextRound))}
         </button>
       )}
     </div>

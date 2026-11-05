@@ -10,6 +10,8 @@ import { NOTE_STYLE } from './noteStyles';
 import { RatingBar } from './RatingBar';
 import { OthersLegend } from './OthersLegend';
 import { ScoreAdjuster } from './ScoreAdjuster';
+import { useT } from '@/lib/i18n/client';
+import { noteFullLabel } from '@/lib/i18n/labels';
 
 
 type Props = {
@@ -61,6 +63,7 @@ export function ScoreDialog({ open, ...props }: Props & { open: boolean }) {
     if (open && !dialog.open) dialog.showModal();
     if (!open && dialog.open) dialog.close();
   }, [open]);
+  const t = useT();
 
   return (
     <dialog
@@ -69,7 +72,7 @@ export function ScoreDialog({ open, ...props }: Props & { open: boolean }) {
         e.preventDefault();
         props.onBack();
       }}
-      aria-label="Enter score"
+      aria-label={t.judging.enterScoreTitle}
       className="fixed inset-0 m-0 h-dvh max-h-none w-dvw max-w-none flex-col gap-3 border-0 bg-background p-3 text-foreground open:flex"
     >
       {/* Only while open, so the cursor starts fresh each time. */}
@@ -101,6 +104,7 @@ function Body({
   onSubmit,
   submitting,
 }: Props) {
+  const t = useT();
   const [cursor, setCursor] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Difficulty: where on the numberline the judge has picked, for a new note at
@@ -119,7 +123,7 @@ function Body({
       {/* The graph keeps its full height; the note buttons and Back/Submit
           shrink to fit what is left of the screen. */}
       <div className="flex shrink-0 items-baseline justify-between gap-3">
-        <h2 className="text-2xl font-bold">Enter score</h2>
+        <h2 className="text-2xl font-bold">{t.judging.enterScoreTitle}</h2>
         {teamName && <div className="min-w-0 truncate text-base font-semibold">{teamName}</div>}
       </div>
 
@@ -188,7 +192,7 @@ function Body({
                 onClick={() => at !== null && onInsert(note.type, at)}
                 className={`h-full cursor-pointer rounded-lg px-2 text-xl font-bold leading-tight shadow-sm transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 ${NOTE_STYLE[note.type]}`}
               >
-                {note.fullLabel}
+                {noteFullLabel(t, note.type)}
               </button>
             ))}
             <button
@@ -201,7 +205,7 @@ function Body({
               }}
               className="h-full cursor-pointer rounded-lg border-2 border-red-600 bg-background px-2 text-xl font-bold leading-tight text-red-700 transition active:scale-[0.97] disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-400 disabled:active:scale-100"
             >
-              Delete
+              {t.judging.delete}
             </button>
           </div>
         </div>
@@ -209,7 +213,7 @@ function Body({
 
       <div className="flex shrink-0 items-center justify-between gap-3 rounded border border-gray-300 px-4 py-3">
         <div className="flex min-w-0 flex-col">
-          <span className="whitespace-nowrap text-xs leading-tight min-[400px]:text-sm">{unrestricted === null ? 'Baseline Estimate' : 'Baseline / Unrestricted'}</span>
+          <span className="whitespace-nowrap text-xs leading-tight min-[400px]:text-sm">{unrestricted === null ? t.judging.baselineEstimateTitle : t.judging.baselineUnrestricted}</span>
           <span className="whitespace-nowrap font-mono text-4xl font-bold leading-tight tabular-nums">
             {estimate}
             {unrestricted !== null && <span className="text-2xl font-normal text-gray-500"> / {unrestricted}</span>}
@@ -217,7 +221,7 @@ function Body({
         </div>
         <ScoreAdjuster onAdjust={onAdjust}>
           <div className="flex min-w-[4ch] flex-col items-center">
-            <span className="text-sm leading-tight">Your Score</span>
+            <span className="text-sm leading-tight">{t.judging.yourScoreTitle}</span>
             <span className="font-mono text-4xl font-bold leading-tight tabular-nums">{adjusted}</span>
           </div>
         </ScoreAdjuster>
@@ -229,7 +233,7 @@ function Body({
           onClick={onBack}
           className="h-full flex-1 cursor-pointer rounded-xl border-2 border-gray-300 text-2xl font-bold hover:bg-gray-50"
         >
-          Back
+          {t.common.back}
         </button>
         <button
           type="button"
@@ -237,7 +241,7 @@ function Body({
           disabled={submitting}
           className="h-full flex-1 cursor-pointer rounded-xl bg-green-600 text-2xl font-bold text-white hover:bg-green-700 disabled:cursor-wait disabled:opacity-60"
         >
-          {submitting ? 'Submitting…' : 'Submit'}
+          {submitting ? t.judging.submitting : t.judging.submit}
         </button>
       </div>
     </>

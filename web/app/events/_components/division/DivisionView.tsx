@@ -21,6 +21,7 @@ import { RosterList } from './RosterList';
 import { RosterPasteForm } from './RosterPasteForm';
 import { RoundSection } from './RoundSection';
 import { getEventDiscord } from '@/lib/discord';
+import { getT } from '@/lib/i18n/server';
 
 export async function DivisionView({
   eventId,
@@ -35,6 +36,7 @@ export async function DivisionView({
   siblings: { id: string; division_name: string }[];
 }) {
   // getTeams only needs the name, so it runs alongside getDivision.
+  const t = await getT();
   const [division, loadedTeams, poolJudges, lockedPoolKeys, publishedPoolKeys, playingPoolKey, discord] = await Promise.all([
     getDivision(divisionId),
     getTeams(divisionId, divisionName),
@@ -47,7 +49,7 @@ export async function DivisionView({
   // Rounds offer "Post play order to Discord" once the event has a channel.
   const discordReady = discord.ok && discord.channelId !== null;
   if (!division || division.event_id !== eventId) {
-    return <p className="text-sm text-red-600">That division doesn&apos;t exist for this event.</p>;
+    return <p className="text-sm text-red-600">{t.events.divisionMissing}</p>;
   }
 
   // The team list lives in the DB; add any team that only exists in a round's
@@ -93,7 +95,7 @@ export async function DivisionView({
       roundKeys={roundKeys}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-6">
-        <Collapsible title="Division settings">
+        <Collapsible title={t.events.divisionSettings}>
           <DivisionSettings
             eventId={eventId}
             divisionId={divisionId}
@@ -106,18 +108,18 @@ export async function DivisionView({
           />
         </Collapsible>
 
-        <Collapsible title="Add teams">
+        <Collapsible title={t.events.addTeamsHeading}>
           <RosterPasteForm divisionId={divisionId} />
         </Collapsible>
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">Rounds</h2>
+          <h2 className="text-lg font-semibold">{t.events.rounds}</h2>
           {[...ROUNDS].reverse().map((round) => (
             <RoundSection
               key={round.number}
               divisionId={divisionId}
               roundNumber={round.number}
-              roundName={round.name}
+              roundName={t.common.roundName(round.number)}
               rulesId={division.rules_id as RulesId}
               config={getRoundConfig(division.pool_config, round.number)}
               teams={teams.filter((t) => t.round_number === round.number)}
@@ -132,7 +134,7 @@ export async function DivisionView({
         </section>
       </div>
 
-      <TeamsSidebar title={`Teams (${roster.length})`}>
+      <TeamsSidebar title={t.events.teamsCount(roster.length)}>
         <RosterList divisionId={divisionId} teams={roster} />
       </TeamsSidebar>
     </DivisionWorkspace>

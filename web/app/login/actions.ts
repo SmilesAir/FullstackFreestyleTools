@@ -3,6 +3,7 @@
 import { AuthError } from 'next-auth';
 import { signIn } from '@/auth';
 import { safeNextPath } from '@/lib/login-redirect';
+import { getT } from '@/lib/i18n/server';
 
 export type LoginState = { error: string | null };
 
@@ -25,11 +26,12 @@ export async function authenticate(_prevState: LoginState, formData: FormData): 
     return { error: null };
   } catch (error) {
     if (error instanceof AuthError) {
+      const t = await getT();
       switch (error.type) {
         case 'CredentialsSignin':
-          return { error: 'Invalid email or password' };
+          return { error: t.login.invalid };
         default:
-          return { error: 'Something went wrong signing in' };
+          return { error: t.login.failed };
       }
     }
     throw error;

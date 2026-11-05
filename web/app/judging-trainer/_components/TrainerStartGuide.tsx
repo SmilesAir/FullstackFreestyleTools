@@ -1,10 +1,17 @@
-import type { TrainerView } from './DebugBar';
+'use client';
 
-const link = 'cursor-pointer text-blue-600 underline';
+import { useLocale } from '@/lib/i18n/client';
+import type { TrainerView } from './DebugBar';
+import { TrainerStartGuideEs } from './TrainerStartGuideEs';
+
+export const link = 'cursor-pointer text-blue-600 underline';
 
 // The trainer's landing page: what it is and how to use it, with the way on
 // to the results (where routines start) and the FPA2027 Description.
 export function TrainerStartGuide({ onView }: { onView: (view: TrainerView) => void }) {
+  const locale = useLocale();
+  // The Spanish one is TrainerStartGuideEs.tsx; keep the two in step.
+  if (locale === 'es') return <TrainerStartGuideEs onView={onView} />;
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 text-sm leading-relaxed">
       <header className="flex flex-col gap-1">

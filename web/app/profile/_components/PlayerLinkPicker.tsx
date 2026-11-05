@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { searchPlayersForPicker } from '@/lib/players-actions';
 import { linkPlayer, type ActionState } from '@/lib/profile-actions';
+import { useT } from '@/lib/i18n/client';
 
 type Result = {
   id: string;
@@ -16,6 +17,7 @@ type Result = {
 
 export function PlayerLinkPicker() {
   const router = useRouter();
+  const t = useT();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Result[]>([]);
   const [open, setOpen] = useState(false);
@@ -52,7 +54,7 @@ export function PlayerLinkPicker() {
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search for your name…"
+        placeholder={t.profile.searchName}
         className="w-full rounded border border-gray-300 px-3 py-2"
       />
       {open && (

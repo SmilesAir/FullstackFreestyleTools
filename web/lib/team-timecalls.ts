@@ -1,8 +1,9 @@
 import 'server-only';
 import { pool } from './db';
 import { DEFAULT_TIMECALLS, cleanTimecalls } from './head-judge';
-import { isPoolLocked, POOL_LOCKED_ERROR } from './pool-locks';
+import { isPoolLocked, poolLockedError } from './pool-locks';
 import { ALL_ROUNDS, type TeamMusicByRound } from './team-music-links';
+import { getT } from './i18n/server';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -57,11 +58,12 @@ export async function checkMyTeam(teamId: string, userId: string, round?: number
     [teamId, userId, round ?? -1]
   );
   const row = found.rows[0];
-  if (!row || !row.mine || !row.player_ids) return { error: 'You can only change your own team.' };
-  if (row.over) return { error: 'This event is over.' };
-  if (row.closed) return { error: "This team's pools are finished or locked." };
+  const t = await getT();
+  if (!row || !row.mine || !row.player_ids) return { error: t.errors.ownTeamOnly };
+  if (row.over) return { error: t.errors.eventOver };
+  if (row.closed) return { error: t.errors.teamPoolsClosed };
   if (round !== undefined && round !== ALL_ROUNDS && row.round_closed) {
-    return { error: "This team's pool in that round is finished or locked." };
+    return { error: t.errors.roundPoolClosed };
   }
   return { error: null, divisionId: row.division_id, playerIds: row.player_ids };
 }
@@ -109,7 +111,7 @@ export async function setTeamTimecallsChecked(teamId: string, seconds: number[])
   );
   const row = team.rows[0];
   if (!row) return { error: 'Unknown team' };
-  if (await isPoolLocked(row.division_id, row.round_number, row.pool_id)) return { error: POOL_LOCKED_ERROR };
+  if (await isPoolLocked(row.division_id, row.round_number, row.pool_id)) return { error: await poolLockedError() };
   // Saved for the team's other pools still to come too.
   await saveTeamTimecalls(teamId, values);
   return { error: null };

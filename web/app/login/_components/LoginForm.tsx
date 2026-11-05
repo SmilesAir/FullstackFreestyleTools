@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { authenticate, signInWithGoogle, signInWithDiscord } from '../actions';
+import { useT } from '@/lib/i18n/client';
 
 // The sign-in options the login page offers (lib/login-options.ts decides which). `next` is the
 // page that sent them here, which each form passes on so sign-in returns to it.
@@ -15,11 +16,12 @@ export function LoginForm({
   next: string | null;
 }) {
   const [state, formAction, pending] = useActionState(authenticate, { error: null });
+  const t = useT();
   const nextInput = next && <input type="hidden" name="next" value={next} />;
 
   return (
     <main className="mx-auto mt-24 max-w-sm px-4">
-      <h1 className="mb-6 text-xl font-semibold">Log in</h1>
+      <h1 className="mb-6 text-xl font-semibold">{t.login.title}</h1>
 
       <div className="mb-6 flex flex-col gap-2">
         {showGoogle && (
@@ -29,7 +31,7 @@ export function LoginForm({
               type="submit"
               className="w-full rounded border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50"
             >
-              Sign in with Google
+              {t.login.withGoogle}
             </button>
           </form>
         )}
@@ -39,7 +41,7 @@ export function LoginForm({
             type="submit"
             className="w-full rounded border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50"
           >
-            Sign in with Discord
+            {t.login.withDiscord}
           </button>
         </form>
       </div>
@@ -48,18 +50,18 @@ export function LoginForm({
         <>
           <div className="mb-6 flex items-center gap-2 text-xs text-gray-400">
             <div className="h-px flex-1 bg-gray-200" />
-            or
+            {t.login.or}
             <div className="h-px flex-1 bg-gray-200" />
           </div>
 
           <form action={formAction} className="flex flex-col gap-3">
             {nextInput}
             <label className="flex flex-col gap-1 text-sm">
-              Email
+              {t.login.email}
               <input name="email" type="email" required className="rounded border border-gray-300 px-3 py-2" />
             </label>
             <label className="flex flex-col gap-1 text-sm">
-              Password
+              {t.login.password}
               <input name="password" type="password" required className="rounded border border-gray-300 px-3 py-2" />
             </label>
             {state.error && <p className="text-sm text-red-600">{state.error}</p>}
@@ -68,7 +70,7 @@ export function LoginForm({
               disabled={pending}
               className="mt-2 rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              {pending ? 'Logging in…' : 'Log in'}
+              {pending ? t.login.loggingIn : t.login.title}
             </button>
           </form>
         </>

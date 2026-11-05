@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { saveDefaultParams } from '@/lib/rankings-generator-actions';
 import { DEFAULT_PARAMS, type ParamProblem, type PointsParams } from '@/lib/points/params';
 import {
-  DEFAULT_ROUND_ORDER_HELP,
   RANKING_LISTS,
   RANKING_NUMBERS,
   RATING_NUMBERS,
@@ -13,8 +12,13 @@ import {
   type ListFieldDef,
   type NumberFieldDef,
 } from './paramFields';
+import { useT } from '@/lib/i18n/client';
+import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+// A setting's name and help in the viewer's language (paramFields.ts holds the English).
+const fieldText = (t: Dictionary, def: { path: string; label: string; help: string }) =>
+  (t.rankings.fields as Record<string, { label: string; help: string }>)[def.path] ?? def;
 const inputClass = 'w-full rounded border border-gray-300 bg-background px-2 py-1.5 text-sm tabular-nums';
 
 function NumberField({
@@ -30,6 +34,7 @@ function NumberField({
   problems: ParamProblem[];
   onChange: (path: string, value: number) => void;
 }) {
+  const t = useT();
   const value = getPath(params, def.path);
   const fallback = getPath(DEFAULT_PARAMS, def.path);
   const problem = problems.find((p) => p.path === def.path);
@@ -45,8 +50,8 @@ function NumberField({
   return (
     <label className="flex flex-col gap-1 text-sm">
       <span className="flex items-baseline justify-between gap-2 font-medium">
-        {def.label}
-        {!same(value, getPath(saved, def.path)) && <span className="text-xs font-normal text-blue-700">changed</span>}
+        {fieldText(t, def).label}
+        {!same(value, getPath(saved, def.path)) && <span className="text-xs font-normal text-blue-700">{t.rankings.changed}</span>}
       </span>
       <input
         type="text"
@@ -59,7 +64,7 @@ function NumberField({
         className={`${inputClass} ${problem ? 'border-red-500' : ''}`}
       />
       <span className="text-xs text-gray-500">
-        {def.help} Default {String(fallback)}.
+        {fieldText(t, def).help} {t.rankings.defaultValue(String(fallback))}
       </span>
       {problem && <span className="text-xs text-red-700">{problem.message}</span>}
     </label>
@@ -79,6 +84,7 @@ function ListField({
   problems: ParamProblem[];
   onChange: (path: string, value: string[]) => void;
 }) {
+  const t = useT();
   const list = (getPath(params, def.path) as string[]) ?? [];
   const [draft, setDraft] = useState('');
   const problem = problems.find((p) => p.path === def.path);
@@ -91,8 +97,8 @@ function ListField({
   return (
     <div className="flex flex-col gap-1.5 text-sm">
       <span className="flex items-baseline justify-between gap-2 font-medium">
-        {def.label}
-        {!same(list, getPath(saved, def.path)) && <span className="text-xs font-normal text-blue-700">changed</span>}
+        {fieldText(t, def).label}
+        {!same(list, getPath(saved, def.path)) && <span className="text-xs font-normal text-blue-700">{t.rankings.changed}</span>}
       </span>
       <ul className="flex flex-wrap gap-1.5">
         {list.map((name) => (
@@ -101,14 +107,14 @@ function ListField({
             <button
               type="button"
               onClick={() => onChange(def.path, list.filter((n) => n !== name))}
-              aria-label={`Remove ${name}`}
+              aria-label={t.rankings.remove(name)}
               className="cursor-pointer rounded px-1 text-gray-600 hover:bg-gray-300 dark:text-gray-300 dark:hover:bg-white/20"
             >
               ×
             </button>
           </li>
         ))}
-        {list.length === 0 && <li className="text-xs text-gray-500">None</li>}
+        {list.length === 0 && <li className="text-xs text-gray-500">{t.rankings.none}</li>}
       </ul>
       <div className="flex gap-2">
         <input
@@ -120,14 +126,14 @@ function ListField({
               add();
             }
           }}
-          placeholder="Add a name"
+          placeholder={t.rankings.addName}
           className={`${inputClass} ${problem ? 'border-red-500' : ''}`}
         />
         <button type="button" onClick={add} className="cursor-pointer rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-white/10">
-          Add
+          {t.rankings.add}
         </button>
       </div>
-      <span className="text-xs text-gray-500">{def.help}</span>
+      <span className="text-xs text-gray-500">{fieldText(t, def).help}</span>
       {problem && <span className="text-xs text-red-700">{problem.message}</span>}
     </div>
   );
@@ -149,6 +155,7 @@ export function SettingsPanel({
   onChange: (params: PointsParams) => void;
   onSaved: (params: PointsParams) => void;
 }) {
+  const t = useT();
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const setNumber = (path: string, value: number) => onChange(setPath(params, path, value));
@@ -170,7 +177,7 @@ export function SettingsPanel({
           }}
           className="cursor-pointer rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-black"
         >
-          Save as my defaults
+          {t.rankings.saveDefaults}
         </button>
         <button
           type="button"
@@ -181,31 +188,31 @@ export function SettingsPanel({
           }}
           className="cursor-pointer rounded border border-gray-300 px-3 py-2 text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/10"
         >
-          Reset to the original PointsService values
+          {t.rankings.resetOriginal}
         </button>
-        {changed && <span className="text-sm text-blue-700">Changes are used in the preview and when publishing, but not saved yet.</span>}
+        {changed && <span className="text-sm text-blue-700">{t.rankings.unsavedChanges}</span>}
         {message && <span className={`text-sm ${message.ok ? 'text-green-700' : 'text-red-700'}`}>{message.text}</span>}
       </div>
-      {problems.length > 0 && <p className="text-sm text-red-700">Fix the marked settings: the preview waits until they are all valid.</p>}
+      {problems.length > 0 && <p className="text-sm text-red-700">{t.rankings.fixSettings}</p>}
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold">Both</h2>
+        <h2 className="text-lg font-semibold">{t.rankings.both}</h2>
         <label className="flex max-w-xl flex-col gap-1 text-sm">
-          <span className="font-medium">Round order</span>
+          <span className="font-medium">{t.rankings.roundOrder}</span>
           <select
             value={params.roundOrder}
             onChange={(e) => onChange({ ...params, roundOrder: e.target.value as PointsParams['roundOrder'] })}
             className={inputClass}
           >
-            <option value="legacy">PointsService order (Finals first, then the earliest round on)</option>
-            <option value="best-first">Furthest round reached</option>
+            <option value="legacy">{t.rankings.legacyOrder}</option>
+            <option value="best-first">{t.rankings.bestFirst}</option>
           </select>
-          <span className="text-xs text-gray-500">{DEFAULT_ROUND_ORDER_HELP}</span>
+          <span className="text-xs text-gray-500">{t.rankings.roundOrderHelp}</span>
         </label>
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold">Rankings</h2>
+        <h2 className="text-lg font-semibold">{t.rankings.rankingsHeading}</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {RANKING_NUMBERS.map((def) => (
             <NumberField key={def.path} def={def} params={params} saved={saved} problems={problems} onChange={setNumber} />
@@ -219,14 +226,14 @@ export function SettingsPanel({
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold">Ratings</h2>
+        <h2 className="text-lg font-semibold">{t.rankings.ratingsHeading}</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {RATING_NUMBERS.map((def) => (
             <NumberField key={def.path} def={def} params={params} saved={saved} problems={problems} onChange={setNumber} />
           ))}
         </div>
         {params.ratings.kMajor === 64 && params.ratings.kWorlds === 48 && (
-          <p className="text-xs text-gray-500">These K values are the ones PointsService actually used (its code swapped major and worlds).</p>
+          <p className="text-xs text-gray-500">{t.rankings.kNote}</p>
         )}
       </section>
     </div>

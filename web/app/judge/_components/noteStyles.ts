@@ -73,11 +73,6 @@ export const OTHER_COLOR: Record<string, string> = {
   Diff: '#7c3aed',
 };
 
-export const OTHER_LABEL: Record<string, string> = {
-  Ex: 'Execution',
-  AI: 'Artistic Impression',
-  Diff: 'Difficulty',
-};
 
 // One of 8 fixed, pre-validated colours (globals.css) for a team's line on the
 // pool's combined results graph - never generated or cycled live. Indexed by

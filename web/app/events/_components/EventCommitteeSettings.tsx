@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { setEventCommittee } from '@/lib/event-creator-actions';
 import type { PlayerRef } from '@/lib/event-creator-queries';
 import { PlayerPicker } from './PlayerPicker';
+import { useT } from '@/lib/i18n/client';
 
 type Member = { id: string; name: string; country?: string | null };
 
@@ -20,6 +21,7 @@ export function EventCommitteeSettings({
   error: string | null;
 }) {
   const router = useRouter();
+  const t = useT();
   const [members, setMembers] = useState<Member[]>(initialMembers);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -39,8 +41,8 @@ export function EventCommitteeSettings({
 
   return (
     <div className="flex flex-col gap-2 text-sm">
-      <p className="text-gray-600">The people who review this event&apos;s pools and results.</p>
-      {members.length === 0 && <p className="text-gray-500">No committee members yet.</p>}
+      <p className="text-gray-600">{t.events.committeeHelp}</p>
+      {members.length === 0 && <p className="text-gray-500">{t.events.noCommittee}</p>}
       {members.map((m) => (
         <div key={m.id} className="flex items-center gap-2">
           <span>
@@ -59,7 +61,7 @@ export function EventCommitteeSettings({
       ))}
       <PlayerPicker
         onPick={(p) => !pending && !members.some((m) => m.id === p.id) && save([...members, p])}
-        placeholder="Add a committee member…"
+        placeholder={t.events.addCommittee}
       />
       {error && <p className="text-red-600">{error}</p>}
     </div>

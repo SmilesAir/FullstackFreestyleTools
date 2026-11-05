@@ -14,6 +14,7 @@ import {
 } from '@/lib/score-curve';
 import type { OtherCurve } from '@/lib/judging';
 import { OTHER_COLOR } from './noteStyles';
+import { useT } from '@/lib/i18n/client';
 
 const POS = '#16a34a';
 const NEG = '#dc2626';
@@ -106,6 +107,7 @@ export function ScoreGraph({
 }) {
   const MARGIN = compact ? COMPACT_MARGIN : FULL_MARGIN;
   const labelSize = compact ? 10 : 11;
+  const t = useT();
   const uid = useId().replace(/:/g, '');
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(600);
@@ -312,7 +314,7 @@ export function ScoreGraph({
           height={height}
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label="Notes over the routine as a filled line. Hold Ctrl and scroll, or pinch, to zoom."
+          aria-label={t.judging.graphLabel}
           className={`block touch-pan-y select-none text-gray-500 ${zoomed ? 'cursor-grab active:cursor-grabbing' : ''}`}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -417,8 +419,8 @@ export function ScoreGraph({
           </g>
 
           {[
-            { t: 0, label: 'Start', anchor: 'start' as const, dx: 5 },
-            { t: routineSeconds, label: 'End', anchor: 'end' as const, dx: -5 },
+            { t: 0, label: t.judging.start, anchor: 'start' as const, dx: 5 },
+            { t: routineSeconds, label: t.judging.end, anchor: 'end' as const, dx: -5 },
           ]
             .filter((mark) => mark.t >= view.start - 1e-9 && mark.t <= view.end + 1e-9)
             .map((mark) => (
@@ -468,7 +470,7 @@ export function ScoreGraph({
                 stroke="var(--background)"
                 strokeWidth="1.5"
               >
-                <title>{`${mmss(score.t)}  ${score.label ?? signed(score.s)}${score.unused ? ' · not counted' : ''}`}</title>
+                <title>{`${mmss(score.t)}  ${score.label ?? signed(score.s)}${score.unused ? ` · ${t.judging.notCounted}` : ''}`}</title>
               </circle>
             ))}
 

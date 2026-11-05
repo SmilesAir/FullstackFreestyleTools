@@ -12,7 +12,8 @@ import {
   scoreLimitOf,
   snapshotCategorySettings,
 } from './judging-settings';
-import { POOL_LOCKED_ERROR } from './pool-locks';
+import { poolLockedError } from './pool-locks';
+import { getT } from './i18n/server';
 
 // Public on purpose: judges don't log in. Every action checks that this device
 // has the event's judge PIN (JUDGE_PIN_ERROR otherwise; see judge-pin.ts) and
@@ -26,9 +27,10 @@ export type NoteActionResult = { error: string | null };
 export type SubmitResult = { error: string | null; score?: number; baseline?: number; adjustPercent?: number };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const BAD_INPUT: NoteActionResult = { error: 'That note could not be read' };
+const badInput = async (): Promise<NoteActionResult> => ({ error: (await getT()).judging.badNote });
+const badScore = async () => ({ error: (await getT()).judging.badScore });
 const PIN_NEEDED = { error: JUDGE_PIN_ERROR };
-const ALREADY_SUBMITTED = 'Score already submitted';
+const alreadySubmitted = async () => (await getT()).errors.scoreAlreadySubmitted;
 const DEFAULT_RULES_ID = 'Fpa2020';
 
 // What a Difficulty note is made of, worked out here from the event's settings so
@@ -66,12 +68,12 @@ export async function addNote(
   routineId: string,
   linePosition?: number
 ): Promise<NoteActionResult> {
-  if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(noteId) || !UUID.test(routineId)) return BAD_INPUT;
-  if (!Number.isFinite(clickedAt)) return BAD_INPUT;
+  if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(noteId) || !UUID.test(routineId)) return badInput();
+  if (!Number.isFinite(clickedAt)) return badInput();
   if (!(await judgePinOk(eventId))) return PIN_NEEDED;
-  if (!noteTypesFor(categoryType)?.includes(noteType)) return BAD_INPUT;
+  if (!noteTypesFor(categoryType)?.includes(noteType)) return badInput();
   const isDifficulty = categoryType === 'Diff';
-  if (isDifficulty ? !validPosition(linePosition) : linePosition !== undefined && linePosition !== null) return BAD_INPUT;
+  if (isDifficulty ? !validPosition(linePosition) : linePosition !== undefined && linePosition !== null) return badInput();
 
   // The running routine's settings, for the numberline score and multiplier.
   let values: { lineValue: number; multiplier: number } | null = null;
@@ -161,12 +163,13 @@ export async function addNote(
   );
   const r = why.rows[0];
   if (r.saved) return { error: null };
-  if (!r.playing || !r.judging) return { error: "You're not judging right now" };
-  if (!r.running) return { error: 'No routine is running' };
-  if (r.locked) return { error: POOL_LOCKED_ERROR };
-  if (!r.same) return { error: 'That routine was restarted, so the note was not saved' };
-  if (r.submitted) return { error: ALREADY_SUBMITTED };
-  return { error: 'Too many notes for this routine' };
+  const t = await getT();
+  if (!r.playing || !r.judging) return { error: t.judging.notJudgingNow };
+  if (!r.running) return { error: t.judging.noRoutineRunning };
+  if (r.locked) return { error: await poolLockedError() };
+  if (!r.same) return { error: t.judging.routineRestarted };
+  if (r.submitted) return { error: t.errors.scoreAlreadySubmitted };
+  return { error: t.judging.tooManyNotes };
 }
 
 // Changes one of this judge's own Difficulty notes: its rating and where it was
@@ -180,8 +183,8 @@ export async function editNote(
   rating: string,
   linePosition: number
 ): Promise<NoteActionResult> {
-  if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(noteId)) return BAD_INPUT;
-  if (!noteTypesFor('Diff')?.includes(rating) || !validPosition(linePosition)) return BAD_INPUT;
+  if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(noteId)) return badInput();
+  if (!noteTypesFor('Diff')?.includes(rating) || !validPosition(linePosition)) return badInput();
   if (!(await judgePinOk(eventId))) return PIN_NEEDED;
 
   const found = await pool.query<{ judging_settings: unknown; rules_id: string | null; locked: boolean }>(
@@ -196,7 +199,7 @@ export async function editNote(
     [noteId, eventId, playerId]
   );
   if (!found.rows[0]) return { error: null };
-  if (found.rows[0].locked) return { error: POOL_LOCKED_ERROR };
+  if (found.rows[0].locked) return { error: await poolLockedError() };
   const { lineValue, multiplier } = difficultyValues(
     found.rows[0].judging_settings,
     found.rows[0].rules_id,
@@ -216,7 +219,7 @@ export async function editNote(
          WHERE r.id = n.routine_id AND p.locked)`,
     [noteId, eventId, playerId, rating, linePosition, lineValue, multiplier]
   );
-  return { error: updated.rowCount === 1 ? null : ALREADY_SUBMITTED };
+  return { error: updated.rowCount === 1 ? null : await alreadySubmitted() };
 }
 
 // Removes one of this judge's own notes (undo). Safe to repeat. Refused once
@@ -227,8 +230,8 @@ export async function deleteNote(
   categoryType: string,
   noteId: string
 ): Promise<NoteActionResult> {
-  if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(noteId)) return BAD_INPUT;
-  if (!noteTypesFor(categoryType)) return BAD_INPUT;
+  if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(noteId)) return badInput();
+  if (!noteTypesFor(categoryType)) return badInput();
   if (!(await judgePinOk(eventId))) return PIN_NEEDED;
   const deleted = await pool.query(
     `DELETE FROM fpa2027_judge_notes n
@@ -251,7 +254,7 @@ export async function deleteNote(
     [noteId, eventId, playerId, categoryType]
   );
   if (still.rows.length === 0) return { error: null };
-  return { error: still.rows[0].locked ? POOL_LOCKED_ERROR : ALREADY_SUBMITTED };
+  return { error: still.rows[0].locked ? await poolLockedError() : await alreadySubmitted() };
 }
 
 type SavedNote = { noteType: string; notedAt: number; lineValue?: number; multiplier?: number };
@@ -295,9 +298,9 @@ export async function submitScore(
   routineId: string,
   adjustPercent: number
 ): Promise<SubmitResult> {
-  if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(routineId)) return { error: 'That score could not be read' };
-  if (!noteTypesFor(categoryType)) return { error: 'That score could not be read' };
-  if (!Number.isFinite(adjustPercent)) return { error: 'That score could not be read' };
+  if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(routineId)) return badScore();
+  if (!noteTypesFor(categoryType)) return badScore();
+  if (!Number.isFinite(adjustPercent)) return badScore();
   if (!(await judgePinOk(eventId))) return PIN_NEEDED;
   const percent = Math.round(adjustPercent * 100) / 100;
 
@@ -308,7 +311,7 @@ export async function submitScore(
      WHERE r.id = $1 AND r.event_id = $2`,
     [routineId, eventId]
   );
-  if (lockCheck.rows[0]?.locked) return { error: POOL_LOCKED_ERROR };
+  if (lockCheck.rows[0]?.locked) return { error: await poolLockedError() };
 
   const context = await pool.query<{
     judging_settings: unknown;
@@ -346,7 +349,7 @@ export async function submitScore(
     [eventId, routineId, playerId, categoryType, JUDGING_RULES_ID]
   );
   const ctx = context.rows[0];
-  if (!ctx) return { error: "You're not judging this routine" };
+  if (!ctx) return { error: (await getT()).judging.notJudgingRoutine };
 
   // noteTypesFor above means this is a category that takes notes.
   const category = categoryType as NoteCategory;
@@ -419,8 +422,8 @@ export async function submitBackupScore(
   teamId: string,
   adjustPercent: number
 ): Promise<SubmitResult & { routineId?: string }> {
-  if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(teamId)) return { error: 'That score could not be read' };
-  if (!noteTypesFor(categoryType)) return { error: 'That score could not be read' };
+  if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(teamId)) return badScore();
+  if (!noteTypesFor(categoryType)) return badScore();
   if (!(await judgePinOk(eventId))) return PIN_NEEDED;
 
   const client = await pool.connect();
@@ -449,7 +452,7 @@ export async function submitBackupScore(
     const at = found.rows[0];
     if (!at) {
       await client.query('ROLLBACK');
-      return { error: "That team isn't in the pool you're judging" };
+      return { error: (await getT()).judging.teamNotInPool };
     }
     const locked = await client.query(
       'SELECT 1 FROM pools WHERE division_id = $1 AND round_number = $2 AND pool_id = $3 AND locked',
@@ -457,7 +460,7 @@ export async function submitBackupScore(
     );
     if (locked.rows.length > 0) {
       await client.query('ROLLBACK');
-      return { error: POOL_LOCKED_ERROR };
+      return { error: await poolLockedError() };
     }
     routineId = at.id;
     if (routineId === null) {

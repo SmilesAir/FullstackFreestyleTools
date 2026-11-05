@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { useT } from '@/lib/i18n/client';
 
 // The score adjustment buttons, in percent: a major and a minor step each way.
 const ADJUST_STEPS = [-10, -1, 1, 10];
@@ -20,6 +21,7 @@ function AdjustButton({
   large?: boolean;
   fill?: boolean;
 }) {
+  const t = useT();
   const up = step > 0;
   const major = Math.abs(step) >= MAJOR_STEP;
   const paths = major
@@ -32,7 +34,7 @@ function AdjustButton({
       type="button"
       disabled={disabled}
       onClick={() => onAdjust(step)}
-      aria-label={`${up ? 'Raise' : 'Lower'} score ${Math.abs(step)}%`}
+      aria-label={up ? t.judging.raiseScore(Math.abs(step)) : t.judging.lowerScore(Math.abs(step))}
       title={`${up ? '+' : '−'}${Math.abs(step)}%`}
       className={`flex cursor-pointer items-center justify-center border-2 transition active:scale-[0.95] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 ${
         fill ? 'h-full min-w-0 flex-1 rounded-md' : `rounded-lg ${large ? 'h-20 w-16' : 'h-14 w-12'}`

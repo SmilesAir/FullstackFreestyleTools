@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { parseResultsText } from '@/lib/results-parser-actions';
-import { roundName, type EventOption, type ParsedDivision } from '@/lib/results-parser/types';
+import type { EventOption, ParsedDivision } from '@/lib/results-parser/types';
+import { useT } from '@/lib/i18n/client';
 
 type Found = { eventName: string | null; startDate: string | null; endDate: string | null; divisions: ParsedDivision[]; unparsed: string[] };
 
@@ -24,6 +25,7 @@ export function ClaudeBox({
   onCreateEvent: (prefill: { name: string; start: string; end: string }) => void;
   onLoad: (division: ParsedDivision) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(true);
   const [text, setText] = useState('');
   const [found, setFound] = useState<Found | null>(null);
@@ -47,21 +49,20 @@ export function ClaudeBox({
   return (
     <section className="flex flex-col gap-3 rounded border border-gray-300 p-3">
       <button type="button" onClick={() => setOpen(!open)} className="flex items-center gap-2 text-left font-semibold">
-        <span className="text-xs">{open ? '▼' : '▶'}</span> Fill from pasted results with Claude
+        <span className="text-xs">{open ? '▼' : '▶'}</span> {t.resultsParser.fillWithClaude}
       </button>
       {open && (
         <>
           {!hasKey && (
             <p className="rounded border border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              The Anthropic API key isn&apos;t set yet, so Claude can&apos;t read pasted results. Ask an admin to add it in Settings. You can still type
-              results in below.
+              {t.resultsParser.noKey}
             </p>
           )}
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={8}
-            placeholder={'Paste results in any format, for one division or several, e.g.\nOpen Pairs Finals\n1. Jane Doe / John Smith\n2. Riccardo Montanari & Francesco Santolin\nPool A: ...'}
+            placeholder={t.resultsParser.pastePlaceholder}
             className="rounded border border-gray-300 px-3 py-2 text-sm"
           />
           <button
@@ -70,7 +71,7 @@ export function ClaudeBox({
             disabled={parsing || !text.trim() || !hasKey}
             className="self-start rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
-            {parsing ? 'Reading with Claude…' : 'Fill from Claude'}
+            {parsing ? t.resultsParser.reading : t.resultsParser.fill}
           </button>
           {error && <p className="text-sm text-red-600">{error}</p>}
 
@@ -79,15 +80,15 @@ export function ClaudeBox({
               {found.eventName && (
                 <div className="flex flex-wrap items-center gap-2">
                   <span>
-                    Event in the text: <strong>{found.eventName}</strong>
-                    {found.startDate && <> ({found.startDate}{found.endDate && found.endDate !== found.startDate ? ` to ${found.endDate}` : ''})</>}
+                    {t.resultsParser.eventInText} <strong>{found.eventName}</strong>
+                    {found.startDate && <> ({found.startDate}{found.endDate && found.endDate !== found.startDate ? t.resultsParser.to(found.endDate) : ''})</>}
                   </span>
                   {matched ? (
                     matched.id === eventId ? (
-                      <span className="text-green-700">✓ selected</span>
+                      <span className="text-green-700">{t.resultsParser.selected}</span>
                     ) : (
                       <button type="button" onClick={() => onPickEvent(matched.id)} className="rounded border border-gray-300 bg-white px-2 py-1 text-xs">
-                        Use the existing event
+                        {t.resultsParser.useExisting}
                       </button>
                     )
                   ) : (
@@ -102,18 +103,18 @@ export function ClaudeBox({
                       }
                       className="rounded border border-gray-300 bg-white px-2 py-1 text-xs"
                     >
-                      Not in the list: create it
+                      {t.resultsParser.createIt}
                     </button>
                   )}
                 </div>
               )}
 
               {found.divisions.length === 0 ? (
-                <p className="text-amber-800">Claude didn&apos;t find any results for a known division in that text.</p>
+                <p className="text-amber-800">{t.resultsParser.noneFound}</p>
               ) : (
                 <div className="flex flex-col gap-2">
                   <p className="text-gray-700">
-                    Found {found.divisions.length} division(s). {eventId ? 'Load one into the editor to check it:' : 'Pick or create the event above, then load one into the editor:'}
+                    {t.resultsParser.foundDivisions(found.divisions.length, !!eventId)}
                   </p>
                   {found.divisions.map((d) => (
                     <div key={d.divisionName} className="flex flex-wrap items-center gap-2">
@@ -123,10 +124,10 @@ export function ClaudeBox({
                         disabled={!eventId}
                         className="rounded bg-black px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
                       >
-                        Load {d.divisionName}
+                        {t.resultsParser.load(d.divisionName)}
                       </button>
                       <span className="text-gray-600">
-                        {d.rounds.map((r) => roundName(r.round)).join(', ')} · {teamCount(d)} team(s)
+                        {d.rounds.map((r) => t.common.roundName(r.round)).join(', ')} · {t.resultsParser.teamCount(teamCount(d))}
                       </span>
                     </div>
                   ))}
@@ -135,7 +136,7 @@ export function ClaudeBox({
 
               {found.unparsed.length > 0 && (
                 <div className="rounded border border-amber-300 bg-amber-50 p-2">
-                  <div className="font-medium text-amber-800">Left out (Claude couldn&apos;t place these):</div>
+                  <div className="font-medium text-amber-800">{t.resultsParser.leftOut}</div>
                   <ul className="list-disc pl-5 text-amber-900">
                     {found.unparsed.map((line, i) => (
                       <li key={i}>{line}</li>

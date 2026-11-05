@@ -4,19 +4,21 @@ import { resolveAnnouncerCode } from '@/lib/announcer-link';
 import { getAnnouncerPoll } from '@/lib/announcer-queries';
 import { getHeadJudgePools } from '@/lib/head-judge-queries';
 import { AnnouncerShell } from '../_components/AnnouncerShell';
+import { getT } from '@/lib/i18n/server';
 
 export const dynamic = 'force-dynamic';
 
 // Unlisted: reached only through the link the Head Judge copies, never indexed.
-export const metadata: Metadata = { title: 'Announcer', robots: { index: false, follow: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getT()).publicPages.announcerTitle, robots: { index: false, follow: false } };
+}
 
-function NotFound() {
+async function NotFound() {
+  const t = await getT();
   return (
     <main className="mx-auto mt-24 max-w-sm px-4 text-center">
-      <h1 className="mb-2 text-xl font-semibold">Not found</h1>
-      <p className="text-sm text-gray-500">
-        This announcer link doesn&apos;t point to anything. Ask the Head Judge for the event&apos;s link.
-      </p>
+      <h1 className="mb-2 text-xl font-semibold">{t.publicPages.notFound}</h1>
+      <p className="text-sm text-gray-500">{t.publicPages.announcerNotFound}</p>
     </main>
   );
 }

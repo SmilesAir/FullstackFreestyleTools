@@ -9,7 +9,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
-import { OTHER_COLOR, OTHER_LABEL } from "@/app/judge/_components/noteStyles";
+import { OTHER_COLOR } from "@/app/judge/_components/noteStyles";
 import { fetchJson } from "@/lib/fetch-json";
 import { mmss, timeTicks } from "@/lib/graph-view";
 import type {
@@ -20,8 +20,9 @@ import { formatElapsed } from "@/lib/head-judge-state";
 import {
   JUDGING_CATEGORIES,
   noteCategoryOf,
-  noteFullLabel,
 } from "@/lib/judging";
+import { useT } from "@/lib/i18n/client";
+import { categoryLabel, noteFullLabel as noteName } from "@/lib/i18n/labels";
 
 const POLL_MS = 2000;
 // How far back a start can go (the server refuses older, see MAX_CLICK_AGE).
@@ -55,6 +56,7 @@ export function StartAdjustDialog({
   onApply: (routineId: string, startedAt: number) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -71,7 +73,7 @@ export function StartAdjustDialog({
         e.preventDefault();
         props.onClose();
       }}
-      aria-label="Adjust routine start"
+      aria-label={t.headJudge.adjustRoutineStart}
       className="m-auto w-[min(56rem,calc(100vw-2rem))] max-w-none rounded-lg border border-gray-300 bg-background p-4 text-foreground backdrop:bg-black/40"
     >
       {/* Only while open, so the line starts at the routine's start each time. */}
@@ -91,6 +93,7 @@ function Body({
   onApply: (routineId: string, startedAt: number) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const [data, setData] = useState<RoutineStartData | null>(null);
   const [failed, setFailed] = useState(false);
   // Where the line is (ms, server clock); null = the routine's start.
@@ -146,15 +149,15 @@ function Body({
   if (failed && !data)
     return (
       <Frame onClose={onClose}>
-        Could not read the judges&apos; notes. Trying again…
+        {t.headJudge.couldNotRead}
       </Frame>
     );
   if (!data)
-    return <Frame onClose={onClose}>Reading the judges&apos; notes…</Frame>;
+    return <Frame onClose={onClose}>{t.headJudge.reading}</Frame>;
   if (data.routineId === null || data.startedAt === null) {
     return (
       <Frame onClose={onClose}>
-        No routine is running, so there is no start to move.
+        {t.headJudge.noRoutine}
       </Frame>
     );
   }
@@ -242,11 +245,8 @@ function Body({
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <h3 className="text-lg font-semibold">Adjust routine start</h3>
-        <p className="text-sm text-gray-600">
-          Drag the green line to the first throw. Notes left of the line
-          don&apos;t count. Every judge&apos;s timer moves with it.
-        </p>
+        <h3 className="text-lg font-semibold">{t.headJudge.adjustRoutineStart}</h3>
+        <p className="text-sm text-gray-600">{t.headJudge.dragHelp}</p>
       </div>
 
       <div ref={box} className="w-full">
@@ -255,11 +255,11 @@ function Body({
           height={height}
           role="slider"
           tabIndex={0}
-          aria-label="Routine start"
+          aria-label={t.headJudge.routineStart}
           aria-valuemin={lo}
           aria-valuemax={now}
           aria-valuenow={start}
-          aria-valuetext={`${changed ? `${mmss(Math.abs(moved) / 1000)} ${moved < 0 ? "earlier" : "later"}` : "unchanged"}`}
+          aria-valuetext={changed ? t.headJudge.movedBy(mmss(Math.abs(moved) / 1000), moved < 0) : t.headJudge.unchanged}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -326,7 +326,7 @@ function Body({
                   fill={OTHER_COLOR[category]}
                 >
                   {category}
-                  <title>{OTHER_LABEL[category]}</title>
+                  <title>{categoryLabel(t, category)}</title>
                 </text>
               </g>
             );
@@ -350,14 +350,14 @@ function Body({
             fill="currentColor"
             opacity={0.6}
           >
-            now
+            {t.headJudge.now}
           </text>
 
           {placed.map(({ note, cx, cy, r }) => {
             const ok = counted(note);
             const category = noteCategoryOf(note.category);
             const label = category
-              ? noteFullLabel(category, note.noteType)
+              ? noteName(t, note.noteType)
               : note.noteType;
             const color = ok
               ? (OTHER_COLOR[note.category] ?? "#2563eb")
@@ -374,7 +374,7 @@ function Body({
                 fillOpacity={ok ? 0.9 : 0.5}
               >
                 <title>
-                  {`${note.judge} · ${label} · ${signedMmss((note.notedAt - start) / 1000)}${ok ? "" : " (not counted)"}`}
+                  {`${note.judge} · ${label} · ${signedMmss((note.notedAt - start) / 1000)}${ok ? "" : t.headJudge.notCounted}`}
                 </title>
               </circle>
             );
@@ -418,7 +418,7 @@ function Body({
             fontWeight={700}
             fill="white"
           >
-            Start
+            {t.headJudge.start}
           </text>
         </svg>
       </div>
@@ -426,29 +426,28 @@ function Body({
       <p className="text-sm">
         {changed ? (
           <>
-            Start moved <strong>{mmss(Math.abs(moved) / 1000)}</strong>{" "}
-            {moved < 0 ? "earlier" : "later"} · timer will read{" "}
+            {t.headJudge.startMoved} <strong>{mmss(Math.abs(moved) / 1000)}</strong>{" "}
+            {t.headJudge.earlierTimerWillRead(moved < 0)}{" "}
           </>
         ) : (
-          <>Timer reads </>
+          <>{t.headJudge.timerReads} </>
         )}
         <strong className="font-mono tabular-nums">
           {formatElapsed(Math.max(0, now - start))}
         </strong>
         {" · "}
         {notCounted === 0
-          ? "every note counts"
-          : `${notCounted} note${notCounted === 1 ? "" : "s"} not counted`}
+          ? t.headJudge.everyNoteCounts
+          : t.headJudge.notesNotCounted(notCounted)}
       </p>
       {data.submitted > 0 && changed && (
         <p className="rounded border border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          {data.submitted} submitted score{data.submitted === 1 ? "" : "s"} will
-          be worked out again from the new start.
+          {t.headJudge.submittedRecomputed(data.submitted)}
         </p>
       )}
       {failed && (
         <p className="text-sm text-amber-700">
-          Lost the connection, showing the last notes read.
+          {t.headJudge.lostConnection}
         </p>
       )}
 
@@ -462,7 +461,7 @@ function Body({
             }
             className="cursor-pointer rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Snap to first note
+            {t.headJudge.snapToFirst}
           </button>
           <button
             type="button"
@@ -470,7 +469,7 @@ function Body({
             onClick={() => setProposed(null)}
             className="cursor-pointer rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Reset
+            {t.headJudge.reset}
           </button>
         </div>
         <div className="flex gap-2">
@@ -479,7 +478,7 @@ function Body({
             onClick={onClose}
             className="cursor-pointer rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
           >
-            Cancel
+            {t.common.cancel}
           </button>
           <button
             type="button"
@@ -490,7 +489,7 @@ function Body({
             }}
             className="cursor-pointer rounded bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Apply
+            {t.headJudge.apply}
           </button>
         </div>
       </div>
@@ -505,9 +504,10 @@ function Frame({
   children: ReactNode;
   onClose: () => void;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="text-lg font-semibold">Adjust routine start</h3>
+      <h3 className="text-lg font-semibold">{t.headJudge.adjustRoutineStart}</h3>
       <p className="text-sm text-gray-600">{children}</p>
       <div className="flex justify-end">
         <button
@@ -515,7 +515,7 @@ function Frame({
           onClick={onClose}
           className="cursor-pointer rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
         >
-          Close
+          {t.common.close}
         </button>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { getCurrentUserAccess } from '@/lib/authz';
-import { OUT_OF_CREDIT_MESSAGE, isOutOfCredit } from '@/lib/claude-errors';
+import { isOutOfCredit } from '@/lib/claude-errors';
 import { promptById } from '@/lib/claude-prompts';
 import { recordClaudeUsage } from '@/lib/claude-usage';
 import { POOL_LETTERS } from '@/lib/event-creator';
@@ -9,6 +9,8 @@ import { explainPool, listPoolsForChat } from '@/lib/results-explain';
 import { getSetting } from '@/lib/settings-queries';
 import { checkSupportChatLimits } from '@/lib/support-chat-limits';
 import { logSupportChat, type SupportPage } from '@/lib/support-chat-queries';
+import { getT } from '@/lib/i18n/server';
+import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 type BetaMessageParam = Anthropic.Beta.Messages.BetaMessageParam;
 type BetaTool = Anthropic.Beta.Messages.BetaTool;
@@ -125,19 +127,19 @@ async function runTool(eventId: string, call: BetaToolUse): Promise<BetaToolResu
 }
 
 // What the person sees while a tool runs, so the pause isn't silent.
-function lookingUp(calls: BetaToolUse[]): string {
-  return calls.some((c) => c.name === 'get_pool_results') ? '(Looking up the results…)\n\n' : '(Looking up the pools…)\n\n';
+function lookingUp(t: Dictionary, calls: BetaToolUse[]): string {
+  return calls.some((c) => c.name === 'get_pool_results') ? t.supportChat.lookingUpResults : t.supportChat.lookingUpPools;
 }
 
 const json = (body: unknown, status: number) =>
   Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 
-function apiErrorMessage(err: unknown): string {
-  if (err instanceof Anthropic.AuthenticationError) return 'The saved Anthropic API key was rejected. Ask an admin to update it in Settings.';
-  if (err instanceof Anthropic.RateLimitError) return 'Claude is busy right now. Try again in a minute.';
-  if (isOutOfCredit(err)) return OUT_OF_CREDIT_MESSAGE;
-  if (err instanceof Anthropic.APIError) return `Claude couldn't answer (error ${err.status}). Try again shortly.`;
-  return "Couldn't reach Claude. Check the internet connection and try again.";
+function apiErrorMessage(t: Dictionary, err: unknown): string {
+  if (err instanceof Anthropic.AuthenticationError) return t.supportChat.keyRejected;
+  if (err instanceof Anthropic.RateLimitError) return t.supportChat.busy;
+  if (isOutOfCredit(err)) return t.supportChat.outOfCredit;
+  if (err instanceof Anthropic.APIError) return t.supportChat.apiError(err.status);
+  return t.supportChat.couldntReachClaude;
 }
 
 // Answers a support question, streaming the answer back as plain text. Errors
@@ -146,28 +148,29 @@ function apiErrorMessage(err: unknown): string {
 // pools and results (several requests to Claude, streamed as one answer).
 export async function POST(request: Request) {
   const access = await getCurrentUserAccess();
-  if (!access) return json({ error: 'Sign in to use the support chat.' }, 401);
+  const t = await getT();
+  if (!access) return json({ error: t.supportChat.signIn }, 401);
 
   const parsed = Body.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return json({ error: 'That message could not be sent.' }, 400);
+  if (!parsed.success) return json({ error: t.supportChat.couldNotSend }, 400);
   const { conversationId, page, eventId, messages } = parsed.data;
   // The Judging Trainer is for every signed-in user, and so is its chat.
   if (page !== 'judging-trainer' && !access.permissions.has('head_judge') && !access.permissions.has('event_creator')) {
-    return json({ error: "You don't have access to the support chat." }, 403);
+    return json({ error: t.supportChat.noAccess }, 403);
   }
   // Questions and answers take turns, starting and ending with a question.
   if (messages.some((m, i) => m.role !== (i % 2 === 0 ? 'user' : 'assistant')) || messages.length % 2 === 0) {
-    return json({ error: 'That message could not be sent.' }, 400);
+    return json({ error: t.supportChat.couldNotSend }, 400);
   }
   const question = messages[messages.length - 1].content;
   if (question.length > MAX_QUESTION) {
-    return json({ error: `Keep a question under ${MAX_QUESTION.toLocaleString()} characters.` }, 400);
+    return json({ error: t.supportChat.tooLong(MAX_QUESTION.toLocaleString(t.common.intlLocale)) }, 400);
   }
 
   const limited = await checkSupportChatLimits(access.userId);
   if (limited) return json({ error: limited }, 429);
   const apiKey = await getSetting('anthropic_api_key');
-  if (!apiKey) return json({ error: "The support chat isn't set up yet." }, 503);
+  if (!apiKey) return json({ error: t.supportChat.notSetUp }, 503);
 
   // Results are for those who can see them on the Head Judge page.
   const resultsEventId =
@@ -187,7 +190,11 @@ export async function POST(request: Request) {
       // one's turns from the cache.
       system: [
         { type: 'text', text: prompt.system, cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: resultsEventId ? `${PAGE_NOTE[page]} ${RESULTS_NOTE}` : PAGE_NOTE[page] },
+        // The page note, and which language to answer in (nothing extra for English).
+        {
+          type: 'text',
+          text: [resultsEventId ? `${PAGE_NOTE[page]} ${RESULTS_NOTE}` : PAGE_NOTE[page], t.supportChat.replyIn].filter(Boolean).join(' '),
+        },
       ],
       cache_control: { type: 'ephemeral' },
       messages: conversation,
@@ -205,7 +212,7 @@ export async function POST(request: Request) {
   try {
     first = await events.next();
   } catch (err) {
-    return json({ error: apiErrorMessage(err) }, 502);
+    return json({ error: apiErrorMessage(t, err) }, 502);
   }
 
   const encoder = new TextEncoder();
@@ -242,7 +249,7 @@ export async function POST(request: Request) {
             break;
           }
           if (answer && !answer.endsWith('\n')) send('\n\n');
-          send(lookingUp(calls));
+          send(lookingUp(t, calls));
           const results = await Promise.all(calls.map((call) => runTool(resultsEventId, call)));
           conversation.push({ role: 'assistant', content: final.content }, { role: 'user', content: results });
           stream = ask(RESULTS_EFFORT);
@@ -260,7 +267,7 @@ export async function POST(request: Request) {
           stopReason,
         });
       } catch (err) {
-        if (!cancelled && !stream.aborted) send(`\n\n(${apiErrorMessage(err)})`);
+        if (!cancelled && !stream.aborted) send(`\n\n(${apiErrorMessage(t, err)})`);
       } finally {
         try {
           controller.close();

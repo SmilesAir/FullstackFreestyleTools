@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { enterJudgePin } from '@/lib/judge-pin-actions';
+import { useT } from '@/lib/i18n/client';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'back'] as const;
 
@@ -23,6 +24,7 @@ export function PinPad({
   onUnlocked?: () => void;
 }) {
   const router = useRouter();
+  const t = useT();
   const [digits, setDigits] = useState('');
   const [remember, setRemember] = useState(true);
   const [checking, setChecking] = useState(false);
@@ -48,7 +50,7 @@ export function PinPad({
       setError(null);
       const result = await enterJudgePin(eventId, pin, remember).catch(() => ({
         ok: false as const,
-        error: 'Could not check the PIN. Check the connection and try again.',
+        error: t.judging.pinCouldNotCheck,
         retryAfterMs: undefined,
       }));
       setChecking(false);
@@ -64,7 +66,7 @@ export function PinPad({
         setLockedUntil(Date.now() + result.retryAfterMs);
       }
     },
-    [eventId, remember, onUnlocked, router]
+    [eventId, remember, onUnlocked, router, t]
   );
 
   const press = useCallback(
@@ -96,10 +98,10 @@ export function PinPad({
       <div className="text-center">
         {judgeName && <p className="text-lg font-semibold">{judgeName}</p>}
         {categoryLabel && <p className="text-sm text-gray-500">{categoryLabel}</p>}
-        <p className="mt-3 text-sm text-gray-700">Enter the judge PIN from the head judge.</p>
+        <p className="mt-3 text-sm text-gray-700">{t.judging.pinPrompt}</p>
       </div>
 
-      <div className="flex gap-3" aria-label={`${digits.length} of 2 digits entered`}>
+      <div className="flex gap-3" aria-label={t.judging.pinDigits(digits.length)}>
         {[0, 1].map((i) => (
           <span
             key={i}
@@ -114,9 +116,9 @@ export function PinPad({
 
       <p className="min-h-5 text-center text-sm" role="status">
         {locked ? (
-          <span className="text-red-700">Too many tries. Try again in {wait}.</span>
+          <span className="text-red-700">{t.judging.pinTooMany(wait)}</span>
         ) : checking ? (
-          <span className="text-gray-500">Checking…</span>
+          <span className="text-gray-500">{t.judging.pinChecking}</span>
         ) : error ? (
           <span className="text-red-700">{error}</span>
         ) : null}
@@ -132,7 +134,7 @@ export function PinPad({
               type="button"
               onClick={() => press(key)}
               disabled={checking || locked || (key === 'back' && digits.length === 0)}
-              aria-label={key === 'back' ? 'Delete' : key}
+              aria-label={key === 'back' ? t.judging.delete : key}
               className="flex h-16 items-center justify-center rounded border border-gray-300 text-2xl font-semibold active:bg-gray-200 disabled:opacity-30"
             >
               {key === 'back' ? '⌫' : key}
@@ -143,7 +145,7 @@ export function PinPad({
 
       <label className="flex items-center gap-2 text-sm text-gray-700">
         <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4" />
-        Remember this device
+        {t.judging.pinRemember}
       </label>
     </div>
   );

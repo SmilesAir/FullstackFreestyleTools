@@ -2,13 +2,15 @@
 
 import { useActionState } from 'react';
 import { uploadBackupAction, type ActionState } from '@/lib/backup-actions';
+import { useT } from '@/lib/i18n/client';
 
 export function UploadBackupForm() {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(uploadBackupAction, { error: null });
+  const t = useT();
 
   return (
     <form action={formAction} className="flex flex-col gap-2 rounded border border-gray-300 p-3">
-      <div className="font-medium">Upload a backup file</div>
+      <div className="font-medium">{t.admin.uploadBackup}</div>
       <input
         name="file"
         type="file"
@@ -22,7 +24,7 @@ export function UploadBackupForm() {
         disabled={pending}
         className="self-start rounded border border-gray-300 px-3 py-2 text-sm disabled:opacity-50"
       >
-        {pending ? 'Uploading…' : 'Upload'}
+        {pending ? t.admin.uploading : t.admin.upload}
       </button>
     </form>
   );

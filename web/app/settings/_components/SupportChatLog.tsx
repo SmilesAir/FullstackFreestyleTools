@@ -1,28 +1,29 @@
 import type { SupportConversation } from '@/lib/support-chat-queries';
+import { getLocale, getT } from '@/lib/i18n/server';
+import { formatShortDateTime } from '@/lib/i18n/format';
 
-const PAGE_NAMES: Record<string, string> = {
-  'head-judge': 'Head Judge',
-  events: 'Event Creator',
-  'judging-trainer': 'Judging Trainer',
-};
 
-const when = (iso: string) =>
-  new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 // The support chat's recent conversations, newest first: who asked, where, and
 // the first question, with the whole conversation behind a click.
-export function SupportChatLog({ conversations }: { conversations: SupportConversation[] | null }) {
+export async function SupportChatLog({ conversations }: { conversations: SupportConversation[] | null }) {
+  const [t, locale] = await Promise.all([getT(), getLocale()]);
+  const when = (iso: string) => formatShortDateTime(locale, iso);
+  const PAGE_NAMES: Record<string, string> = {
+    'head-judge': t.tools.head_judge.label,
+    events: t.tools.event_creator.label,
+    'judging-trainer': t.tools.judging_trainer.label,
+  };
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="font-medium">Recent conversations</h3>
+      <h3 className="font-medium">{t.admin.recentConversations}</h3>
       <p className="text-xs text-gray-500">
-        Kept 90 days, then deleted. What people ask here shows what the guide the chat answers from
-        (web/lib/support-guide.ts) is missing.
+        {t.admin.keptDays}
       </p>
       {conversations === null ? (
-        <p className="text-sm text-gray-500">This database doesn&apos;t have the support chat table yet (run the new lines of backend/schema.sql).</p>
+        <p className="text-sm text-gray-500">{t.admin.noChatTable}</p>
       ) : conversations.length === 0 ? (
-        <p className="text-sm text-gray-500">No questions asked yet.</p>
+        <p className="text-sm text-gray-500">{t.admin.noQuestions}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {conversations.map((c) => {
@@ -33,8 +34,8 @@ export function SupportChatLog({ conversations }: { conversations: SupportConver
                 <details>
                   <summary className="cursor-pointer px-3 py-2 text-sm">
                     <span className="text-gray-500">
-                      {when(c.startedAt)} · {c.email ?? 'unknown user'} · {PAGE_NAMES[c.page] ?? c.page} ·{' '}
-                      {questions} {questions === 1 ? 'question' : 'questions'}
+                      {when(c.startedAt)} · {c.email ?? t.admin.unknownUser} · {PAGE_NAMES[c.page] ?? c.page} ·{' '}
+                      {t.admin.questions(questions)}
                     </span>
                     <span className="mt-0.5 block truncate">{first}</span>
                   </summary>

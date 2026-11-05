@@ -11,6 +11,8 @@ import {
 } from '@/lib/judging-settings';
 import { NOTE_STYLE } from '@/app/judge/_components/noteStyles';
 import { fieldKey, rangeOf, validText, type Draft } from './settingsDraft';
+import { useT } from '@/lib/i18n/client';
+import { noteFullLabel, noteGroupLabel, noteLabel } from '@/lib/i18n/labels';
 
 const signed = (v: number) => `${v < 0 ? '−' : v > 0 ? '+' : ''}${Math.abs(v)}`;
 // Difficulty's values are multipliers.
@@ -37,12 +39,13 @@ export function CategoryForm({
   // Shown under the blurb, before the notes' values.
   children?: React.ReactNode;
 }) {
+  const t = useT();
   const [minWeight, maxWeight] = weightRange(category);
   return (
     <section className="flex flex-col gap-3">
       <h3 className="text-lg font-semibold">{title}</h3>
       <p className="text-sm text-gray-500">
-        {blurb} Allowed range {minWeight} to {maxWeight}.
+        {blurb} {t.headJudge.allowedRange(minWeight, maxWeight)}
       </p>
 
       {children}
@@ -50,7 +53,7 @@ export function CategoryForm({
       {noteGroups(category).map((group) => (
         <div key={group.heading ?? 'notes'} className="flex flex-col gap-2">
           {group.heading && (
-            <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-500">{group.heading}</h4>
+            <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-500">{noteGroupLabel(t, group.heading)}</h4>
           )}
           <ul className="flex flex-col gap-2">
             {group.notes.map((note) => {
@@ -59,7 +62,7 @@ export function CategoryForm({
               return (
                 <li key={note.type} className="flex flex-wrap items-center gap-3">
                   <span className={`w-52 rounded px-3 py-1.5 text-sm font-semibold ${NOTE_STYLE[note.type]}`}>
-                    {note.label}
+                    {noteLabel(t, note.type)}
                   </span>
                   <input
                     type="number"
@@ -69,11 +72,11 @@ export function CategoryForm({
                     max={maxWeight}
                     value={draft[key]}
                     onChange={(e) => onEdit(key, e.target.value)}
-                    aria-label={`${note.fullLabel} weight`}
+                    aria-label={t.headJudge.weight(noteFullLabel(t, note.type))}
                     aria-invalid={invalid}
                     className={`w-28 rounded border bg-transparent px-2 py-1 ${invalid ? 'border-red-500' : 'border-gray-300'}`}
                   />
-                  <span className="text-sm text-gray-500">default {shown(category, defaults[category].noteWeights[note.type])}</span>
+                  <span className="text-sm text-gray-500">{t.headJudge.defaultValue(shown(category, defaults[category].noteWeights[note.type]))}</span>
                 </li>
               );
             })}
@@ -81,12 +84,12 @@ export function CategoryForm({
         </div>
       ))}
 
-      <h4 className="mt-2 font-medium">{title} baseline estimate</h4>
+      <h4 className="mt-2 font-medium">{t.headJudge.baselineEstimate(title)}</h4>
       <p className="text-sm text-gray-500">
-        The suggested score is the area under the notes&apos; curve over the routine, times the coefficient.
+        {t.headJudge.baselineHelp}
       </p>
       <ul className="flex flex-col gap-2">
-        {([['areaScale', 'Area coefficient', AREA_SCALE_STEP]] as const).map(([field, label, step]) => {
+        {([['areaScale', t.headJudge.areaCoefficient, AREA_SCALE_STEP]] as const).map(([field, label, step]) => {
           const key = fieldKey(category, field);
           const invalid = !validText(draft, key);
           const [min, max] = rangeOf(key);
@@ -106,7 +109,7 @@ export function CategoryForm({
                 className={`w-28 rounded border bg-transparent px-2 py-1 ${invalid ? 'border-red-500' : 'border-gray-300'}`}
               />
               <span className="text-sm text-gray-500">
-                default {defaults[category].estimate[field]}, range {min} to {max}
+                {t.headJudge.defaultRange(defaults[category].estimate[field], min, max)}
               </span>
             </li>
           );
@@ -135,6 +138,7 @@ function ScoreLimitField({
   defaults: SystemSettings;
   onEdit: (key: string, text: string) => void;
 }) {
+  const t = useT();
   const key = fieldKey(category, 'secondsPerScore');
   const invalid = !validText(draft, key);
   const [min, max] = rangeOf(key);
@@ -142,13 +146,12 @@ function ScoreLimitField({
   const perMinute = !invalid && seconds > 0 ? Math.round((60 / seconds) * 100) / 100 : null;
   return (
     <>
-      <h4 className="mt-2 font-medium">{title} score limit</h4>
+      <h4 className="mt-2 font-medium">{t.headJudge.scoreLimit(title)}</h4>
       <p className="text-sm text-gray-500">
-        Only so many positive notes count toward the baseline: one per this many seconds of the routine, anywhere in it.
-        The most valuable count; the rest are grayed out on the graph. Negative notes always count. 0 = no limit.
+        {t.headJudge.scoreLimitHelp}
       </p>
       <div className="flex flex-wrap items-center gap-3">
-        <span className="w-52 text-sm font-medium">Seconds per score</span>
+        <span className="w-52 text-sm font-medium">{t.headJudge.secondsPerScore}</span>
         <input
           type="number"
           inputMode="decimal"
@@ -157,17 +160,17 @@ function ScoreLimitField({
           max={max}
           value={draft[key]}
           onChange={(e) => onEdit(key, e.target.value)}
-          aria-label={`${title} seconds per score`}
+          aria-label={t.headJudge.secondsPerScoreLabel(title)}
           aria-invalid={invalid}
           className={`w-28 rounded border bg-transparent px-2 py-1 ${invalid ? 'border-red-500' : 'border-gray-300'}`}
         />
         <span className="text-sm text-gray-500">
           {perMinute !== null
-            ? `${perMinute} per minute (${Math.floor(180 / seconds)} in a 3:00 routine) · `
+            ? t.headJudge.perMinute(perMinute, Math.floor(180 / seconds))
             : !invalid
-              ? 'no limit · '
+              ? t.headJudge.noLimit
               : ''}
-          default {defaults[category].secondsPerScore}, range {min} to {max}
+          {t.headJudge.defaultRange(defaults[category].secondsPerScore, min, max)}
         </span>
       </div>
     </>

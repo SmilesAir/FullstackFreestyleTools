@@ -6,6 +6,8 @@ import type { PlayerWithAliasName } from '@/lib/players';
 import { PlayerAliasPicker } from './PlayerAliasPicker';
 import { HideToggleButton } from './HideToggleButton';
 import { useAliasPicker } from './AliasPickerContext';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { formatDateTime } from '@/lib/i18n/format';
 
 export function PlayerForm({
   action,
@@ -17,6 +19,8 @@ export function PlayerForm({
   submitLabel: string;
 }) {
   const [state, formAction, pending] = useActionState(action, { error: null });
+  const t = useT();
+  const locale = useLocale();
   const { picking, triggerRefresh } = useAliasPicker();
 
   // A successful save redirects server-side (no return value), so the only
@@ -41,17 +45,17 @@ export function PlayerForm({
       >
         {player && (
           <dl className="grid grid-cols-2 gap-2 rounded bg-gray-50 p-3 text-xs text-gray-500">
-            <dt>ID</dt>
+            <dt>{t.players.id}</dt>
             <dd className="truncate">{player.id}</dd>
-            <dt>Created</dt>
-            <dd>{new Date(player.created_at).toLocaleString()}</dd>
-            <dt>Last active</dt>
-            <dd>{new Date(player.last_active).toLocaleString()}</dd>
+            <dt>{t.players.created}</dt>
+            <dd>{formatDateTime(locale, player.created_at)}</dd>
+            <dt>{t.players.lastActive}</dt>
+            <dd>{formatDateTime(locale, player.last_active)}</dd>
           </dl>
         )}
 
         <label className="flex flex-col gap-1 text-sm">
-          First name
+          {t.players.firstName}
           <input
             name="first_name"
             defaultValue={player?.first_name}
@@ -61,7 +65,7 @@ export function PlayerForm({
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          Last name
+          {t.players.lastName}
           <input
             name="last_name"
             defaultValue={player?.last_name}
@@ -71,7 +75,7 @@ export function PlayerForm({
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          Gender
+          {t.players.gender}
           <select
             name="gender"
             defaultValue={player?.gender ?? ''}
@@ -85,7 +89,7 @@ export function PlayerForm({
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          Country
+          {t.players.country}
           <input
             name="country"
             defaultValue={player?.country ?? ''}
@@ -94,7 +98,7 @@ export function PlayerForm({
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          FPA website ID
+          {t.players.fpaWebsiteId}
           <input
             name="fpa_website_id"
             defaultValue={player?.fpa_website_id ?? ''}
@@ -103,7 +107,7 @@ export function PlayerForm({
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          Membership
+          {t.players.membership}
           <input
             name="membership"
             type="number"
@@ -114,7 +118,7 @@ export function PlayerForm({
       </fieldset>
 
       <label className="flex flex-col gap-1 text-sm">
-        Alias of
+        {t.players.aliasOf}
         <PlayerAliasPicker
           initialId={player?.alias_id ?? null}
           initialLabel={aliasLabel}
@@ -139,15 +143,15 @@ export function PlayerForm({
           disabled={pending}
           className="mt-2 rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
-          {pending ? 'Saving…' : submitLabel}
+          {pending ? t.common.saving : submitLabel}
         </button>
 
         {player && (
           <p className="mt-2 text-xs text-gray-500">
             {player.linked_user_email ? (
-              <>Linked account: {player.linked_user_email}</>
+              <>{t.players.linkedAccount(player.linked_user_email)}</>
             ) : (
-              'No user account linked to this player.'
+              t.players.noLinkedAccount
             )}
           </p>
         )}

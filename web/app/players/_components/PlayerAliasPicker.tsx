@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAliasPicker } from './AliasPickerContext';
+import { useT } from '@/lib/i18n/client';
 
 export function PlayerAliasPicker({
   initialId,
@@ -12,6 +13,7 @@ export function PlayerAliasPicker({
   initialLabel: string | null;
   excludeId?: string;
 }) {
+  const t = useT();
   const [selectedId, setSelectedId] = useState<string | null>(initialId);
   const [label, setLabel] = useState(initialLabel ?? '');
   const { picking, setHighlightedId, startPicking, cancelPicking } = useAliasPicker();
@@ -35,7 +37,7 @@ export function PlayerAliasPicker({
         type="text"
         readOnly
         value={label}
-        placeholder="No alias set"
+        placeholder={t.players.noAlias}
         onMouseEnter={() => selectedId && setHighlightedId(selectedId)}
         onMouseLeave={() => setHighlightedId(null)}
         className="w-full cursor-default rounded border border-gray-300 bg-gray-50 px-3 py-2"
@@ -43,16 +45,16 @@ export function PlayerAliasPicker({
       <div className="mt-1 flex gap-3 text-xs">
         {picking ? (
           <button type="button" onClick={cancelPicking} className="text-red-600 underline">
-            Cancel Set Alias
+            {t.players.cancelSetAlias}
           </button>
         ) : (
           <button type="button" onClick={onStartPicking} className="text-blue-600 underline">
-            Set Alias
+            {t.players.setAlias}
           </button>
         )}
         {!picking && selectedId && (
           <button type="button" onClick={clear} className="text-gray-500 underline">
-            Clear alias
+            {t.players.clearAlias}
           </button>
         )}
       </div>

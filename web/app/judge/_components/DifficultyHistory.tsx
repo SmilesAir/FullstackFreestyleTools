@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { noteFullLabel, type JudgeNote } from "@/lib/judging";
+import type { JudgeNote } from "@/lib/judging";
+import { useT } from "@/lib/i18n/client";
+import { noteFullLabel } from "@/lib/i18n/labels";
 import { NOTE_TINT } from "./noteStyles";
 
 const mmss = (t: number) =>
@@ -24,6 +26,7 @@ export function DifficultyHistory({
   onSelect: (note: JudgeNote) => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   const row = useRef<HTMLDivElement>(null);
   const count = notes.length;
   // A new note scrolls the row to the end; a change to an old one leaves it be.
@@ -39,7 +42,7 @@ export function DifficultyHistory({
     >
       {count === 0 && (
         <p className="self-center px-2 text-sm text-gray-500">
-          Tap the line to place a move. Your notes show here.
+          {t.judging.tapLine}
         </p>
       )}
       {notes.map((note) => {
@@ -56,7 +59,7 @@ export function DifficultyHistory({
             type="button"
             disabled={disabled}
             onClick={() => onSelect(note)}
-            aria-label={`${noteFullLabel("Diff", note.noteType)} at ${time}${early ? ", before the start" : ""}`}
+            aria-label={t.judging.noteAt(noteFullLabel(t, note.noteType), time, early)}
             className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-lg px-3 text-left transition active:scale-[0.97] disabled:cursor-not-allowed ${NOTE_TINT[note.noteType]} ${
               note.id === selectedId ? "ring-4 ring-blue-600" : ""
             } ${early ? "opacity-50" : ""}`}
@@ -74,7 +77,7 @@ export function DifficultyHistory({
             </span>
             <span className="flex flex-col leading-tight">
               <span className="text-base font-bold">
-                {noteFullLabel("Diff", note.noteType)}
+                {noteFullLabel(t, note.noteType)}
               </span>
               <span className="font-mono text-sm tabular-nums opacity-80">
                 {time}

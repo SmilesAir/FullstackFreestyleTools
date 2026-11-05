@@ -3,8 +3,10 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setPoolJudges } from '@/lib/event-creator-actions';
-import { JUDGE_CATEGORY_LABELS, formatJudgeCount, type PoolJudgeView } from '@/lib/event-creator';
+import { formatJudgeCount, type PoolJudgeView } from '@/lib/event-creator';
 import { useDivisionUi, type JudgeDrag } from './DivisionWorkspace';
+import { useT } from '@/lib/i18n/client';
+import { categoryShort } from '@/lib/i18n/labels';
 
 // A pool's judges, one column per judging category. Judges are placed by
 // dragging players in from the Set Judges panel; chips can be dragged between
@@ -28,6 +30,7 @@ export function PoolJudgeColumns({
   locked: boolean;
 }) {
   const router = useRouter();
+  const t = useT();
   const ui = useDivisionUi();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -95,7 +98,7 @@ export function PoolJudgeColumns({
   return (
     <div ref={top} className="flex scroll-mt-32 flex-col gap-2 border-t border-gray-200 pt-2">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-gray-600">Judges</span>
+        <span className="text-sm font-medium text-gray-600">{t.events.judges}</span>
         <button
           type="button"
           onClick={togglePanel}
@@ -105,10 +108,10 @@ export function PoolJudgeColumns({
             panelHere ? 'border-black bg-black text-white' : 'border-gray-300'
           }`}
         >
-          {panelHere ? 'Close judges panel' : 'Set Judges'}
+          {panelHere ? t.events.closeJudgesPanel : t.events.setJudges}
         </button>
-        {pending && <span className="text-xs text-gray-500">Saving…</span>}
-        {locked && <span className="rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-700">🔒 Locked</span>}
+        {pending && <span className="text-xs text-gray-500">{t.events.saving}</span>}
+        {locked && <span className="rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-700">{t.events.locked}</span>}
       </div>
       {message && <p className="text-xs text-red-600">{message}</p>}
 
@@ -138,7 +141,7 @@ export function PoolJudgeColumns({
                 dropColumn === category ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
               }`}
             >
-              <div className="text-center text-xs font-semibold text-gray-600">{JUDGE_CATEGORY_LABELS[category] ?? category}</div>
+              <div className="text-center text-xs font-semibold text-gray-600">{categoryShort(t, category)}</div>
               {inColumn.map((j) => (
                 <div
                   key={j.playerId}

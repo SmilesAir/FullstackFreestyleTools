@@ -6,14 +6,16 @@ import { deleteRosterTeam } from '@/lib/event-creator-actions';
 import { teamKey } from '@/lib/event-creator-layout';
 import type { TeamRow } from '@/lib/event-creator-queries';
 import { useDivisionUi } from './DivisionWorkspace';
+import { useT } from '@/lib/i18n/client';
 
 export function RosterList({ divisionId, teams }: { divisionId: string; teams: TeamRow[] }) {
   const router = useRouter();
+  const tr = useT();
   const ui = useDivisionUi();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  if (teams.length === 0) return <p className="text-sm text-gray-500">No teams yet.</p>;
+  if (teams.length === 0) return <p className="text-sm text-gray-500">{tr.events.noTeams}</p>;
 
   // Teams already in the round the user is looking at are dimmed.
   const inRound = ui.activeRound ? ui.roundKeys[ui.activeRound.number] : undefined;
@@ -23,7 +25,7 @@ export function RosterList({ divisionId, teams }: { divisionId: string; teams: T
     <ul className="flex flex-col gap-1">
       {ui.activeRound && (
         <li className="text-xs text-gray-500">
-          Viewing {ui.activeRound.name}: dimmed teams are already in it. Drag a team into a pool to add it.
+          {tr.events.viewingRound(ui.activeRound.name)}
         </li>
       )}
       {error && <li className="text-sm text-red-600">{error}</li>}
@@ -41,13 +43,13 @@ export function RosterList({ divisionId, teams }: { divisionId: string; teams: T
           className={`cursor-move rounded border border-gray-200 px-3 py-2 text-[18.2px] ${
             inActiveRound(t) ? 'bg-gray-100 opacity-50' : ''
           }`}
-          title={inActiveRound(t) ? `Already in ${ui.activeRound?.name}` : undefined}
+          title={inActiveRound(t) ? tr.events.alreadyIn(ui.activeRound?.name ?? '') : undefined}
         >
           {/* One player per line keeps the list narrow. */}
           <div className="flex items-baseline gap-2">
             <span className="text-[15.6px] text-gray-400">{i + 1}.</span>
             <div className="flex flex-col">
-              {t.players.length === 0 && <span>(no players)</span>}
+              {t.players.length === 0 && <span>{tr.common.noPlayers}</span>}
               {t.players.map((p) => (
                 <span key={p.id}>{p.name}</span>
               ))}
@@ -59,7 +61,7 @@ export function RosterList({ divisionId, teams }: { divisionId: string; teams: T
               type="button"
               disabled={pending}
               onClick={() => {
-                if (!confirm('Remove this team?')) return;
+                if (!confirm(tr.events.removeTeamConfirm)) return;
                 startTransition(async () => {
                   const result = await deleteRosterTeam(divisionId, t.id);
                   setError(result.error);

@@ -2,6 +2,8 @@
 
 import { DIFFICULTY_NOTES } from '@/lib/judging';
 import { NOTE_STYLE } from './noteStyles';
+import { useT } from '@/lib/i18n/client';
+import { noteLabel } from '@/lib/i18n/labels';
 
 // The row of buttons that rates a move placed on the numberline: Bad, Average,
 // Good, and Cancel. Editing a note also offers Delete. Fills the height it is
@@ -19,6 +21,7 @@ export function RatingBar({
   // Nothing is placed yet, so nothing can be rated.
   disabled?: boolean;
 }) {
+  const t = useT();
   // The order asked for: Bad, Average, Good (the notes list best first).
   const ratings = [...DIFFICULTY_NOTES].reverse();
   return (
@@ -31,7 +34,7 @@ export function RatingBar({
           onClick={() => onRate(rating.type)}
           className={`h-full min-w-0 flex-1 cursor-pointer rounded-lg px-1 text-lg font-bold shadow-sm transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 ${NOTE_STYLE[rating.type]}`}
         >
-          {rating.label}
+          {noteLabel(t, rating.type)}
         </button>
       ))}
       <button
@@ -39,7 +42,7 @@ export function RatingBar({
         onClick={onCancel}
         className="h-full min-w-0 flex-1 cursor-pointer rounded-lg border-2 border-gray-300 bg-background px-1 text-lg font-bold transition active:scale-[0.97]"
       >
-        Cancel
+        {t.common.cancel}
       </button>
       {onDelete && (
         <button
@@ -47,7 +50,7 @@ export function RatingBar({
           onClick={onDelete}
           className="h-full min-w-0 flex-1 cursor-pointer rounded-lg border-2 border-red-600 bg-background px-1 text-lg font-bold text-red-700 transition active:scale-[0.97]"
         >
-          Delete
+          {t.judging.delete}
         </button>
       )}
     </div>

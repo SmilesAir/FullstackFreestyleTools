@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { requirePermission } from './authz';
-import { OUT_OF_CREDIT_MESSAGE, isOutOfCredit } from './claude-errors';
+import { isOutOfCredit } from './claude-errors';
 import { promptById } from './claude-prompts';
 import { recordClaudeUsage } from './claude-usage';
 import { pool } from './db';
@@ -16,6 +16,7 @@ import { ResultsSchema, DATE, allNames, buildResult, type ClaudeResults } from '
 import { getDivisionResults } from './results-parser/queries';
 import type { EventOption, LoadedDivision, ParseResultsResult, SaveRound } from './results-parser/types';
 import { validateResults } from './results-parser/validate';
+import { getT } from './i18n/server';
 
 const guard = () => requirePermission('results_parser');
 
@@ -185,7 +186,7 @@ export async function parseResultsText(text: string): Promise<ParseResultsResult
   } catch (err) {
     if (err instanceof Anthropic.AuthenticationError) return { error: 'The saved Anthropic API key was rejected. Ask an admin to update it in Settings.' };
     if (err instanceof Anthropic.RateLimitError) return { error: 'Anthropic is rate limiting requests right now. Try again shortly.' };
-    if (isOutOfCredit(err)) return { error: OUT_OF_CREDIT_MESSAGE };
+    if (isOutOfCredit(err)) return { error: (await getT()).supportChat.outOfCredit };
     if (err instanceof Anthropic.APIError) return { error: `Anthropic API error (${err.status}). Try again shortly.` };
     console.error('Results parser: Claude request failed', err);
     return { error: 'Failed to parse the results.' };

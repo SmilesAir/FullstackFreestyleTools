@@ -1,18 +1,20 @@
-import Link from 'next/link';
 import { requirePermission } from '@/lib/authz';
 import type { Metadata } from 'next';
+import { getT } from '@/lib/i18n/server';
 import { toolTitle } from '@/lib/tools';
+import { ControlPanelLink } from '@/app/_components/ControlPanelLink';
 
-export const metadata: Metadata = { title: toolTitle('/event-music') };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: toolTitle(await getT(), '/event-music') };
+}
 
 export default async function EventMusicLayout({ children }: { children: React.ReactNode }) {
   await requirePermission('event_music');
+  const t = await getT();
 
   return (
     <div className="relative px-4 py-10">
-      <Link href="/control-panel" className="absolute right-4 top-10 text-sm leading-7 text-blue-600 underline">
-        ← Control Panel
-      </Link>
+      <ControlPanelLink label={t.headJudge.backToControlPanel} className="absolute right-4 top-10 leading-7" linkClassName="text-sm text-blue-600 underline" />
       {children}
     </div>
   );

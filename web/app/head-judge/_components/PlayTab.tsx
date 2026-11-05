@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { JUDGE_CATEGORY_LABELS } from "@/lib/event-creator";
 import {
   DEFAULT_TIMECALLS,
   teamName,
@@ -19,21 +18,24 @@ import { PoolResults } from "./PoolResults";
 import { StartAdjustDialog } from "./StartAdjustDialog";
 import { useRoutineNow } from "./useTimecallCallouts";
 import type { SaveStatus } from "./usePlayState";
+import { useT } from '@/lib/i18n/client';
+import type { Dictionary } from '@/lib/i18n/dictionaries';
+import { categoryShort } from '@/lib/i18n/labels';
 
 const HOLD_MS = 1000;
 
 // Whether a judge's screen is reaching the server: how long ago it last asked
 // for news (undefined = never), against how often it asks.
-function connectionOf(secondsAgo: number | undefined, mode: PollMode) {
+function connectionOf(t: Dictionary, secondsAgo: number | undefined, mode: PollMode) {
   if (secondsAgo === undefined || secondsAgo > WEAK_SECONDS) {
-    return { dot: "bg-gray-400", text: "Not connected", tone: "text-gray-500" };
+    return { dot: "bg-gray-400", text: t.headJudge.notConnected, tone: "text-gray-500" };
   }
   if (secondsAgo <= (CONNECTED_INTERVALS * JUDGE_POLL_MS[mode]) / 1000) {
-    return { dot: "bg-green-500", text: "Connected", tone: "text-gray-600" };
+    return { dot: "bg-green-500", text: t.headJudge.connected, tone: "text-gray-600" };
   }
   return {
     dot: "bg-amber-500",
-    text: `Weak: ${secondsAgo} s ago`,
+    text: t.headJudge.weak(secondsAgo),
     tone: "text-amber-700",
   };
 }
@@ -179,6 +181,7 @@ export function PlayTab({
   onAdjustStart: (routineId: string, startedAt: number) => void;
 }) {
   const running = routineStartedAt !== null;
+  const t = useT();
   const [adjusting, setAdjusting] = useState(false);
 
   // Redraw the timer while a routine is running.
@@ -198,7 +201,7 @@ export function PlayTab({
   if (!pool)
     return (
       <p className="text-sm text-gray-500">
-        Choose a playing pool on the Pools tab.
+        {t.headJudge.choosePlayingPool}
       </p>
     );
   const locked = pool.locked;
@@ -230,14 +233,14 @@ export function PlayTab({
       )}
       {locked && (
         <p className="rounded border border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          🔒 This pool is locked. Unlock it on the Pools tab to make changes.
+          {t.headJudge.poolLockedBanner}
         </p>
       )}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="text-sm text-gray-500">{pool.divisionName}</div>
           <h2 className="text-3xl font-bold">
-            {pool.roundName} · Pool {pool.letter}
+            {t.common.roundName(pool.roundNumber)} · {t.common.pool(pool.letter)}
           </h2>
         </div>
         <div className="flex flex-wrap items-end justify-end gap-6">
@@ -246,19 +249,19 @@ export function PlayTab({
               {playingTeam === null ? (
                 <span className="text-sm text-gray-400">—</span>
               ) : timecalls.length === 0 ? (
-                <span className="text-sm text-gray-500">None</span>
+                <span className="text-sm text-gray-500">{t.headJudge.none}</span>
               ) : (
                 timecalls.map((seconds) => (
                   <span
                     key={seconds}
                     className="rounded border border-green-600 bg-green-50 px-3 py-1.5 text-sm font-semibold text-green-900"
                   >
-                    {timecallLabel(seconds)}
+                    {timecallLabel(seconds, t.headJudge.time)}
                   </span>
                 ))
               )}
             </div>
-            <div className="text-xs text-gray-500">Time calls</div>
+            <div className="text-xs text-gray-500">{t.headJudge.timeCalls}</div>
           </div>
           <div className="text-right">
             <div className="font-mono text-6xl font-bold tabular-nums">
@@ -269,22 +272,22 @@ export function PlayTab({
               </span>
             </div>
             <div className="text-xs text-gray-500">
-              Routine time since first throw
+              {t.headJudge.routineTime}
               <button
                 type="button"
                 onClick={() => setAdjusting(true)}
                 disabled={!running || locked}
-                title="Start was pressed late? Move it to the first throw."
+                title={t.headJudge.adjustStartTip}
                 className="ml-2 cursor-pointer rounded border border-gray-300 px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Adjust Start
+                {t.headJudge.adjustStart}
               </button>
               {saveStatus === "saving" && (
-                <span className="ml-2 text-gray-400">Saving…</span>
+                <span className="ml-2 text-gray-400">{t.headJudge.saving}</span>
               )}
               {saveStatus === "retrying" && (
                 <span className="ml-2 font-medium text-amber-700">
-                  Not saved yet, retrying
+                  {t.headJudge.notSavedRetrying}
                 </span>
               )}
             </div>
@@ -301,8 +304,8 @@ export function PlayTab({
             className="flex min-h-48 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg bg-blue-600 p-6 text-3xl font-bold text-white hover:bg-blue-700"
           >
             {nextTeam
-              ? "Click to move to the next team"
-              : "Click to finish the last team"}
+              ? t.headJudge.nextTeam
+              : t.headJudge.finishLastTeam}
             {nextTeam && (
               <span className="text-base font-normal">
                 {teamName(nextTeam)}
@@ -316,8 +319,7 @@ export function PlayTab({
             disabled
             className="min-h-48 cursor-not-allowed rounded-lg bg-gray-300 p-6 text-2xl font-bold text-gray-600"
           >
-            Wait for Judges to finish. Once all the judges are finished, this
-            button will allow you to go to the next team.
+            {t.headJudge.waitForJudges}
           </button>
         ) : (
           <div className="flex min-h-48 gap-4">
@@ -334,13 +336,13 @@ export function PlayTab({
               }`}
             >
               <span className="text-xs font-semibold uppercase tracking-wide opacity-75">
-                Optional
+                {t.headJudge.optional}
               </span>
-              {judgesReady ? "✓ Judges Ready" : "Ready Judges"}
+              {judgesReady ? t.headJudge.judgesReady : t.headJudge.readyJudges}
               <span className="text-sm font-normal">
                 {judgesReady
-                  ? "Click to un-ready"
-                  : "Clear their notes and hold them on Play"}
+                  ? t.headJudge.unready
+                  : t.headJudge.readyHelp}
               </span>
             </button>
             <button
@@ -349,15 +351,15 @@ export function PlayTab({
               disabled={playingTeamId === null || locked}
               className="flex flex-1 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg bg-green-600 p-6 text-3xl font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-green-600"
             >
-              Click on First Throw
+              {t.headJudge.firstThrow}
               {playingTeamId === null && (
                 <span className="text-base font-normal">
-                  Choose the playing team first
+                  {t.headJudge.chooseTeamFirst}
                 </span>
               )}
               {playingTeamId !== null && locked && (
                 <span className="text-base font-normal">
-                  This pool is locked
+                  {t.headJudge.poolIsLocked}
                 </span>
               )}
             </button>
@@ -373,14 +375,13 @@ export function PlayTab({
             disabled={locked}
           >
             <span className="text-3xl font-bold">
-              Restore Cancelled Routine Scores
+              {t.headJudge.restoreCancelled}
             </span>
             <span className="text-base">
-              This team&apos;s last routine was cancelled. Its judges&apos;
-              scores are hidden.
+              {t.headJudge.restoreHelp}
             </span>
             <span className="text-sm font-semibold uppercase tracking-wide opacity-90">
-              Hold for 1 second
+              {t.headJudge.holdOneSecond}
             </span>
           </HoldButton>
         ) : (
@@ -391,12 +392,12 @@ export function PlayTab({
             onConfirm={onCancel}
             disabled={!running}
           >
-            <span className="text-3xl font-bold">Cancel Routine</span>
+            <span className="text-3xl font-bold">{t.headJudge.cancelRoutine}</span>
             <span className="text-base">
-              Only press if need to restart or something went wrong.
+              {t.headJudge.cancelHelp}
             </span>
             <span className="text-sm font-semibold uppercase tracking-wide opacity-90">
-              Hold for 1 second
+              {t.headJudge.holdOneSecond}
             </span>
           </HoldButton>
         )}
@@ -404,10 +405,10 @@ export function PlayTab({
 
       <div className="grid gap-6 md:grid-cols-2">
         <section className="flex flex-col gap-2">
-          <h3 className="text-lg font-semibold">Teams</h3>
+          <h3 className="text-lg font-semibold">{t.headJudge.teamsHeading}</h3>
           {running && (
             <p className="text-xs text-gray-500">
-              A routine is running. Cancel it to switch teams.
+              {t.headJudge.runningCantSwitch}
             </p>
           )}
           <ol className="flex flex-col gap-1">
@@ -433,7 +434,7 @@ export function PlayTab({
                     <span className="flex-1">{teamName(team)}</span>
                     {current && (
                       <span className="text-sm font-medium text-green-800">
-                        Now playing
+                        {t.headJudge.nowPlaying}
                       </span>
                     )}
                   </button>
@@ -444,10 +445,10 @@ export function PlayTab({
         </section>
 
         <section className="flex flex-col gap-2">
-          <h3 className="text-lg font-semibold">Judges</h3>
+          <h3 className="text-lg font-semibold">{t.headJudge.judgesHeading}</h3>
           {judgesSorted.length === 0 ? (
             <p className="text-sm text-gray-500">
-              No judges set for this pool.
+              {t.headJudge.noJudgesForPool}
             </p>
           ) : (
             <ul className="flex flex-col gap-1">
@@ -455,7 +456,7 @@ export function PlayTab({
                 // Light green once this judge has submitted their score for the running routine.
                 const finished =
                   running && finishedJudges.includes(judge.playerId);
-                const link = connectionOf(presence[judge.playerId], mode);
+                const link = connectionOf(t, presence[judge.playerId], mode);
                 return (
                   <li
                     key={judge.playerId}
@@ -478,14 +479,13 @@ export function PlayTab({
                     <span className="flex items-center gap-3">
                       {finished && (
                         <span className="text-sm font-semibold text-green-800">
-                          Finished
+                          {t.headJudge.finished}
                         </span>
                       )}
                       <span
                         className={`text-[11.2px] ${finished ? "text-green-900" : "text-gray-500"}`}
                       >
-                        {JUDGE_CATEGORY_LABELS[judge.categoryType] ??
-                          judge.categoryType}
+                        {categoryShort(t, judge.categoryType)}
                       </span>
                     </span>
                   </li>
@@ -497,7 +497,7 @@ export function PlayTab({
       </div>
 
       <section className="flex flex-col gap-2">
-        <h3 className="text-lg font-semibold">Results</h3>
+        <h3 className="text-lg font-semibold">{t.headJudge.resultsHeading}</h3>
         <PoolResults
           key={pool.key}
           eventId={eventId}

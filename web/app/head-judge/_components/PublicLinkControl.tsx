@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { clearPoolResults, ensurePoolLink, setPoolLocked, setPoolResultsPublished } from '@/lib/head-judge-actions';
-import type { HeadJudgePool } from '@/lib/head-judge';
+import { poolTitle, type HeadJudgePool } from '@/lib/head-judge';
+import { useT } from '@/lib/i18n/client';
 
 // Every pool's public permalink, its Lock/Unlock toggle and its Publish/Unpublish
 // toggle, shown at the top of both PoolResults and SimpleRankingResults (the same
@@ -13,6 +14,7 @@ import type { HeadJudgePool } from '@/lib/head-judge';
 // A test event's pool also gets a Clear results button, to judge it again.
 export function PublicLinkControl({ pool }: { pool: HeadJudgePool }) {
   const router = useRouter();
+  const t = useT();
   const [code, setCode] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [locking, setLocking] = useState(false);
@@ -29,13 +31,13 @@ export function PublicLinkControl({ pool }: { pool: HeadJudgePool }) {
     let cancelled = false;
     ensurePoolLink(pool.divisionId, pool.roundNumber, pool.letter).then((result) => {
       if (cancelled) return;
-      if (result.error || !result.code) setLinkError(result.error ?? 'Could not get a link');
+      if (result.error || !result.code) setLinkError(result.error ?? t.headJudge.couldNotGetLink);
       else setCode(result.code);
     });
     return () => {
       cancelled = true;
     };
-  }, [pool.divisionId, pool.roundNumber, pool.letter]);
+  }, [pool.divisionId, pool.roundNumber, pool.letter, t]);
 
   const url = code && typeof window !== 'undefined' ? `${window.location.origin}/r/${code}` : null;
 
@@ -55,18 +57,18 @@ export function PublicLinkControl({ pool }: { pool: HeadJudgePool }) {
     const result = await setPoolResultsPublished(pool.divisionId, pool.roundNumber, pool.letter, !pool.resultsPublished);
     setPublishing(false);
     if (result.error) return setPublishError(result.error);
-    if (result.discord?.status === 'posted') setDiscord({ text: 'Posted to Discord', error: false });
-    else if (result.discord?.status === 'failed') setDiscord({ text: `Not posted to Discord: ${result.discord.error}`, error: true });
+    if (result.discord?.status === 'posted') setDiscord({ text: t.headJudge.postedToDiscord, error: false });
+    else if (result.discord?.status === 'failed') setDiscord({ text: t.headJudge.notPostedToDiscord(result.discord.error), error: true });
     router.refresh();
   }
 
   async function clearResults() {
-    if (!confirm(`Clear every score in ${pool.divisionName} ${pool.roundName} pool ${pool.letter} so it can be judged again? This can't be undone.`)) return;
+    if (!confirm(t.headJudge.clearConfirm(poolTitle(t, pool)))) return;
     setClearing(true);
     setClearMessage(null);
     const result = await clearPoolResults(pool.divisionId, pool.roundNumber, pool.letter);
     setClearing(false);
-    setClearMessage(result.error ? { text: result.error, error: true } : { text: 'Results cleared', error: false });
+    setClearMessage(result.error ? { text: result.error, error: true } : { text: t.headJudge.resultsCleared, error: false });
     if (!result.error) router.refresh();
   }
 
@@ -89,9 +91,9 @@ export function PublicLinkControl({ pool }: { pool: HeadJudgePool }) {
         disabled={locking}
         className="rounded border border-gray-300 bg-white px-2 py-1 text-xs hover:bg-gray-100 disabled:opacity-50"
       >
-        {locking ? 'Saving…' : pool.locked ? 'Unlock' : 'Lock'}
+        {locking ? t.common.saving : pool.locked ? t.headJudge.unlock : t.headJudge.lock}
       </button>
-      <span className={pool.locked ? 'text-gray-700' : 'text-gray-500'}>{pool.locked ? '🔒 Locked' : 'Not locked'}</span>
+      <span className={pool.locked ? 'text-gray-700' : 'text-gray-500'}>{pool.locked ? t.headJudge.locked : t.headJudge.notLocked}</span>
       {lockError && <span className="text-xs text-red-600">{lockError}</span>}
       <span className="mx-1 text-gray-300">·</span>
       <button
@@ -100,10 +102,10 @@ export function PublicLinkControl({ pool }: { pool: HeadJudgePool }) {
         disabled={publishing}
         className="rounded border border-gray-300 bg-white px-2 py-1 text-xs hover:bg-gray-100 disabled:opacity-50"
       >
-        {publishing ? 'Saving…' : pool.resultsPublished ? 'Unpublish' : 'Publish results'}
+        {publishing ? t.common.saving : pool.resultsPublished ? t.headJudge.unpublish : t.headJudge.publishResults}
       </button>
       <span className={pool.resultsPublished ? 'text-green-700' : 'text-gray-500'}>
-        {pool.resultsPublished ? '📢 Published' : 'Not published'}
+        {pool.resultsPublished ? t.headJudge.published : t.headJudge.notPublished}
       </span>
       {publishError && <span className="text-xs text-red-600">{publishError}</span>}
       {discord && <span className={`text-xs ${discord.error ? 'text-red-600' : 'text-green-700'}`}>{discord.text}</span>}
@@ -114,10 +116,10 @@ export function PublicLinkControl({ pool }: { pool: HeadJudgePool }) {
             type="button"
             onClick={clearResults}
             disabled={clearing || pool.locked}
-            title={pool.locked ? 'Unlock the pool to clear its results' : undefined}
+            title={pool.locked ? t.headJudge.unlockToClear : undefined}
             className="rounded border border-red-300 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
           >
-            {clearing ? 'Clearing…' : 'Clear results'}
+            {clearing ? t.headJudge.clearingResults : t.headJudge.clearResults}
           </button>
           {clearMessage && (
             <span className={`text-xs ${clearMessage.error ? 'text-red-600' : 'text-green-700'}`}>{clearMessage.text}</span>
@@ -133,11 +135,11 @@ export function PublicLinkControl({ pool }: { pool: HeadJudgePool }) {
             {url}
           </a>
           <button type="button" onClick={copy} className="rounded border border-gray-300 bg-white px-2 py-1 text-xs hover:bg-gray-100">
-            {copied ? 'Copied!' : 'Copy link'}
+            {copied ? t.headJudge.copied : t.headJudge.copyLink}
           </button>
         </>
       ) : (
-        <span className="text-xs text-gray-500">Getting link…</span>
+        <span className="text-xs text-gray-500">{t.headJudge.gettingLink}</span>
       )}
     </div>
   );

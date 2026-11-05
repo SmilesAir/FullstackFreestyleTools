@@ -6,8 +6,10 @@ import { searchPlayersList } from '@/lib/players-actions';
 import type { PlayerWithAliasName } from '@/lib/players';
 import { PlayerTable } from './PlayerTable';
 import { useAliasPicker } from './AliasPickerContext';
+import { useT } from '@/lib/i18n/client';
 
 export function PlayerListPanel() {
+  const t = useT();
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
   const [players, setPlayers] = useState<PlayerWithAliasName[]>([]);
@@ -33,9 +35,9 @@ export function PlayerListPanel() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Players</h1>
+        <h1 className="text-xl font-semibold">{t.players.players}</h1>
         <Link href="/players/new" className="rounded bg-black px-3 py-2 text-sm text-white">
-          New player
+          {t.players.newPlayer}
         </Link>
       </div>
 
@@ -45,7 +47,7 @@ export function PlayerListPanel() {
           setQ(e.target.value);
           setPage(1);
         }}
-        placeholder="Search by name…"
+        placeholder={t.players.searchByName}
         className="mb-4 w-full rounded border border-gray-300 px-3 py-2"
       />
 
@@ -61,10 +63,10 @@ export function PlayerListPanel() {
             onClick={() => setPage((p) => p - 1)}
             className="underline disabled:pointer-events-none disabled:text-gray-300"
           >
-            Previous
+            {t.players.previous}
           </button>
           <span className="text-gray-500">
-            Page {page} of {totalPages}
+            {t.players.page(page, totalPages)}
           </span>
           <button
             type="button"
@@ -72,7 +74,7 @@ export function PlayerListPanel() {
             onClick={() => setPage((p) => p + 1)}
             className="underline disabled:pointer-events-none disabled:text-gray-300"
           >
-            Next
+            {t.players.next}
           </button>
         </div>
       )}

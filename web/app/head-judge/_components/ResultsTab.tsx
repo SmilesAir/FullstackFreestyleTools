@@ -3,6 +3,7 @@
 import { DIVISION_NAMES } from '@/lib/event-creator';
 import { flattenPools, poolTitle, type HeadJudgeDivision } from '@/lib/head-judge';
 import { PoolResults } from './PoolResults';
+import { useT } from '@/lib/i18n/client';
 
 // One column per division and one row per round, so the same round lines up
 // across divisions; a round's pools are buttons side by side in its cell.
@@ -21,9 +22,10 @@ export function ResultsTab({
   selectedKey: string | null;
   onSelect: (key: string) => void;
 }) {
+  const t = useT();
   const withPools = divisions.filter((d) => d.rounds.length > 0);
   if (withPools.length === 0) {
-    return <p className="text-sm text-gray-500">No pools with teams yet. Set them up in the Event Creator.</p>;
+    return <p className="text-sm text-gray-500">{t.headJudge.noPoolsWithTeams}</p>;
   }
 
   // The four standard divisions always get a column (so they stay put); any
@@ -33,8 +35,8 @@ export function ResultsTab({
   const columns = [...standard, ...others.map((division) => ({ name: division.name, division }))];
 
   // Rounds that any division has, in playing order (earliest round first).
-  const rounds = [...new Map(withPools.flatMap((d) => d.rounds).map((r) => [r.number, r.name])).entries()]
-    .map(([number, name]) => ({ number, name }))
+  const rounds = [...new Set(withPools.flatMap((d) => d.rounds).map((r) => r.number))]
+    .map((number) => ({ number, name: t.common.roundName(number) }))
     .sort((a, b) => b.number - a.number);
 
   const selected = flattenPools(withPools).find((p) => p.key === selectedKey) ?? null;
@@ -68,7 +70,7 @@ export function ResultsTab({
                             pool.key === selectedKey ? 'border-black bg-black text-white' : 'border-gray-300 hover:bg-gray-50'
                           }`}
                         >
-                          Pool {pool.letter}
+                          {t.common.pool(pool.letter)}
                         </button>
                       ))}
                     </div>
@@ -82,11 +84,11 @@ export function ResultsTab({
 
       {selected ? (
         <section className="flex flex-col gap-2">
-          <h2 className="text-lg font-semibold">{poolTitle(selected)}</h2>
+          <h2 className="text-lg font-semibold">{poolTitle(t, selected)}</h2>
           <PoolResults key={selected.key} eventId={eventId} pool={selected} active={active} />
         </section>
       ) : (
-        <p className="text-sm text-gray-500">Choose a pool to see its results.</p>
+        <p className="text-sm text-gray-500">{t.headJudge.choosePoolForResults}</p>
       )}
     </div>
   );

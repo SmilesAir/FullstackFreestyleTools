@@ -2,17 +2,22 @@
 
 import { useRef, useState } from 'react';
 import type { MyTeam } from '@/lib/team-timecalls';
-import { ALL_ROUNDS, musicRoundName, type TeamMusicByRound } from '@/lib/team-music-links';
+import { ALL_ROUNDS, type TeamMusicByRound } from '@/lib/team-music-links';
 import { MusicDialog } from './MusicDialog';
+import { useT } from '@/lib/i18n/client';
 
 // One of the player's teams' music: a button naming the rounds that have
 // some, which opens the dialog to set it.
 export function MyMusic({ team }: { team: MyTeam }) {
+  const t = useT();
   const dialog = useRef<HTMLDialogElement>(null);
   const [music, setMusic] = useState<TeamMusicByRound>(team.music);
 
   const setRounds = [ALL_ROUNDS, ...team.rounds].filter((n) => music[n]);
-  const label = setRounds.length === 0 ? 'Set music' : setRounds.map(musicRoundName).join(' · ');
+  const label =
+    setRounds.length === 0
+      ? t.activity.setMusic
+      : setRounds.map((n) => (n === ALL_ROUNDS ? t.common.allRounds : t.common.roundName(n))).join(' · ');
 
   return (
     <>

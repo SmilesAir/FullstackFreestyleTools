@@ -7,6 +7,8 @@ import { OFFICIAL_PRESET, defaultSettings, sameSettings, type Preset, type Syste
 import { CategoryForm } from './CategoryForm';
 import { LineForm } from './LineForm';
 import { LINE_MAX_KEY, parseDraft, toDraft, type Draft } from './settingsDraft';
+import { useT } from '@/lib/i18n/client';
+import type { Dictionary } from '@/lib/i18n/dictionaries';
 
 // The head judge's tunables for the selected event, one form per judging
 // system the event uses. Each form keeps its own draft. Opens on `current`,
@@ -25,21 +27,19 @@ export function SettingsTab({
   saved: Record<string, SystemSettings>;
   presets: Preset[];
 }) {
+  const t = useT();
   const [active, setActive] = useState(current);
 
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-semibold">Judging settings</h2>
-        <p className="text-sm text-gray-500">These values apply to this event only.</p>
-        <p className="text-sm text-gray-500">
-          Saving rescores the results already in. Each judge&apos;s change from the baseline is kept as the same
-          percentage.
-        </p>
+        <h2 className="text-lg font-semibold">{t.headJudge.judgingSettings}</h2>
+        <p className="text-sm text-gray-500">{t.headJudge.eventOnly}</p>
+        <p className="text-sm text-gray-500">{t.headJudge.rescoreNote}</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Judging system">
-        <span className="text-sm text-gray-500">Judging system</span>
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t.headJudge.judgingSystem}>
+        <span className="text-sm text-gray-500">{t.headJudge.judgingSystem}</span>
         {systems.map((id) => (
           <button
             key={id}
@@ -70,8 +70,7 @@ export function SettingsTab({
 }
 
 // How many scores a save rescored (none = nothing to say).
-const rescoredNote = (rescored: number | undefined) =>
-  !rescored ? '' : ` · ${rescored} ${rescored === 1 ? 'score' : 'scores'} rescored`;
+const rescoredNote = (t: Dictionary, rescored: number | undefined) => t.headJudge.rescored(rescored ?? 0);
 
 function SystemForm({
   eventId,
@@ -85,6 +84,7 @@ function SystemForm({
   presets: Preset[];
 }) {
   const router = useRouter();
+  const t = useT();
   const [pending, startTransition] = useTransition();
 
   // The draft starts from what the event has, and starts over when that changes.
@@ -131,7 +131,7 @@ function SystemForm({
     startTransition(async () => {
       const result = await saveSettings(eventId, rulesId, parsed);
       if (result.error) return setError(result.error);
-      setMessage(`Settings saved${rescoredNote(result.rescored)}`);
+      setMessage(t.headJudge.settingsSaved(rescoredNote(t, result.rescored)));
       router.refresh();
     });
   }
@@ -143,7 +143,7 @@ function SystemForm({
     startTransition(async () => {
       const result = await saveEventPreset(eventId, rulesId, parsed);
       if (result.error) return setError(result.error);
-      setMessage(`Saved to the event and its event preset${rescoredNote(result.rescored)}`);
+      setMessage(t.headJudge.savedToPreset(rescoredNote(t, result.rescored)));
       router.refresh();
     });
   }
@@ -156,7 +156,7 @@ function SystemForm({
     startTransition(async () => {
       const result = await saveSettings(eventId, rulesId, chosen.settings);
       if (result.error) return setError(result.error);
-      setMessage(`Loaded "${chosen.name}" and applied it to this event${rescoredNote(result.rescored)}`);
+      setMessage(t.headJudge.loadedPreset(chosen.name, rescoredNote(t, result.rescored)));
       router.refresh();
     });
   }
@@ -172,7 +172,7 @@ function SystemForm({
         setReplaceName(trimmedName);
         return;
       }
-      setMessage(`${replacing ? 'Replaced' : 'Saved'} preset "${trimmedName}"`);
+      setMessage(t.headJudge.savedPreset(replacing, trimmedName));
       setName('');
       setReplaceName(null);
       router.refresh();
@@ -186,7 +186,7 @@ function SystemForm({
     startTransition(async () => {
       const result = await removePreset(chosen.id);
       if (result.error) return setError(result.error);
-      setMessage(`Deleted preset "${chosen.name}"`);
+      setMessage(t.headJudge.deletedPreset(chosen.name));
       setPresetId('');
       setConfirmDelete(false);
       router.refresh();
@@ -196,12 +196,12 @@ function SystemForm({
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-2 rounded border border-gray-300 p-3">
-        <h3 className="font-medium">Event preset</h3>
+        <h3 className="font-medium">{t.headJudge.eventPreset}</h3>
         {eventPreset ? (
           <>
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <span>
-                This event&apos;s preset: <span className="font-medium">{eventPreset.name}</span>
+                {t.headJudge.thisEventsPreset} <span className="font-medium">{eventPreset.name}</span>
               </span>
               <button
                 type="button"
@@ -209,29 +209,27 @@ function SystemForm({
                 disabled={!parsed || pending || (!dirty && !outsidePreset)}
                 className="cursor-pointer rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Update event preset
+                {t.headJudge.updateEventPreset}
               </button>
             </div>
             <p className="text-xs text-gray-500">
-              Choosing this event in the Events tab loads its preset back in. Update the preset to keep your changes.
+              {t.headJudge.presetLoadsBack}
             </p>
             {outsidePreset && (
               <p className="text-sm text-amber-700">
-                Not in the event preset: the saved settings differ from it and are lost the next time this event is
-                chosen in the Events tab.
+                {t.headJudge.notInPreset}
               </p>
             )}
           </>
         ) : (
           <p className="text-xs text-gray-500">
-            The event preset is made from these settings when the event&apos;s first routine starts. Until then this
-            event uses what is saved here ({OFFICIAL_PRESET} when it was created).
+            {t.headJudge.presetMadeLater(OFFICIAL_PRESET)}
           </p>
         )}
       </section>
 
       <section className="flex flex-col gap-3 rounded border border-gray-300 p-3">
-        <h3 className="font-medium">Presets for {rulesId}</h3>
+        <h3 className="font-medium">{t.headJudge.presetsFor(rulesId)}</h3>
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={chosen ? presetId : ''}
@@ -239,10 +237,10 @@ function SystemForm({
               setPresetId(e.target.value);
               setConfirmDelete(false);
             }}
-            aria-label="Preset"
+            aria-label={t.headJudge.preset}
             className="min-w-48 rounded border border-gray-300 bg-transparent px-2 py-1 text-sm"
           >
-            <option value="">{presets.length === 0 ? 'No presets saved yet' : 'Choose a preset'}</option>
+            <option value="">{presets.length === 0 ? t.headJudge.noPresets : t.headJudge.choosePreset}</option>
             {presets.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -255,22 +253,22 @@ function SystemForm({
             disabled={!chosen || pending}
             className="cursor-pointer rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Load
+            {t.headJudge.load}
           </button>
           {chosen &&
             (confirmDelete ? (
               <span className="flex items-center gap-2 text-sm">
-                Delete &quot;{chosen.name}&quot;?
+                {t.headJudge.deleteConfirm(chosen.name)}
                 <button type="button" onClick={deleteChosen} disabled={pending} className="cursor-pointer text-red-700 underline">
-                  Yes
+                  {t.headJudge.yes}
                 </button>
                 <button type="button" onClick={() => setConfirmDelete(false)} className="cursor-pointer underline">
-                  No
+                  {t.headJudge.no}
                 </button>
               </span>
             ) : (
               <button type="button" onClick={() => setConfirmDelete(true)} className="cursor-pointer text-sm text-gray-500 underline">
-                Delete
+                {t.headJudge.delete}
               </button>
             ))}
         </div>
@@ -281,8 +279,8 @@ function SystemForm({
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={60}
-            placeholder="Name for a new preset"
-            aria-label="Preset name"
+            placeholder={t.headJudge.presetNamePlaceholder}
+            aria-label={t.headJudge.presetName}
             className="w-64 rounded border border-gray-300 bg-transparent px-2 py-1 text-sm"
           />
           <button
@@ -291,17 +289,17 @@ function SystemForm({
             disabled={!parsed || trimmedName === '' || pending}
             className="cursor-pointer rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {replacing ? `Replace "${trimmedName}"` : 'Save as preset'}
+            {replacing ? t.headJudge.replacePreset(trimmedName) : t.headJudge.saveAsPreset}
           </button>
-          {replacing && <span className="text-sm text-amber-700">A preset with this name exists. Click again to replace it.</span>}
+          {replacing && <span className="text-sm text-amber-700">{t.headJudge.presetExists}</span>}
         </div>
 
         <p className="text-xs text-gray-500">
-          Saving a preset stores the values below. Loading one applies it to this event straight away.
+          {t.headJudge.presetHelp}
           {matching && (
             <>
               {' '}
-              <span className="font-medium text-gray-700">Matches preset: {matching.name}.</span>
+              <span className="font-medium text-gray-700">{t.headJudge.matchesPreset(matching.name)}</span>
             </>
           )}
         </p>
@@ -309,8 +307,8 @@ function SystemForm({
 
       <CategoryForm
         category="Ex"
-        title="Execution"
-        blurb="What each note is worth when the judge's notes are drawn as a graph. Errors are usually negative and clean completions positive."
+        title={t.judging.category.Ex}
+        blurb={t.headJudge.exBlurb}
         draft={draft}
         defaults={defaultSettings(rulesId)}
         onEdit={edit}
@@ -318,8 +316,8 @@ function SystemForm({
 
       <CategoryForm
         category="AI"
-        title="Artistic Impression"
-        blurb="What each note is worth when the judge's notes are drawn as a graph. Notes are grouped by area."
+        title={t.judging.category.AI}
+        blurb={t.headJudge.aiBlurb}
         draft={draft}
         defaults={defaultSettings(rulesId)}
         onEdit={edit}
@@ -327,8 +325,8 @@ function SystemForm({
 
       <CategoryForm
         category="Diff"
-        title="Difficulty"
-        blurb="Each rating is a multiplier of the numberline score of the move it rates (Bad, Average, Good)."
+        title={t.judging.category.Diff}
+        blurb={t.headJudge.diffBlurb}
         draft={draft}
         defaults={defaultSettings(rulesId)}
         onEdit={edit}
@@ -344,7 +342,7 @@ function SystemForm({
             disabled={!parsed || !dirty || pending}
             className="cursor-pointer rounded bg-black px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Save settings
+            {t.headJudge.saveSettings}
           </button>
           <button
             type="button"
@@ -355,10 +353,10 @@ function SystemForm({
             disabled={pending}
             className="cursor-pointer rounded border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50"
           >
-            Reset to defaults
+            {t.headJudge.resetDefaults}
           </button>
-          {dirty && parsed && <span className="text-sm text-amber-700">Unsaved changes</span>}
-          {!parsed && <span className="text-sm text-red-700">Fix the highlighted fields to save.</span>}
+          {dirty && parsed && <span className="text-sm text-amber-700">{t.headJudge.unsaved}</span>}
+          {!parsed && <span className="text-sm text-red-700">{t.headJudge.fixFields}</span>}
           {message && <span className="text-sm text-green-700">{message}</span>}
           {error && <span className="text-sm text-red-700">{error}</span>}
         </div>

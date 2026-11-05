@@ -11,6 +11,8 @@ import {
   type DifficultyLine,
   type NoteCategory,
 } from './judging';
+import { dictionaries, type Dictionary } from './i18n/dictionaries';
+import { noteFullLabel as noteName } from './i18n/labels';
 
 // How the baseline estimate is made from the area under the notes' curve:
 // estimate = areaScale x area (see score-curve.ts).
@@ -262,9 +264,14 @@ export function snapshotCategorySettings(
 
 // For saving: every value of every category must be present and valid, and
 // nothing unknown is allowed. Values are rounded to 2 decimals.
-export function validateSettings(rulesId: string, input: unknown): { error: string } | { settings: SystemSettings } {
-  if (!hasTunables(rulesId)) return { error: 'That judging system has no settings to save' };
-  const unreadable = { error: 'The settings could not be read' };
+// `t` words the error in the viewer's language.
+export function validateSettings(
+  rulesId: string,
+  input: unknown,
+  t: Dictionary = dictionaries.en
+): { error: string } | { settings: SystemSettings } {
+  if (!hasTunables(rulesId)) return { error: t.errors.noSettings };
+  const unreadable = { error: t.errors.settingsUnreadable };
   if (!isObject(input) || Object.keys(input).some((k) => !noteCategoryOf(k))) return unreadable;
 
   const settings = defaultSettings(rulesId);
@@ -282,18 +289,18 @@ export function validateSettings(rulesId: string, input: unknown): { error: stri
       const value = Object.hasOwn(part.noteWeights, note.type) ? part.noteWeights[note.type] : undefined;
       if (!validWeight(category, value)) {
         const [min, max] = weightRange(category);
-        return { error: `${note.fullLabel} must be a number from ${min} to ${max}` };
+        return { error: t.errors.noteWeightRange(noteName(t, note.type), min, max) };
       }
       settings[category].noteWeights[note.type] = Math.round(value * 100) / 100;
     }
     if (!validAreaScale(part.estimate.areaScale)) {
-      return { error: `The area coefficient must be a number from ${MIN_AREA_SCALE} to ${MAX_AREA_SCALE}` };
+      return { error: t.errors.areaScaleRange(MIN_AREA_SCALE, MAX_AREA_SCALE) };
     }
     settings[category].estimate.areaScale = Math.round(part.estimate.areaScale * 100) / 100;
     if (hasScoreLimit(category)) {
       if (!validSecondsPerScore(part.secondsPerScore)) {
         return {
-          error: `The seconds per score must be a number from ${MIN_SECONDS_PER_SCORE} to ${MAX_SECONDS_PER_SCORE}`,
+          error: t.errors.secondsPerScoreRange(MIN_SECONDS_PER_SCORE, MAX_SECONDS_PER_SCORE),
         };
       }
       settings[category].secondsPerScore = Math.round(part.secondsPerScore * 100) / 100;
@@ -303,16 +310,16 @@ export function validateSettings(rulesId: string, input: unknown): { error: stri
       const line = part.line;
       if (!isObject(line) || Object.keys(line).some((k) => k !== 'max' && k !== 'moves')) return unreadable;
       if (!validLineMax(line.max)) {
-        return { error: `The numberline max must be a number from ${MIN_LINE_MAX} to ${MAX_LINE_MAX}` };
+        return { error: t.errors.lineMaxRange(MIN_LINE_MAX, MAX_LINE_MAX) };
       }
       if (!Array.isArray(line.moves) || line.moves.length > MAX_MOVES) {
-        return { error: `A numberline can have at most ${MAX_MOVES} moves` };
+        return { error: t.errors.maxMoves(MAX_MOVES) };
       }
       const moves: DifficultyLine['moves'] = [];
       for (const move of line.moves) {
         if (!isObject(move) || Object.keys(move).some((k) => k !== 'name' && k !== 'position')) return unreadable;
-        if (!validMoveName(move.name)) return { error: `Each move needs a name of up to ${MAX_MOVE_NAME} characters` };
-        if (!validPosition(move.position)) return { error: `The position of ${move.name.trim()} must be from 0 to 1` };
+        if (!validMoveName(move.name)) return { error: t.errors.moveName(MAX_MOVE_NAME) };
+      if (!validPosition(move.position)) return { error: t.errors.movePosition(move.name.trim()) };
         moves.push({ name: move.name.trim(), position: Math.round(move.position * 1000) / 1000 });
       }
       settings[category].line = { max: Math.round(line.max * 100) / 100, moves };

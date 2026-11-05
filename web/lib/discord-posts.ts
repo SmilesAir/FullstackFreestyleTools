@@ -10,6 +10,8 @@ import { byPlace, poolStandings } from './pool-standings';
 import { getOrCreateShortCode } from './pool-shortlink';
 import { getPublicPoolResults } from './public-results';
 import { getSetting } from './settings-queries';
+import { dictionaries } from './i18n/dictionaries';
+import { DEFAULT_LOCALE, isLocale, type Locale } from './i18n/locales';
 
 // What the bot posts to an event's Discord thread: a round's play order (from the
 // Event Creator) and a pool's results (when the Head Judge publishes them), each
@@ -53,6 +55,16 @@ async function discordIdsByPlayer(playerIds: string[]): Promise<Map<string, stri
     [playerIds]
   );
   return new Map(result.rows.map((r) => [r.player_id, r.discord_id]));
+}
+
+// The language each of these Discord accounts' users chose on Profile.
+async function discordLanguages(discordIds: string[]): Promise<Map<string, Locale>> {
+  if (discordIds.length === 0) return new Map();
+  const result = await pool.query<{ discord_id: string; language: string }>(
+    'SELECT discord_id, language FROM users WHERE discord_id = ANY($1::text[])',
+    [discordIds]
+  );
+  return new Map(result.rows.flatMap((r) => (isLocale(r.language) ? [[r.discord_id, r.language] as const] : [])));
 }
 
 // Whether the event posts to Discord at all; an error if it can't be told.
@@ -220,11 +232,17 @@ export function sendRoundForReview(divisionId: string, roundNumber: number): Pro
     const nameOf = (id: string) => names.get(id) ?? 'Unknown player';
 
     const site = ((await getSetting('public_site_url'))?.trim() || DEFAULT_SITE).replace(/\/+$/, '');
-    const title = `${row.division_name} · ${roundName(roundNumber)}`;
-    const message =
-      `**${row.event_name}: ${title}** is ready for review.\n` +
-      `${letters.length === 1 ? 'Pool' : 'Pools'} ${letters.join(', ')}: check the teams' play order and the judges before the round is played.\n` +
-      `<${site}/pool-review?event=${row.event_id}>`;
+    // A DM goes to one person, so it's in their own language (Profile).
+    const messageIn = (locale: Locale) => {
+      const t = dictionaries[locale];
+      const title = `${row.division_name} · ${t.common.roundName(roundNumber)}`;
+      const pools = letters.length === 1 ? t.common.pool(letters[0]) : t.common.pools(letters.join(', '));
+      return (
+        `${t.discord.reviewReady(row.event_name, title)}\n` +
+        `${t.discord.reviewCheck(pools)}\n` +
+        `<${site}/pool-review?event=${row.event_id}>`
+      );
+    };
 
     // One DM per Discord account (a player and their alias can share one).
     const byAccount = new Map<string, string>();
@@ -235,10 +253,15 @@ export function sendRoundForReview(divisionId: string, roundNumber: number): Pro
       else if (!byAccount.has(discordId)) byAccount.set(discordId, nameOf(id));
     }
 
+    const languages = await discordLanguages([...byAccount.keys()]);
     const sent: string[] = [];
     const failed: { name: string; error: string }[] = [];
     for (const [discordId, name] of byAccount) {
-      const dm = await sendDiscordDM(discordId, message).catch(() => ({ ok: false as const, error: 'Could not reach Discord.' }));
+      const locale = languages.get(discordId) ?? DEFAULT_LOCALE;
+      const dm = await sendDiscordDM(discordId, messageIn(locale)).catch(() => ({
+        ok: false as const,
+        error: dictionaries[locale].discord.couldNotReach,
+      }));
       if (dm.ok) sent.push(name);
       else failed.push({ name, error: dm.error });
     }

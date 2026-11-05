@@ -5,12 +5,16 @@ import { auth } from '@/auth';
 import { getProfileData } from '@/lib/profile-queries';
 import { getActivityDetails, getPlayerActivityPage } from '@/lib/player-activity-queries';
 import { getMyTeams } from '@/lib/team-timecalls';
+import { getT } from '@/lib/i18n/server';
 import { toolTitle } from '@/lib/tools';
 import { ActivityEntryCard } from './_components/ActivityEntryCard';
 import { MyTeamsTable } from './_components/MyTeamsTable';
 import { Pagination } from './_components/Pagination';
+import { ControlPanelLink } from '@/app/_components/ControlPanelLink';
 
-export const metadata: Metadata = { title: toolTitle('/activity') };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: toolTitle(await getT(), '/activity') };
+}
 
 export default async function PlayerActivityPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const session = await auth();
@@ -24,18 +28,17 @@ export default async function PlayerActivityPage({ searchParams }: { searchParam
     ? await Promise.all([getPlayerActivityPage(player.id, Number(pageParam ?? 1)), getMyTeams(player.id)])
     : [null, []];
   const details = player && activity ? await getActivityDetails(activity.entries, player.id) : [];
+  const t = await getT();
 
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-10">
-      <Link href="/control-panel" className="inline-block self-start text-sm text-blue-600 underline">
-        ← Control panel
-      </Link>
+      <ControlPanelLink label={t.common.backToControlPanel} className="self-start" linkClassName="text-sm text-blue-600 underline" />
       <div>
-        <h1 className="text-xl font-semibold">Player Activity</h1>
+        <h1 className="text-xl font-semibold">{t.tools.activity.label}</h1>
         {player && (
           <p className="mt-1 text-sm text-gray-600">
             {player.first_name} {player.last_name}
-            {activity && activity.total > 0 && ` · ${activity.total} pool${activity.total === 1 ? '' : 's'}`}
+            {activity && activity.total > 0 && t.activity.poolsCount(activity.total)}
           </p>
         )}
       </div>
@@ -44,14 +47,14 @@ export default async function PlayerActivityPage({ searchParams }: { searchParam
 
       {!player ? (
         <p className="text-sm text-gray-600">
-          No player is linked to your account.{' '}
+          {t.activity.noPlayerBefore}{' '}
           <Link href="/profile" className="text-blue-600 underline">
-            Link your player on your Profile
+            {t.activity.noPlayerLink}
           </Link>{' '}
-          to see your activity.
+          {t.activity.noPlayerAfter}
         </p>
       ) : !activity || activity.total === 0 ? (
-        <p className="text-sm text-gray-600">No pools yet: you haven&apos;t played in or judged any.</p>
+        <p className="text-sm text-gray-600">{t.activity.noPools}</p>
       ) : (
         <>
           <Pagination page={activity.page} pageCount={activity.pageCount} />

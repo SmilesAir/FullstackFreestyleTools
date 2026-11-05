@@ -6,6 +6,7 @@ import { updateDivisionSettings, deleteDivision } from '@/lib/event-creator-acti
 import { OFFERED_RULES_IDS, ROUTINE_MINUTES, defaultRoutineSeconds } from '@/lib/event-creator';
 import type { PlayerRef } from '@/lib/event-creator-queries';
 import { PlayerPicker } from '../PlayerPicker';
+import { useT } from '@/lib/i18n/client';
 
 export function DivisionSettings({
   eventId,
@@ -27,6 +28,7 @@ export function DivisionSettings({
   directors: PlayerRef[];
 }) {
   const router = useRouter();
+  const t = useT();
   const [name, setName] = useState(initialName);
   const [routineMinutes, setRoutineMinutes] = useState(Math.round(initialRoutine / 60));
   const [rules, setRules] = useState(initialRules);
@@ -69,7 +71,7 @@ export function DivisionSettings({
   }
 
   function remove() {
-    if (!confirm("Delete this division? This can't be undone.")) return;
+    if (!confirm(t.events.deleteDivisionConfirm)) return;
     startTransition(async () => {
       const result = await deleteDivision(divisionId);
       if (result.error) return setError(result.error);
@@ -82,7 +84,7 @@ export function DivisionSettings({
     <div className="flex flex-col gap-3 rounded border border-gray-300 p-3">
       <div className="flex flex-wrap gap-4">
         <label className="flex flex-col gap-1 text-sm">
-          Division type
+          {t.events.divisionType}
           <select value={name} onChange={(e) => changeName(e.target.value)} className="w-48 rounded border border-gray-300 px-2 py-1">
             {availableNames.map((n) => (
               <option key={n} value={n}>
@@ -92,7 +94,7 @@ export function DivisionSettings({
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          Routine time
+          {t.events.routineTime}
           <select
             value={routineMinutes}
             onChange={(e) => setRoutineMinutes(Number(e.target.value))}
@@ -100,7 +102,7 @@ export function DivisionSettings({
           >
             {ROUTINE_MINUTES.map((m) => (
               <option key={m} value={m}>
-                {m} minutes
+                {t.events.minutes(m)}
               </option>
             ))}
           </select>
@@ -108,7 +110,7 @@ export function DivisionSettings({
       </div>
 
       <label className="flex flex-col gap-1 text-sm">
-        Rules
+        {t.events.rules}
         <select
           value={rules}
           onChange={(e) => setRules(e.target.value)}
@@ -123,21 +125,21 @@ export function DivisionSettings({
       </label>
 
       <div className="flex flex-col gap-1 text-sm">
-        Head judge
+        {t.events.headJudge}
         {head ? (
           <div className="flex items-center gap-2">
             <span>{head.name}</span>
             <button type="button" onClick={() => setHead(null)} className="text-xs text-red-600 underline">
-              remove
+              {t.events.remove}
             </button>
           </div>
         ) : (
-          <PlayerPicker onPick={setHead} placeholder="Search for the head judge…" />
+          <PlayerPicker onPick={setHead} placeholder={t.events.searchHeadJudge} />
         )}
       </div>
 
       <div className="flex flex-col gap-1 text-sm">
-        Directors
+        {t.events.directors}
         {directors.map((d) => (
           <div key={d.id} className="flex items-center gap-2">
             <span>{d.name}</span>
@@ -146,13 +148,13 @@ export function DivisionSettings({
               onClick={() => setDirectors(directors.filter((x) => x.id !== d.id))}
               className="text-xs text-red-600 underline"
             >
-              remove
+              {t.events.remove}
             </button>
           </div>
         ))}
         <PlayerPicker
           onPick={(p) => setDirectors(directors.some((d) => d.id === p.id) ? directors : [...directors, p])}
-          placeholder="Add a director…"
+          placeholder={t.events.addDirector}
         />
       </div>
 
@@ -164,11 +166,11 @@ export function DivisionSettings({
           disabled={pending}
           className="rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
-          Save settings
+          {t.events.saveSettings}
         </button>
-        {saved && <span className="text-xs text-green-700">Saved</span>}
+        {saved && <span className="text-xs text-green-700">{t.events.saved}</span>}
         <button type="button" onClick={remove} disabled={pending} className="ml-auto text-xs text-red-600 underline disabled:opacity-50">
-          delete division
+          {t.events.deleteDivision}
         </button>
       </div>
     </div>

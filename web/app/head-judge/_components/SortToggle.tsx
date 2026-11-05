@@ -1,5 +1,7 @@
 'use client';
 
+import { useT } from '@/lib/i18n/client';
+
 export type ResultsSortOrder = 'play' | 'place';
 
 const button = (active: boolean) =>
@@ -8,13 +10,14 @@ const button = (active: boolean) =>
 // Toggles a results table between the order teams played in and best-to-worst
 // by place. Shared by the Fpa2027 summary table and the Simple Ranking table.
 export function SortToggle({ value, onChange }: { value: ResultsSortOrder; onChange: (order: ResultsSortOrder) => void }) {
+  const t = useT();
   return (
-    <div className="flex gap-1" role="group" aria-label="Sort order">
+    <div className="flex gap-1" role="group" aria-label={t.results.sortOrder}>
       <button type="button" aria-pressed={value === 'play'} onClick={() => onChange('play')} className={button(value === 'play')}>
-        Play order
+        {t.results.playOrder}
       </button>
       <button type="button" aria-pressed={value === 'place'} onClick={() => onChange('place')} className={button(value === 'place')}>
-        By place
+        {t.results.byPlace}
       </button>
     </div>
   );

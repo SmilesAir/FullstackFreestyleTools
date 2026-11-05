@@ -11,6 +11,7 @@ import { EventCommitteeSettings } from './_components/EventCommitteeSettings';
 import { getEventDiscordStatus } from '@/lib/discord';
 import { Tabs, type Tab } from '../_components/Tabs';
 import { DivisionView } from './_components/division/DivisionView';
+import { getT } from '@/lib/i18n/server';
 
 export default async function EventsPage({
   searchParams,
@@ -18,6 +19,7 @@ export default async function EventsPage({
   searchParams: Promise<{ event?: string; division?: string }>;
 }) {
   const { event: eventParam, division: divisionParam } = await searchParams;
+  const t = await getT();
 
   // Independent queries run together (each DB round trip is ~100ms).
   const [events, selected, unsortedDivisions, players, discord, committee] = await Promise.all([
@@ -49,7 +51,7 @@ export default async function EventsPage({
           <div>
             <div className="font-semibold">{selected.event_name}</div>
             <div className="text-xs text-gray-500">
-              {selected.start_date} → {selected.end_date} · event settings below; pick a division tab above to edit it
+              {t.events.eventSummary(selected.start_date, selected.end_date)}
             </div>
           </div>
 
@@ -61,7 +63,7 @@ export default async function EventsPage({
             <EventDiscordSettings eventId={selected.id} status={discord!} />
           </Collapsible>
 
-          <Collapsible title={`Committee (${committee!.members.length})`} variant="card" defaultOpen={false}>
+          <Collapsible title={t.events.committee(committee!.members.length)} variant="card" defaultOpen={false}>
             <EventCommitteeSettings
               // Remounts after a save's refresh, so the list starts from what was stored.
               key={committee!.members.map((m) => m.id).join()}
@@ -71,13 +73,13 @@ export default async function EventsPage({
             />
           </Collapsible>
 
-          <Collapsible title="Add teams to several divisions with Claude" variant="card" defaultOpen={false}>
+          <Collapsible title={t.events.addWithClaude} variant="card" defaultOpen={false}>
             <EventRosterPasteForm eventId={selected.id} existing={divisions.map((d) => d.division_name)} />
           </Collapsible>
 
-          <Collapsible title={`Players (${players.length})`} variant="card" defaultOpen={false}>
+          <Collapsible title={t.events.players(players.length)} variant="card" defaultOpen={false}>
             {players.length === 0 ? (
-              <p className="text-sm text-gray-500">No players yet — add teams in a division tab.</p>
+              <p className="text-sm text-gray-500">{t.events.noPlayers}</p>
             ) : (
               <ul className="grid max-h-80 gap-x-6 gap-y-1 overflow-y-auto text-sm sm:grid-cols-2">
                 {players.map((p) => (
@@ -85,7 +87,7 @@ export default async function EventsPage({
                     <span>
                       {p.name}
                       {p.country && <span className="ml-1 text-xs text-gray-500">{p.country}</span>}
-                      <span className="ml-1 text-xs text-gray-500">{Math.round(p.points)} pts</span>
+                      <span className="ml-1 text-xs text-gray-500">{t.events.pts(Math.round(p.points))}</span>
                     </span>
                     <span className="text-xs text-gray-500">{p.divisions.join(', ')}</span>
                   </li>
@@ -97,8 +99,8 @@ export default async function EventsPage({
       )}
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-lg font-semibold">Recent events</h2>
-        {events.length === 0 && <p className="text-sm text-gray-500">No events yet.</p>}
+        <h2 className="text-lg font-semibold">{t.headJudge.recentEvents}</h2>
+        {events.length === 0 && <p className="text-sm text-gray-500">{t.headJudge.noEvents}</p>}
         {events.map((e) => (
           <div
             key={e.id}
@@ -107,10 +109,10 @@ export default async function EventsPage({
             <Link href={`/events?event=${e.id}`} className="min-w-0 flex-1 p-3">
               <div className="font-medium text-blue-600">
                 {e.event_name}
-                {e.is_hidden && <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">Hidden</span>}
+                {e.is_hidden && <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">{t.events.hidden}</span>}
               </div>
               <div className="text-xs text-gray-500">
-                {e.start_date} → {e.end_date} · {e.division_count} division(s) · {e.player_count} player(s)
+                {t.headJudge.eventLine(e.start_date, e.end_date, e.division_count, e.player_count)}
               </div>
             </Link>
             <div className="pr-3">
@@ -122,7 +124,7 @@ export default async function EventsPage({
     </div>
   );
 
-  const tabs: Tab[] = [{ id: 'events', label: 'Events', href: eventsHref, content: eventsContent }];
+  const tabs: Tab[] = [{ id: 'events', label: t.headJudge.tabs.events, href: eventsHref, content: eventsContent }];
   if (selected) {
     for (const d of divisions) {
       tabs.push({
@@ -137,7 +139,7 @@ export default async function EventsPage({
     if (missing.length > 0) {
       tabs.push({
         id: 'new',
-        label: '+ New division',
+        label: t.events.newDivisionTab,
         href: `/events?event=${selected.id}&division=new`,
         content: <NewDivisionForm key={missing.join()} eventId={selected.id} available={[...missing]} />,
       });
@@ -148,10 +150,10 @@ export default async function EventsPage({
   return (
     <main className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Event Creator</h1>
+        <h1 className="text-xl font-semibold">{t.tools.event_creator.label}</h1>
         {selected && (
           <div className="mt-1 text-xs text-gray-500">
-            Event: <span className="font-medium text-gray-700">{selected.event_name}</span>
+            {t.headJudge.eventLabel} <span className="font-medium text-gray-700">{selected.event_name}</span>
           </div>
         )}
       </div>

@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { getProfileData } from '@/lib/profile-queries';
@@ -8,13 +7,18 @@ import { DiscordIdForm } from './_components/DiscordIdForm';
 import { TestDmButton } from './_components/TestDmButton';
 import { SignInMethods } from './_components/SignInMethods';
 import { PulseOnce } from './_components/PulseOnce';
+import { LanguageForm } from './_components/LanguageForm';
 import { getLogins } from '@/lib/auth-logins';
 import { SHOW_GOOGLE } from '@/lib/login-options';
 import { HOME_PATH } from '@/lib/site';
 import type { Metadata } from 'next';
+import { getT } from '@/lib/i18n/server';
 import { toolTitle } from '@/lib/tools';
+import { ControlPanelLink } from '@/app/_components/ControlPanelLink';
 
-export const metadata: Metadata = { title: toolTitle('/profile') };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: toolTitle(await getT(), '/profile') };
+}
 
 export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ connect?: string; welcome?: string }> }) {
   const session = await auth();
@@ -31,22 +35,21 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   // Every sign-in lands here (?welcome=1). With a player already linked there's nothing to
   // do on Profile, so go on to the home page; otherwise stay and highlight Linked player.
   if (welcome === '1' && profile.player) redirect(HOME_PATH);
+  const t = await getT();
 
   return (
     <main className="mx-auto flex max-w-sm flex-col gap-8 px-4 py-10">
-      <Link href="/control-panel" className="inline-block self-start text-sm text-blue-600 underline">
-        ← Control panel
-      </Link>
+      <ControlPanelLink label={t.common.backToControlPanel} className="self-start" linkClassName="text-sm text-blue-600 underline" />
       <div>
-        <h1 className="mb-4 text-xl font-semibold">Profile</h1>
-        <p className="text-sm text-gray-600">Username: {profile.email}</p>
+        <h1 className="mb-4 text-xl font-semibold">{t.profile.title}</h1>
+        <p className="text-sm text-gray-600">{t.profile.username(profile.email)}</p>
       </div>
 
       {/* Flashes once right after signing in (?welcome=1). A signed-in person with a player
           already linked was sent on to the home page above, so this is always the
           "link your player" case. */}
       <PulseOnce id="linked-player" active={welcome === '1' && !profile.player}>
-        <h2 className="mb-2 text-sm font-medium text-gray-700">Linked player</h2>
+        <h2 className="mb-2 text-sm font-medium text-gray-700">{t.profile.linkedPlayer}</h2>
         {profile.player ? (
           <div className="flex items-center justify-between rounded border border-gray-300 p-3">
             <span>
@@ -60,19 +63,24 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       </PulseOnce>
 
       <div className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-gray-700">Discord ID</h2>
+        <h2 className="text-sm font-medium text-gray-700">{t.profile.discordId}</h2>
         <DiscordIdForm initialValue={profile.discordId} />
         <TestDmButton disabled={!profile.discordId} />
       </div>
 
       <div>
-        <h2 className="mb-2 text-sm font-medium text-gray-700">Sign-in methods</h2>
+        <h2 className="mb-2 text-sm font-medium text-gray-700">{t.profile.signInMethods}</h2>
         <SignInMethods
           logins={signIns.logins}
           hasPassword={signIns.hasPassword}
           notice={connect ?? null}
           showGoogle={SHOW_GOOGLE}
         />
+      </div>
+
+      <div>
+        <h2 className="mb-2 text-sm font-medium text-gray-700">{t.common.language}</h2>
+        <LanguageForm />
       </div>
     </main>
   );

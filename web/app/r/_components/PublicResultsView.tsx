@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { OthersLegend } from '@/app/judge/_components/OthersLegend';
 import { ScoreGraph } from '@/app/judge/_components/ScoreGraph';
 import {
-  categoryLabel,
   curveDuration,
   detailsOrder,
   DifficultyTable,
@@ -19,11 +18,14 @@ import { SimpleRankingTable } from '@/app/head-judge/_components/SimpleRankingRe
 import type { ResultsSortOrder } from '@/app/head-judge/_components/SortToggle';
 import { navigateToPool } from '@/lib/public-results-actions';
 import type { EventPoolNav, PublicPoolResult } from '@/lib/public-results';
+import { useT } from '@/lib/i18n/client';
+import { categoryLabel } from '@/lib/i18n/labels';
 
 const NO_SCORES: never[] = [];
 
 export function PublicResultsView({ nav, result }: { nav: EventPoolNav; result: PublicPoolResult }) {
   const router = useRouter();
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +37,7 @@ export function PublicResultsView({ nav, result }: { nav: EventPoolNav; result: 
     startTransition(async () => {
       const { code } = await navigateToPool(divisionId, roundNumber, letter);
       if (!code) {
-        setError('Could not open that pool.');
+        setError(t.home.couldNotOpenPool);
         return;
       }
       router.push(`/r/${code}`);
@@ -64,13 +66,13 @@ export function PublicResultsView({ nav, result }: { nav: EventPoolNav; result: 
       <div>
         <h1 className="text-xl font-semibold">{nav.eventName}</h1>
         <p className="mt-1 text-lg text-gray-700">
-          {result.divisionName} · {result.roundName} · Pool {result.letter}
+          {result.divisionName} · {t.common.roundName(result.roundNumber)} · {t.common.pool(result.letter)}
         </p>
       </div>
 
       <div className="flex flex-wrap items-end gap-3 text-sm">
         <label className="flex flex-col gap-1">
-          Division
+          {t.publicPages.division}
           <select
             value={division?.id ?? ''}
             disabled={pending}
@@ -85,7 +87,7 @@ export function PublicResultsView({ nav, result }: { nav: EventPoolNav; result: 
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          Round
+          {t.publicPages.round}
           <select
             value={round?.number ?? ''}
             disabled={pending}
@@ -94,13 +96,13 @@ export function PublicResultsView({ nav, result }: { nav: EventPoolNav; result: 
           >
             {division?.rounds.map((r) => (
               <option key={r.number} value={r.number}>
-                {r.name}
+                {t.common.roundName(r.number)}
               </option>
             ))}
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          Pool
+          {t.publicPages.pool}
           <select
             value={result.letter}
             disabled={pending}
@@ -109,12 +111,12 @@ export function PublicResultsView({ nav, result }: { nav: EventPoolNav; result: 
           >
             {round?.pools.map((p) => (
               <option key={p.letter} value={p.letter}>
-                Pool {p.letter}
+                {t.common.pool(p.letter)}
               </option>
             ))}
           </select>
         </label>
-        {pending && <span className="text-gray-500">Loading…</span>}
+        {pending && <span className="text-gray-500">{t.common.loading}</span>}
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
 
@@ -130,29 +132,30 @@ export function PublicResultsView({ nav, result }: { nav: EventPoolNav; result: 
 }
 
 function UnpublishedView({ result }: { result: PublicPoolResult }) {
+  const t = useT();
   return (
     <div className="flex flex-col gap-4">
       <section className="flex flex-col gap-2">
-        <h2 className="text-lg font-semibold">Teams</h2>
+        <h2 className="text-lg font-semibold">{t.publicPages.teams}</h2>
         <ol className="flex flex-col gap-1">
           {result.teams.map((team, i) => (
             <li key={team.id} className="rounded border border-gray-200 px-3 py-2">
               <span className="mr-2 text-gray-400">{i + 1}.</span>
-              {team.players.join(' / ') || '(no players)'}
+              {team.players.join(' / ') || t.common.noPlayers}
             </li>
           ))}
         </ol>
       </section>
       {result.usesJudges ? (
         <section className="flex flex-col gap-2">
-          <h2 className="text-lg font-semibold">Judges</h2>
+          <h2 className="text-lg font-semibold">{t.publicPages.judges}</h2>
           {!result.judges || result.judges.length === 0 ? (
-            <p className="text-sm text-gray-500">No judges set yet.</p>
+            <p className="text-sm text-gray-500">{t.publicPages.noJudgesYet}</p>
           ) : (
             <ul className="flex flex-col gap-1">
               {result.judges.map((j) => (
                 <li key={j.playerId} className="text-sm">
-                  {j.name} <span className="text-gray-500">({categoryLabel(j.categoryType as 'Ex' | 'AI' | 'Diff')})</span>
+                  {j.name} <span className="text-gray-500">({categoryLabel(t, j.categoryType)})</span>
                 </li>
               ))}
             </ul>
@@ -160,15 +163,16 @@ function UnpublishedView({ result }: { result: PublicPoolResult }) {
         </section>
       ) : (
         <p className="text-sm text-gray-600">
-          {result.simpleRanking?.judgeCount ?? 0} ranking{(result.simpleRanking?.judgeCount ?? 0) === 1 ? '' : 's'} submitted so far.
+          {t.publicPages.rankingsSubmitted(result.simpleRanking?.judgeCount ?? 0)}
         </p>
       )}
-      <p className="text-xs text-gray-500">Results aren&apos;t published yet.</p>
+      <p className="text-xs text-gray-500">{t.publicPages.notPublished}</p>
     </div>
   );
 }
 
 function FpaResultsView({ result }: { result: PublicPoolResult }) {
+  const t = useT();
   // Hovering a Summary row highlights that team's line in the combined graph below it.
   const [highlightedTeamId, setHighlightedTeamId] = useState<string | null>(null);
   // Checking a Summary row's box makes every score in the tables below a delta
@@ -215,10 +219,10 @@ function FpaResultsView({ result }: { result: PublicPoolResult }) {
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="text-lg font-semibold">
                   <span className="mr-3 font-normal text-gray-400">{rank === null ? '—' : `${rank}.`}</span>
-                  {team.players.join(' / ') || '(no players)'}
+                  {team.players.join(' / ') || t.common.noPlayers}
                 </h3>
                 <span className="text-sm text-gray-500">
-                  {!teamResult ? 'Not played yet' : noteJudges.length === 0 ? '' : `${finished} of ${noteJudges.length} judges finished`}
+                  {!teamResult ? t.results.notPlayedYet : noteJudges.length === 0 ? '' : t.results.judgesFinished(finished, noteJudges.length)}
                 </span>
               </div>
               {teamResult && teamResult.curves.length > 0 && (
@@ -239,12 +243,12 @@ function FpaResultsView({ result }: { result: PublicPoolResult }) {
                 judgesByCategory.map(({ category, judges }) =>
                   category === 'Diff' ? (
                     <div key={category} className="flex flex-col gap-1">
-                      <h4 className="text-sm font-medium text-gray-600">{categoryLabel(category)}</h4>
+                      <h4 className="text-sm font-medium text-gray-600">{categoryLabel(t, category)}</h4>
                       <DifficultyTable judges={judges} result={teamResult} baselineResult={compareResult} />
                     </div>
                   ) : (
                     <div key={category} className="flex flex-col gap-1">
-                      <h4 className="text-sm font-medium text-gray-600">{categoryLabel(category)}</h4>
+                      <h4 className="text-sm font-medium text-gray-600">{categoryLabel(t, category)}</h4>
                       <NotesTable category={category} judges={judges} result={teamResult} baselineResult={compareResult} />
                     </div>
                   )

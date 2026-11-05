@@ -15,6 +15,7 @@ import { validateResults } from '@/lib/results-parser/validate';
 import { ClaudeBox } from './ClaudeBox';
 import { RoundsEditor } from './RoundsEditor';
 import { useHistory } from './useHistory';
+import { useT } from '@/lib/i18n/client';
 
 const draftKey = (eventId: string, divisionName: string) => `results-parser-draft:${eventId}:${divisionName}`;
 
@@ -48,6 +49,7 @@ export function ResultsParserClient({
   // still needs picking by hand, same one-division-at-a-time design as always.
   initialEventId?: string;
 }) {
+  const t = useT();
   const [events, setEvents] = useState(initialEvents);
   const [eventId, setEventId] = useState('');
   const [divisionName, setDivisionName] = useState('');
@@ -90,7 +92,7 @@ export function ResultsParserClient({
 
   // Opens an event and division in the editor, optionally with rounds Claude filled in.
   async function open(nextEvent: string, nextDivision: string, initial?: EditorRound[]): Promise<boolean> {
-    if (dirty && !window.confirm('Discard your unsaved changes?')) return false;
+    if (dirty && !window.confirm(t.resultsParser.discardConfirm)) return false;
     const mine = ++request.current;
     setEventId(nextEvent);
     setDivisionName(nextDivision);
@@ -110,7 +112,7 @@ export function ResultsParserClient({
     if (mine !== request.current) return true;
     setLoading(false);
     if (result.error || !result.loaded) {
-      setError(result.error ?? 'Failed to load the division');
+      setError(result.error ?? t.resultsParser.failedToLoad);
       history.reset([]);
       setBaseline([]);
       return true;
@@ -123,8 +125,8 @@ export function ResultsParserClient({
       history.set(initial);
       setNotice(
         loaded.rounds.length > 0
-          ? 'Loaded from Claude. This division already has saved results, and saving replaces them.'
-          : 'Loaded from Claude. Check everything, then save.'
+          ? t.resultsParser.loadedReplaces
+          : t.resultsParser.loadedCheck
       );
     } else {
       const found = readDraft(draftKey(nextEvent, nextDivision));
@@ -149,7 +151,7 @@ export function ResultsParserClient({
     if (
       baseline.length > 0 &&
       division.divisionName === divisionName &&
-      !window.confirm(`${division.divisionName} already has saved results. Replace them in the editor with Claude's?`)
+      !window.confirm(t.resultsParser.replaceConfirm(division.divisionName))
     ) {
       return;
     }
@@ -163,7 +165,7 @@ export function ResultsParserClient({
     const result = await createResultsEvent(newEvent.name, newEvent.start, newEvent.end);
     setCreatingEvent(false);
     if (result.error || !result.event) {
-      setError(result.error ?? 'Failed to create the event');
+      setError(result.error ?? t.resultsParser.failedToCreateEvent);
       return;
     }
     const created = result.event;
@@ -185,7 +187,7 @@ export function ResultsParserClient({
     setBaseline(rounds);
     setSaved({ divisionId: result.divisionId ?? null, isHidden: false });
     if (key) writeDraft(key, null);
-    setNotice(`Saved ${result.teams} team(s) in ${divisionName}. They count in the Rankings Generator now.`);
+    setNotice(t.resultsParser.savedNotice(result.teams ?? 0, divisionName));
   }
 
   async function togglePublished() {
@@ -197,7 +199,7 @@ export function ResultsParserClient({
   }
 
   function revert() {
-    if (dirty && !window.confirm('Throw away your changes and go back to what is saved?')) return;
+    if (dirty && !window.confirm(t.resultsParser.revertConfirm)) return;
     history.reset(baseline);
     setDraft(null);
     setNotice(null);
@@ -219,13 +221,13 @@ export function ResultsParserClient({
       <section className="flex flex-col gap-3 rounded border border-gray-300 p-3">
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex min-w-0 basis-full flex-col gap-1 text-sm sm:max-w-md sm:flex-1 sm:basis-0">
-            <span className="text-xs text-gray-500">Event</span>
+            <span className="text-xs text-gray-500">{t.resultsParser.event}</span>
             <select
               value={eventId}
               onChange={(e) => void open(e.target.value, divisionName)}
               className="rounded border border-gray-300 px-2 py-2 text-sm"
             >
-              <option value="">Choose an event…</option>
+              <option value="">{t.resultsParser.chooseEvent}</option>
               {events.map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.start_date} · {e.event_name}
@@ -238,16 +240,16 @@ export function ResultsParserClient({
             onClick={() => setNewEvent(newEvent ? null : { name: '', start: '', end: '' })}
             className="rounded border border-gray-300 px-3 py-2 text-sm"
           >
-            {newEvent ? 'Cancel new event' : 'Create event'}
+            {newEvent ? t.resultsParser.cancelNewEvent : t.resultsParser.createEvent}
           </button>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-xs text-gray-500">Division</span>
+            <span className="text-xs text-gray-500">{t.resultsParser.division}</span>
             <select
               value={divisionName}
               onChange={(e) => void open(eventId, e.target.value)}
               className="rounded border border-gray-300 px-2 py-2 text-sm"
             >
-              <option value="">Choose a division…</option>
+              <option value="">{t.resultsParser.chooseDivision}</option>
               {DIVISION_NAMES.map((d) => (
                 <option key={d} value={d}>
                   {d}
@@ -260,7 +262,7 @@ export function ResultsParserClient({
         {newEvent && (
           <div className="flex flex-wrap items-end gap-3 rounded bg-gray-50 p-3">
             <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
-              <span className="text-xs text-gray-500">Event name</span>
+              <span className="text-xs text-gray-500">{t.resultsParser.eventName}</span>
               <input
                 value={newEvent.name}
                 onChange={(e) => setNewEvent({ ...newEvent, name: e.target.value })}
@@ -268,7 +270,7 @@ export function ResultsParserClient({
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
-              <span className="text-xs text-gray-500">Start date</span>
+              <span className="text-xs text-gray-500">{t.resultsParser.startDate}</span>
               <input
                 type="date"
                 value={newEvent.start}
@@ -277,7 +279,7 @@ export function ResultsParserClient({
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
-              <span className="text-xs text-gray-500">End date</span>
+              <span className="text-xs text-gray-500">{t.resultsParser.endDate}</span>
               <input
                 type="date"
                 value={newEvent.end}
@@ -291,7 +293,7 @@ export function ResultsParserClient({
               disabled={creatingEvent || !newEvent.name.trim() || !newEvent.start || !newEvent.end}
               className="rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              {creatingEvent ? 'Creating…' : 'Create'}
+              {creatingEvent ? t.resultsParser.creating : t.resultsParser.create}
             </button>
           </div>
         )}
@@ -302,7 +304,7 @@ export function ResultsParserClient({
 
       {draft && (
         <div className="flex flex-wrap items-center gap-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          <span>You have unsaved changes for this division from earlier in this browser.</span>
+          <span>{t.resultsParser.unsavedFromEarlier}</span>
           <button
             type="button"
             onClick={() => {
@@ -311,7 +313,7 @@ export function ResultsParserClient({
             }}
             className="rounded border border-amber-400 bg-white px-2 py-1 text-xs"
           >
-            Restore them
+            {t.resultsParser.restore}
           </button>
           <button
             type="button"
@@ -321,24 +323,24 @@ export function ResultsParserClient({
             }}
             className="rounded border border-amber-400 bg-white px-2 py-1 text-xs"
           >
-            Discard them
+            {t.resultsParser.discard}
           </button>
         </div>
       )}
 
-      {selected && loading && <p className="text-sm text-gray-600">Loading…</p>}
+      {selected && loading && <p className="text-sm text-gray-600">{t.common.loading}</p>}
 
       {selected && !loading && (
         <>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={history.undo} disabled={!history.canUndo} className="rounded border border-gray-300 px-3 py-2 text-sm disabled:opacity-50">
-              Undo
+              {t.resultsParser.undo}
             </button>
             <button type="button" onClick={history.redo} disabled={!history.canRedo} className="rounded border border-gray-300 px-3 py-2 text-sm disabled:opacity-50">
-              Redo
+              {t.resultsParser.redo}
             </button>
             <button type="button" onClick={revert} disabled={!dirty} className="rounded border border-gray-300 px-3 py-2 text-sm disabled:opacity-50">
-              Revert changes
+              {t.resultsParser.revert}
             </button>
             <button
               type="button"
@@ -346,16 +348,16 @@ export function ResultsParserClient({
               disabled={saving || !dirty || problems.length > 0}
               className="rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              {saving ? 'Saving…' : 'Save results'}
+              {saving ? t.common.saving : t.resultsParser.saveResults}
             </button>
             {saved.divisionId && (
               <span className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
-                {saved.isHidden ? 'Saved but hidden (not counted).' : 'Saved and counted.'}
+                {saved.isHidden ? t.resultsParser.savedHidden : t.resultsParser.savedCounted}
                 <button type="button" onClick={togglePublished} className="text-xs text-blue-600 underline">
-                  {saved.isHidden ? 'Show it' : 'Hide it'}
+                  {saved.isHidden ? t.resultsParser.showIt : t.resultsParser.hideIt}
                 </button>
                 <Link href="/rankings-generator" className="text-xs text-blue-600 underline">
-                  Rankings Generator
+                  {t.tools.rankings_generator.label}
                 </Link>
               </span>
             )}
@@ -375,10 +377,10 @@ export function ResultsParserClient({
 
           <section className="flex flex-col gap-2 rounded border border-gray-300 p-3 text-sm">
             <div className="font-medium">
-              {counts.rounds} round(s), {counts.pools} pool(s), {counts.teams} team(s), {counts.players} player slot(s)
+              {t.resultsParser.counts(counts.rounds, counts.pools, counts.teams, counts.players)}
             </div>
             {problems.length === 0 ? (
-              <p className="text-green-700">No problems found.</p>
+              <p className="text-green-700">{t.resultsParser.noProblems}</p>
             ) : (
               <ul className="list-disc pl-5 text-red-700">
                 {problems.map((p) => (

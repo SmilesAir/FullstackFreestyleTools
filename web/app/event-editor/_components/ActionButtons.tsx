@@ -1,5 +1,7 @@
 'use client';
 
+import { useT } from '@/lib/i18n/client';
+
 // Opens in a new tab without taking focus away from the Event Editor: the
 // browser's own target="_blank" switches focus to the new tab, so this pulls
 // it straight back (window.focus() needs to run from the click's own event
@@ -9,17 +11,18 @@ function openInBackground() {
 }
 
 export function ActionButtons({ eventId }: { eventId: string }) {
+  const t = useT();
   const btn = 'rounded border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50';
   return (
     <div className="flex flex-wrap gap-2">
       <a href={`/events?event=${eventId}`} target="_blank" rel="noopener noreferrer" onClick={openInBackground} className={btn}>
-        Open Event Creator
+        {t.eventEditor.openEventCreator}
       </a>
       <a href={`/head-judge?event=${eventId}`} target="_blank" rel="noopener noreferrer" onClick={openInBackground} className={btn}>
-        Open Head Judge
+        {t.eventEditor.openHeadJudge}
       </a>
       <a href={`/results-parser?event=${eventId}`} target="_blank" rel="noopener noreferrer" onClick={openInBackground} className={btn}>
-        Open Results Parser
+        {t.eventEditor.openResultsParser}
       </a>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { connectSignIn, disconnectSignIn } from '@/lib/profile-actions';
+import { useT } from '@/lib/i18n/client';
 
 type Login = { provider: 'google' | 'discord'; email: string | null };
 
@@ -23,6 +24,7 @@ export function SignInMethods({
   // so it can be disconnected.
   showGoogle: boolean;
 }) {
+  const t = useT();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const ways = logins.length + (hasPassword ? 1 : 0);
@@ -30,18 +32,14 @@ export function SignInMethods({
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs text-gray-500">
-        Connect your sign-ins to this account so any of them opens it, even if they use different emails.
+        {t.profile.connectHelp}
       </p>
-      {notice === 'done' && <p className="text-sm text-green-700">Sign-in connected.</p>}
-      {notice === 'taken' && (
-        <p className="text-sm text-red-600">
-          That sign-in already opens a different account, so it wasn&apos;t connected. Ask an admin to merge the two accounts.
-        </p>
-      )}
+      {notice === 'done' && <p className="text-sm text-green-700">{t.profile.connectDone}</p>}
+      {notice === 'taken' && <p className="text-sm text-red-600">{t.profile.connectTaken}</p>}
       <ul className="flex flex-col gap-2">
         <li className="flex items-center justify-between rounded border border-gray-300 p-3 text-sm">
-          <span>Email &amp; password</span>
-          <span className="text-gray-500">{hasPassword ? 'set' : 'not set'}</span>
+          <span>{t.profile.emailPassword}</span>
+          <span className="text-gray-500">{hasPassword ? t.profile.set : t.profile.notSet}</span>
         </li>
         {(['google', 'discord'] as const)
           .filter((provider) => provider !== 'google' || showGoogle || logins.some((l) => l.provider === 'google'))
@@ -53,7 +51,7 @@ export function SignInMethods({
                 <span>{LABELS[provider]}</span>
                 {connected.map((l, i) => (
                   <span key={i} className="truncate text-xs text-gray-500">
-                    {l.email ?? 'connected'}
+                    {l.email ?? t.profile.connected}
                   </span>
                 ))}
               </div>
@@ -61,14 +59,14 @@ export function SignInMethods({
                 <button
                   type="button"
                   disabled={pending || ways <= connected.length}
-                  title={ways <= connected.length ? "It's your only way to sign in" : undefined}
+                  title={ways <= connected.length ? t.profile.onlyWay : undefined}
                   onClick={() =>
-                    confirm(`Disconnect ${LABELS[provider]} from this account?`) &&
+                    confirm(t.profile.disconnectConfirm(LABELS[provider])) &&
                     startTransition(async () => setError((await disconnectSignIn(provider)).error))
                   }
                   className="shrink-0 text-xs text-red-600 underline disabled:opacity-40"
                 >
-                  Disconnect
+                  {t.profile.disconnect}
                 </button>
               ) : (
                 <button
@@ -77,7 +75,7 @@ export function SignInMethods({
                   onClick={() => startTransition(() => connectSignIn(provider))}
                   className="shrink-0 rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
                 >
-                  Connect
+                  {t.profile.connect}
                 </button>
               )}
             </li>

@@ -26,6 +26,8 @@ import { DebugBar, type TrainerView } from './DebugBar';
 import { TrainerDescription } from './TrainerDescription';
 import { TrainerStartGuide } from './TrainerStartGuide';
 import { useTrainerJudge, useTrainerStore, type TrainerUpdate } from './useTrainer';
+import { useT } from '@/lib/i18n/client';
+import { poolTitle } from '@/lib/head-judge';
 
 const BASE_PATH = '/judging-trainer';
 
@@ -34,6 +36,7 @@ const BASE_PATH = '/judging-trainer';
 // every judge: each judge's routine for each team is started from that judge's
 // cell in the results' Summary table, so every team is judged three times.
 export function TrainerApp() {
+  const t = useT();
   const { state, loaded, update } = useTrainerStore();
   const [view, setView] = useState<TrainerView>('guide');
 
@@ -49,8 +52,14 @@ export function TrainerApp() {
   const onTeam = on ? TRAINER_TEAMS.findIndex((t) => t.id === on.teamId) + 1 : 0;
   const onJudge = on?.category ? trainerJudge(on.category).name : null;
   const status = on
-    ? `Team ${onTeam}${onJudge ? ` · ${onJudge}` : ''} · ${formatElapsed(Math.min(now - on.startedAt, on.seconds * 1000))} / ${formatElapsed(on.seconds * 1000)}${inside ? '' : ' · enter the score'}`
-    : 'No routine running. Start one from Results.';
+    ? t.trainer.status(
+        onTeam,
+        onJudge,
+        formatElapsed(Math.min(now - on.startedAt, on.seconds * 1000)),
+        formatElapsed(on.seconds * 1000),
+        !inside
+      )
+    : t.trainer.noRoutine;
 
   // The debug bar's height (it wraps on a narrow screen), so the judge screen's
   // Enter Score button, fixed to the top, sits below the bar instead of over it.
@@ -71,7 +80,7 @@ export function TrainerApp() {
           view={view}
           onView={setView}
           onNewEvent={() => {
-            if (hasPlayed(state) && !window.confirm('Start a new test event? Every note and score is cleared.')) return;
+            if (hasPlayed(state) && !window.confirm(t.trainer.newEventConfirm)) return;
             update(() => newTestEvent());
           }}
           canEndEarly={inside}
@@ -111,6 +120,7 @@ function TrainerJudgeScreen({
   update: TrainerUpdate;
   category: NoteCategory;
 }) {
+  const t = useT();
   const judge = useTrainerJudge(state, update, category);
   const history = useMemo(() => judgeHistory(state, category), [state, category]);
   const others = useMemo(() => otherCurves(state, category, state.currentRoutineId), [state, category]);
@@ -128,7 +138,7 @@ function TrainerJudgeScreen({
       judgeName={name}
       basePath={BASE_PATH}
       initialTab="play"
-      badge="Trainer"
+      badge={t.trainer.badge}
       others={others}
       history={history}
       canEnterScore={canEnterScore}
@@ -153,6 +163,7 @@ function TrainerResults({
   onStart: (teamId: string, category: NoteCategory) => void;
   onOpen: (category: NoteCategory) => void;
 }) {
+  const t = useT();
   const data = useMemo(() => poolResults(state), [state]);
   const on = currentRoutine(state);
   const scoreCell = (teamId: string, judgePlayerId: string, score: number | null) => {
@@ -162,7 +173,7 @@ function TrainerResults({
     if (on && on.teamId === teamId && on.category === category) {
       return (
         <button type="button" onClick={() => onOpen(category)} className={`${cellButton} bg-sky-100 text-sky-900`}>
-          {running ? 'Judging…' : 'Enter score'}
+          {running ? t.trainer.judging : t.trainer.enterScore}
         </button>
       );
     }
@@ -170,21 +181,21 @@ function TrainerResults({
       <button
         type="button"
         disabled={running}
-        title={running ? 'A routine is running. Wait for it, or end it early.' : undefined}
+        title={running ? t.trainer.runningTip : undefined}
         onClick={() => onStart(teamId, category)}
         className={`${cellButton} bg-green-600 text-white hover:bg-green-700`}
       >
-        Start
+        {t.trainer.start}
       </button>
     );
   };
   return (
     <main className="flex flex-col gap-4 px-4 py-6">
       <h1 className="text-xl font-semibold">
-        {TRAINER_POOL.divisionName} · {TRAINER_POOL.roundName} · Pool {TRAINER_POOL.letter}
+        {poolTitle(t, TRAINER_POOL)}
       </h1>
       <p className="text-sm text-gray-600">
-        Press Start under a judge to play that team&apos;s routine for that judge, then judge it on their screen.
+        {t.trainer.resultsHelp}
       </p>
       <PoolResultsView pool={TRAINER_POOL} data={data} scoreCell={scoreCell} />
     </main>

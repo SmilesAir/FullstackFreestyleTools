@@ -1,6 +1,7 @@
 import { categoryBySlug, noteCategoryOf, seatPath } from '@/lib/judging';
 import { judgePinOk } from '@/lib/judge-pin';
 import { getJudgeState, getSeatHolder } from '@/lib/judging-queries';
+import { getT } from '@/lib/i18n/server';
 import { JudgeShell, NotJudging } from './JudgeShell';
 import { PinPad } from './PinPad';
 import { SeatJudge } from './SeatJudge';
@@ -25,12 +26,13 @@ export async function SeatPage({
   const seat = Number(seatText);
   if (!noteCategory || !UUID.test(eventId) || !Number.isInteger(seat) || seat < 1) return <NotJudging />;
 
-  const [holder, pinOk] = await Promise.all([getSeatHolder(eventId, category.type, seat), judgePinOk(eventId)]);
+  const [holder, pinOk, t] = await Promise.all([getSeatHolder(eventId, category.type, seat), judgePinOk(eventId), getT()]);
+  const categoryLabel = t.judging.category[category.type];
   // The judge is picked; now the event's PIN (once per device).
   if (!pinOk) {
     return (
       <JudgeShell>
-        <PinPad eventId={eventId} judgeName={holder?.name ?? `Seat ${seat}`} categoryLabel={category.label} />
+        <PinPad eventId={eventId} judgeName={holder?.name ?? t.judging.seat(seat)} categoryLabel={categoryLabel} />
       </JudgeShell>
     );
   }
@@ -39,7 +41,7 @@ export async function SeatPage({
     <JudgeShell>
       <SeatJudge
         category={noteCategory}
-        categoryLabel={category.label}
+        categoryLabel={categoryLabel}
         eventId={eventId}
         seat={seat}
         basePath={seatPath(category, eventId, seat)}

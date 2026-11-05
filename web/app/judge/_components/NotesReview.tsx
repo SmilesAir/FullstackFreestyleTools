@@ -9,6 +9,7 @@ import { graphDuration, noteScores } from './noteScores';
 import { OthersLegend } from './OthersLegend';
 import { ScoreCard } from './ScoreCard';
 import { useScoreAdjust } from './useScoreAdjust';
+import { useT } from '@/lib/i18n/client';
 
 // Saves a score again with a new change in percent, for the running routine or
 // (given its id) an earlier one; says whether it worked.
@@ -44,6 +45,7 @@ export function NotesReview({
   // read from the server.
   history?: JudgeHistory;
 }) {
+  const t = useT();
   const [fetchedHistory, setHistory] = useState<JudgeHistory>({ routines: [], upcoming: [] });
   const [historyError, setHistoryError] = useState(false);
   // Counts the changes made to earlier scores, so the list is read again.
@@ -99,15 +101,15 @@ export function NotesReview({
       all.min = Math.min(all.min, e.min);
     };
     for (const r of earlier) {
-      add(noteScores(r.notes, r.noteWeights, r.startedAt, category, r.routineSeconds, r.secondsPerScore), r.routineSeconds, r.others);
+      add(noteScores(r.notes, r.noteWeights, r.startedAt, category, r.routineSeconds, r.secondsPerScore, t), r.routineSeconds, r.others);
     }
     const now = state.notesRoutine;
     if (now) {
-      const scores = noteScores(state.notes, state.noteWeights, now.startedAt, category, now.routineSeconds, state.secondsPerScore);
+      const scores = noteScores(state.notes, state.noteWeights, now.startedAt, category, now.routineSeconds, state.secondsPerScore, t);
       add(scores, now.routineSeconds, currentOthers);
     }
     return all;
-  }, [earlier, state.notesRoutine, state.notes, state.noteWeights, state.secondsPerScore, category, currentOthers]);
+  }, [earlier, state.notesRoutine, state.notes, state.noteWeights, state.secondsPerScore, category, currentOthers, t]);
 
   // The key covers every category that has a line on any graph.
   const legend = useMemo(() => [...earlier.flatMap((r) => r.others), ...currentOthers], [earlier, currentOthers]);
@@ -172,7 +174,7 @@ export function NotesReview({
   return (
     // Packed tight so as many graphs as possible fit on the screen at once.
     <div className="flex w-full flex-col gap-1">
-      {historyError && <p className="text-sm text-red-700">Could not load your earlier routines.</p>}
+      {historyError && <p className="text-sm text-red-700">{t.judging.couldNotLoadHistory}</p>}
       <OthersLegend others={legend} />
       {items.map((item, i) => {
         const newPool = item.poolTitle !== null && (i === 0 || items[i - 1].poolTitle !== item.poolTitle);
@@ -211,6 +213,7 @@ function UpcomingRoutine({
   submitting: boolean;
   onSubmit: (adjustPercent: number) => Promise<boolean>;
 }) {
+  const t = useT();
   const { percent, changed, failed, adjust } = useScoreAdjust({
     routineId: `team:${team.teamId}`,
     saved: 0,
@@ -224,7 +227,7 @@ function UpcomingRoutine({
         duration={graphDuration(team.routineSeconds, NO_SCORES)}
         routineSeconds={team.routineSeconds}
         compact
-        title={`${team.teamName ?? '(team)'} · not played yet`}
+        title={`${team.teamName ?? t.judging.team} · ${t.judging.notPlayedYet}`}
         yExtent={extent}
         aside={
           <ScoreCard
@@ -232,7 +235,7 @@ function UpcomingRoutine({
             unit={unit}
             submitted={null}
             percent={percent}
-            status={changed ? (failed ? 'Not saved' : 'Not played') : 'Not played. Press to enter'}
+            status={changed ? (failed ? t.judging.notSaved : t.judging.notPlayed) : t.judging.notPlayedPress}
             onAdjust={adjust}
             canEnter
           />
@@ -257,9 +260,10 @@ function PastRoutine({
   submitting: boolean;
   onSubmit: SubmitFn;
 }) {
+  const t = useT();
   const scores = useMemo(
-    () => noteScores(routine.notes, routine.noteWeights, routine.startedAt, category, routine.routineSeconds, routine.secondsPerScore),
-    [routine.notes, routine.noteWeights, routine.startedAt, category, routine.routineSeconds, routine.secondsPerScore]
+    () => noteScores(routine.notes, routine.noteWeights, routine.startedAt, category, routine.routineSeconds, routine.secondsPerScore, t),
+    [routine.notes, routine.noteWeights, routine.startedAt, category, routine.routineSeconds, routine.secondsPerScore, t]
   );
   const { baseline: estimate, unrestricted } = useMemo(
     () => estimatesOf(scores, routine.routineSeconds, routine.estimate, category),
@@ -280,7 +284,7 @@ function PastRoutine({
         duration={graphDuration(routine.routineSeconds, scores)}
         routineSeconds={routine.routineSeconds}
         compact
-        title={routine.teamName ?? '(team)'}
+        title={routine.teamName ?? t.judging.team}
         yExtent={extent}
         underlays={routine.others}
         aside={
@@ -290,7 +294,7 @@ function PastRoutine({
             unrestricted={routine.secondsPerScore > 0 ? unrestricted : null}
             submitted={routine.submitted}
             percent={percent}
-            status={changed && failed ? 'Not saved' : null}
+            status={changed && failed ? t.judging.notSaved : null}
             onAdjust={adjust}
             canEnter
           />
@@ -317,6 +321,7 @@ function CurrentRoutine({
   onSubmit: SubmitFn;
   submitting: boolean;
 }) {
+  const t = useT();
   const routine = state.notesRoutine;
   // The running routine is scored with Enter Score on the Play tab; once it is
   // over, a missing score can be entered here (the backup).
@@ -332,9 +337,9 @@ function CurrentRoutine({
   const scores = useMemo<CurveScore[]>(
     () =>
       routine
-        ? noteScores(state.notes, state.noteWeights, routine.startedAt, category, routine.routineSeconds, state.secondsPerScore)
+        ? noteScores(state.notes, state.noteWeights, routine.startedAt, category, routine.routineSeconds, state.secondsPerScore, t)
         : [],
-    [state.notes, state.noteWeights, routine, category, state.secondsPerScore]
+    [state.notes, state.noteWeights, routine, category, state.secondsPerScore, t]
   );
 
   const { baseline: estimate, unrestricted } = useMemo(
@@ -344,7 +349,7 @@ function CurrentRoutine({
 
   if (!routine) {
     return (
-      <p className="text-sm text-gray-500">No notes yet. Notes you take on the Play tab appear here as a graph.</p>
+      <p className="text-sm text-gray-500">{t.judging.noNotesYet}</p>
     );
   }
 
@@ -355,7 +360,7 @@ function CurrentRoutine({
         duration={graphDuration(routine.routineSeconds, scores)}
         routineSeconds={routine.routineSeconds}
         compact
-        title={`${routine.teamName ?? '(team)'}${running ? ' · in progress' : ''}`}
+        title={`${routine.teamName ?? t.judging.team}${running ? ` · ${t.judging.inProgress}` : ''}`}
         yExtent={extent}
         underlays={others}
         aside={
@@ -365,7 +370,7 @@ function CurrentRoutine({
             unrestricted={state.secondsPerScore > 0 ? unrestricted : null}
             submitted={state.submitted}
             percent={percent}
-            status={changed && failed ? 'Not saved' : null}
+            status={changed && failed ? t.judging.notSaved : null}
             onAdjust={adjust}
             canEnter={canEnter}
           />

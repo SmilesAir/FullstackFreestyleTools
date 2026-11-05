@@ -3,8 +3,10 @@
 import { useTransition, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBackupAction } from '@/lib/backup-actions';
+import { useT } from '@/lib/i18n/client';
 
 export function CreateBackupButton() {
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -25,7 +27,7 @@ export function CreateBackupButton() {
         disabled={pending}
         className="self-start rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
-        {pending ? 'Creating backup…' : 'Create backup now'}
+        {pending ? t.admin.creatingBackup : t.admin.createBackup}
       </button>
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>

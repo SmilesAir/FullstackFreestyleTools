@@ -4,6 +4,7 @@ import { cookies, headers } from 'next/headers';
 import type { Pool, PoolClient } from 'pg';
 import { getPool, pool } from './db';
 import { getMode } from './db-mode';
+import { getT } from './i18n/server';
 
 // The event's judge PIN: two digits the Head Judge reads out, entered once on
 // each judging device. Judges don't log in and their links (player ids, seats)
@@ -155,7 +156,8 @@ async function clientKey(): Promise<string> {
 // then doesn't help. Guesses from one client are taken one at a time (an
 // advisory lock), so firing many at once can't skip the waits.
 export async function enterPin(eventId: string, pin: string, remember: boolean): Promise<PinEntryResult> {
-  if (!PIN.test(pin)) return { ok: false, error: 'The PIN is 2 digits' };
+  const t = await getT();
+  if (!PIN.test(pin)) return { ok: false, error: t.judging.pinIs2Digits };
   const key = await clientKey();
   const db = await pool.connect();
   try {
@@ -168,7 +170,7 @@ export async function enterPin(eventId: string, pin: string, remember: boolean):
     const row = event.rows[0];
     if (!row) {
       await db.query('ROLLBACK');
-      return { ok: false, error: 'Unknown event' };
+      return { ok: false, error: t.errors.unknownEvent };
     }
     // Nothing to enter: let the screen through.
     if (row.is_test || !row.judge_pin) {
@@ -184,7 +186,7 @@ export async function enterPin(eventId: string, pin: string, remember: boolean):
     );
     if (lock.rows[0]) {
       await db.query('ROLLBACK');
-      return { ok: false, error: 'Too many wrong PINs', retryAfterMs: lock.rows[0].wait_ms };
+      return { ok: false, error: t.judging.pinTooManyWrong, retryAfterMs: lock.rows[0].wait_ms };
     }
 
     if (pin === row.judge_pin) {
@@ -212,8 +214,8 @@ export async function enterPin(eventId: string, pin: string, remember: boolean):
     await db.query('COMMIT');
     const wait = wrong.rows[0]?.wait_ms ?? null;
     return wait && wait > 0
-      ? { ok: false, error: 'Wrong PIN', retryAfterMs: wait }
-      : { ok: false, error: 'Wrong PIN' };
+      ? { ok: false, error: t.judging.pinWrong, retryAfterMs: wait }
+      : { ok: false, error: t.judging.pinWrong };
   } catch (err) {
     await db.query('ROLLBACK').catch(() => {});
     if (missingColumn(err)) return { ok: true };

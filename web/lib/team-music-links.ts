@@ -23,9 +23,6 @@ export type TeamMusicByRound = Record<number, TeamMusic>;
 export const musicForRound = (byRound: TeamMusicByRound, round: number): TeamMusic | null =>
   byRound[round] ?? byRound[ALL_ROUNDS] ?? null;
 
-export const musicRoundName = (round: number) =>
-  round === ALL_ROUNDS ? 'All rounds' : (ROUNDS.find((r) => r.number === round)?.name ?? `Round ${round}`);
-
 // A team's music files go under team-music/<division id>/, so a saved URL
 // can be checked to be one of ours for that division.
 export const teamMusicPathPrefix = (divisionId: string) => `team-music/${divisionId}/`;

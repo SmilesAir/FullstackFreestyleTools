@@ -1,7 +1,9 @@
 import Link from 'next/link';
+import { getT } from '@/lib/i18n/server';
 
-export function Pagination({ page, pageCount }: { page: number; pageCount: number }) {
+export async function Pagination({ page, pageCount }: { page: number; pageCount: number }) {
   if (pageCount <= 1) return null;
+  const t = await getT();
   const link = 'rounded border border-gray-300 px-3 py-1 hover:bg-gray-50';
   const disabled = 'rounded border border-gray-200 px-3 py-1 text-gray-300';
 
@@ -9,20 +11,20 @@ export function Pagination({ page, pageCount }: { page: number; pageCount: numbe
     <nav className="flex items-center justify-between gap-4 text-sm">
       {page > 1 ? (
         <Link href={`/activity?page=${page - 1}`} className={link}>
-          ← Newer
+          {t.activity.newer}
         </Link>
       ) : (
-        <span className={disabled}>← Newer</span>
+        <span className={disabled}>{t.activity.newer}</span>
       )}
       <span className="text-gray-600">
-        Page {page} of {pageCount}
+        {t.activity.page(page, pageCount)}
       </span>
       {page < pageCount ? (
         <Link href={`/activity?page=${page + 1}`} className={link}>
-          Older →
+          {t.activity.older}
         </Link>
       ) : (
-        <span className={disabled}>Older →</span>
+        <span className={disabled}>{t.activity.older}</span>
       )}
     </nav>
   );

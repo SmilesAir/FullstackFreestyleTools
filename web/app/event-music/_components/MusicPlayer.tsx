@@ -8,6 +8,7 @@ import { songLabel } from '@/lib/event-music';
 import { musicFileSrc, parseMusicLink, type TeamMusic } from '@/lib/team-music-links';
 import { TeamTimecalls, type TimecallEdits } from './TeamTimecalls';
 import { useMusicDuck, youtubeEmbedSrc } from './useMusicDuck';
+import { useT } from '@/lib/i18n/client';
 
 // Pinned to the bottom of the screen: the song of the team that is up on the
 // Head Judge's screen, or of a team being tested (with the way back). It only
@@ -47,6 +48,7 @@ export function MusicPlayer({
   ref?: React.Ref<HTMLDivElement>;
   onBack: () => void;
 }) {
+  const t = useT();
   const link = song && !song.fileUrl && song.link ? parseMusicLink(song.link) : null;
   const audio = useRef<HTMLAudioElement>(null);
   const youtube = useRef<HTMLIFrameElement>(null);
@@ -61,23 +63,23 @@ export function MusicPlayer({
             <span
               className={`text-xs font-semibold uppercase tracking-wide ${testing ? 'text-blue-700' : 'text-green-700'}`}
             >
-              {testing ? 'Testing' : 'Up now'}
+              {testing ? t.eventMusic.testing : t.eventMusic.upNow}
             </span>
             {testing && (
               <button type="button" onClick={onBack} className="cursor-pointer text-2xl text-blue-600 underline">
-                Back to the team that&apos;s up
+                {t.eventMusic.backToUp}
               </button>
             )}
             {connection === 'lost' && (
-              <span className="text-xs font-medium text-red-700">Connection lost: retrying…</span>
+              <span className="text-xs font-medium text-red-700">{t.eventMusic.connectionLost}</span>
             )}
           </div>
           {entry ? (
             <>
               <div className="truncate text-lg font-semibold">{teamName(entry.team)}</div>
               <div className="truncate text-sm text-gray-500">
-                {poolTitle(entry.pool)} ·{' '}
-                <span className={song ? '' : 'font-medium text-amber-700'}>{song ? songLabel(song) : 'No song for this team'}</span>
+                {poolTitle(t, entry.pool)} ·{' '}
+                <span className={song ? '' : 'font-medium text-amber-700'}>{song ? songLabel(song, t.eventMusic.file) : t.eventMusic.noSongForTeam}</span>
               </div>
               <TeamTimecalls
                 key={entry.team.id}
@@ -89,12 +91,12 @@ export function MusicPlayer({
               />
               {speechBlocked && !muted && (
                 <p className="text-xs font-medium text-amber-700">
-                  The browser blocked a time call: click anywhere on this page to let them play.
+                  {t.eventMusic.speechBlocked}
                 </p>
               )}
             </>
           ) : (
-            <div className="text-sm text-gray-500">No team is up on the Head Judge&apos;s screen.</div>
+            <div className="text-sm text-gray-500">{t.eventMusic.noTeamUp}</div>
           )}
         </div>
 
@@ -104,7 +106,7 @@ export function MusicPlayer({
               {formatElapsed(routine.elapsedMs)}
               <span className="text-xl font-normal text-gray-500"> / {formatElapsed(routine.routineSeconds * 1000)}</span>
             </div>
-            <div className="text-xs text-gray-500">Routine time since first throw</div>
+            <div className="text-xs text-gray-500">{t.eventMusic.routineTime}</div>
           </div>
         )}
 
@@ -134,9 +136,9 @@ export function MusicPlayer({
                   // blocks third-party cookies, so it plays a 30-second preview: the full
                   // song plays in the Spotify app or on open.spotify.com.
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
-                    <span>Only a 30-second preview here?</span>
+                    <span>{t.eventMusic.onlyPreview}</span>
                     <a href={`spotify:track:${link.id}`} className="font-semibold text-blue-600 underline">
-                      Open in the Spotify app
+                      {t.eventMusic.openSpotifyApp}
                     </a>
                     <a
                       href={link.link}
@@ -144,13 +146,13 @@ export function MusicPlayer({
                       rel="noopener noreferrer"
                       className="font-semibold text-blue-600 underline"
                     >
-                      Open on Spotify web
+                      {t.eventMusic.openSpotifyWeb}
                     </a>
                   </div>
                 )}
               </>
             ) : (
-              <p className="text-sm text-red-700">This song&apos;s link can&apos;t be played here.</p>
+              <p className="text-sm text-red-700">{t.eventMusic.cantPlay}</p>
             )}
           </div>
         )}

@@ -2,16 +2,18 @@
 
 import { Collapsible } from '@/app/events/_components/Collapsible';
 import { teamName, type HeadJudgeDivision } from '@/lib/head-judge';
+import { useT } from '@/lib/i18n/client';
 
 export function DivisionsTree({ divisions }: { divisions: HeadJudgeDivision[] }) {
-  if (divisions.length === 0) return <p className="text-sm text-gray-500">No divisions yet.</p>;
+  const t = useT();
+  if (divisions.length === 0) return <p className="text-sm text-gray-500">{t.eventEditor.noDivisions}</p>;
 
   return (
     <div className="flex flex-col gap-3">
       {divisions.map((division) => (
         <Collapsible key={division.id} title={division.name} variant="card" defaultOpen={false}>
           {division.rounds.length === 0 ? (
-            <p className="text-sm text-gray-500">No rounds yet.</p>
+            <p className="text-sm text-gray-500">{t.eventEditor.noRounds}</p>
           ) : (
             <div className="flex flex-col gap-2">
               {division.rounds.map((round) => (
@@ -20,12 +22,12 @@ export function DivisionsTree({ divisions }: { divisions: HeadJudgeDivision[] })
                     {round.pools.map((pool) => (
                       <div key={pool.key} className="rounded border border-gray-200 p-2">
                         <div className="mb-1 flex items-center gap-2 text-xs font-medium text-gray-600">
-                          Pool {pool.letter}
+                          {t.common.pool(pool.letter)}
                           {pool.locked && (
-                            <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-700">🔒 Locked</span>
+                            <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-700">{t.headJudge.locked}</span>
                           )}
                           {pool.resultsPublished && (
-                            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-800">📢 Published</span>
+                            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-800">{t.headJudge.published}</span>
                           )}
                         </div>
                         <ul className="flex flex-col gap-0.5 text-sm">

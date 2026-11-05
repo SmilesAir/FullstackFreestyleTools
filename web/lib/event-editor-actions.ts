@@ -3,6 +3,7 @@
 import { requirePermission } from './authz';
 import { pool } from './db';
 import { getEventEditorDetail, type EventEditorDetail } from './event-editor-queries';
+import { getT } from './i18n/server';
 
 export type ActionState = { error: string | null };
 
@@ -35,9 +36,10 @@ export async function updateEventInfo(
   await guard();
   if (!UUID.test(eventId)) return { error: 'Unknown event' };
   const trimmed = name.trim();
-  if (!trimmed) return { error: 'Event name is required' };
-  if (!DATE.test(startDate) || !DATE.test(endDate)) return { error: 'Start and end dates are required' };
-  if (endDate < startDate) return { error: 'End date is before the start date' };
+  const t = await getT();
+  if (!trimmed) return { error: t.errors.eventNameRequired };
+  if (!DATE.test(startDate) || !DATE.test(endDate)) return { error: t.errors.datesRequired };
+  if (endDate < startDate) return { error: t.errors.endBeforeStart };
   try {
     const result = await pool.query('UPDATE events SET event_name = $2, start_date = $3, end_date = $4 WHERE id = $1', [
       eventId,

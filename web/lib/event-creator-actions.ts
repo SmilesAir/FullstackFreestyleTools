@@ -13,7 +13,6 @@ import {
   ROSTER_ROUND,
   ROSTER_POOL,
   POOL_LETTERS,
-  ROUNDS,
   poolId,
   getRoundConfig,
   type JudgeCandidate,
@@ -28,8 +27,9 @@ import { applyRoundLayout, insertTeam } from './event-creator-layout-apply';
 import { describeChannel, getEventDiscord, parseChannelInput, postToEventThread, type ChannelInfo } from './discord';
 import { postRoundPlayOrder, sendRoundForReview } from './discord-posts';
 import { insertPlayerByName } from './player-match';
-import { isPoolLocked, isRoundLocked, POOL_LOCKED_ERROR } from './pool-locks';
+import { isPoolLocked, isRoundLocked, poolLockedError } from './pool-locks';
 import { applyOfficialPreset } from './judging-settings-store';
+import { getT } from './i18n/server';
 
 export type ActionState = { error: string | null };
 
@@ -40,9 +40,10 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
   const name = String(formData.get('event_name') ?? '').trim();
   const start = String(formData.get('start_date') ?? '');
   const end = String(formData.get('end_date') ?? '');
-  if (!name) return { error: 'Event name is required' };
-  if (!start || !end) return { error: 'Start and end dates are required' };
-  if (end < start) return { error: 'End date is before the start date' };
+  const t = await getT();
+  if (!name) return { error: t.errors.eventNameRequired };
+  if (!start || !end) return { error: t.errors.datesRequired };
+  if (end < start) return { error: t.errors.endBeforeStart };
 
   let eventId: string;
   try {
@@ -88,7 +89,7 @@ export async function addDivision(eventId: string, divisionName: string): Promis
 export async function deleteDivision(divisionId: string): Promise<ActionState> {
   await guard();
   const teams = await pool.query('SELECT 1 FROM teams WHERE division_id = $1 LIMIT 1', [divisionId]);
-  if (teams.rows.length > 0) return { error: 'This division already has teams; remove them first' };
+  if (teams.rows.length > 0) return { error: (await getT()).errors.divisionHasTeams };
   const result = await pool.query('DELETE FROM divisions WHERE id = $1', [divisionId]);
   if (result.rowCount === 0) return { error: 'Division not found' };
   return { error: null };
@@ -106,7 +107,7 @@ export async function updateDivisionSettings(
 ): Promise<ActionState> {
   await guard();
   if (!(DIVISION_NAMES as readonly string[]).includes(settings.divisionName)) return { error: 'Unknown division type' };
-  if (!(ROUTINE_MINUTES as readonly number[]).includes(settings.routineMinutes)) return { error: 'Routine time must be 3, 4, or 5 minutes' };
+  if (!(ROUTINE_MINUTES as readonly number[]).includes(settings.routineMinutes)) return { error: (await getT()).errors.routineMinutes };
   if (!(RULES_IDS as readonly string[]).includes(settings.rulesId)) return { error: 'Unknown rules' };
 
   const current = await pool.query<{ event_id: string }>('SELECT event_id FROM divisions WHERE id = $1', [divisionId]);
@@ -116,7 +117,7 @@ export async function updateDivisionSettings(
     settings.divisionName,
     divisionId,
   ]);
-  if (clash.rows.length > 0) return { error: `This event already has a ${settings.divisionName} division` };
+  if (clash.rows.length > 0) return { error: (await getT()).errors.divisionExists(settings.divisionName) };
 
   await pool.query(
     `UPDATE divisions
@@ -165,9 +166,9 @@ export async function setRoundConfig(
   await guard();
   if (roundNumber < 1 || roundNumber > 4) return { error: 'Unknown round' };
   if (!Number.isInteger(poolCount) || poolCount < 1 || poolCount > POOL_LETTERS.length) {
-    return { error: `Pool count must be 1–${POOL_LETTERS.length}` };
+    return { error: (await getT()).errors.poolCount(POOL_LETTERS.length) };
   }
-  if (roundNumber === 1 && poolCount !== 1) return { error: 'Finals must have exactly 1 pool' };
+  if (roundNumber === 1 && poolCount !== 1) return { error: (await getT()).errors.finalsOnePool };
 
   await updatePoolConfig(divisionId, (config) => {
     config.rounds![String(roundNumber)] = { poolCount };
@@ -187,9 +188,9 @@ export async function setPoolJudges(
   if (!(POOL_LETTERS as readonly string[]).includes(poolLetter)) return { error: 'Unknown pool' };
   if (!Number.isInteger(roundNumber) || roundNumber < 1) return { error: 'Unknown round' };
   if (new Set(judges.map((j) => j.playerId)).size !== judges.length) {
-    return { error: 'A player can only judge a pool once' };
+    return { error: (await getT()).errors.judgeOnce };
   }
-  if (await isPoolLocked(divisionId, roundNumber, poolId(poolLetter))) return { error: POOL_LOCKED_ERROR };
+  if (await isPoolLocked(divisionId, roundNumber, poolId(poolLetter))) return { error: await poolLockedError() };
 
   const division = await pool.query<{ rules_id: string }>('SELECT rules_id FROM divisions WHERE id = $1', [divisionId]);
   if (!division.rows[0]) return { error: 'Division not found' };
@@ -236,7 +237,7 @@ export async function setPoolJudges(
     await client.query('ROLLBACK');
     // 23503: no such player; 22P02: not a valid id at all.
     const code = (err as { code?: string }).code;
-    if (code === '23503' || code === '22P02') return { error: 'One of those players no longer exists' };
+    if (code === '23503' || code === '22P02') return { error: (await getT()).errors.playerGone };
     return { error: err instanceof Error ? err.message : 'Failed to save the judges' };
   } finally {
     client.release();
@@ -258,7 +259,7 @@ export async function loadJudgeCandidates(
 export async function addRosterTeams(divisionId: string, teams: string[][]): Promise<ActionState & { added?: number }> {
   await guard();
   const valid = teams.filter((t) => t.length > 0 && new Set(t).size === t.length);
-  if (valid.length === 0) return { error: 'No complete teams to add' };
+  if (valid.length === 0) return { error: (await getT()).errors.noCompleteTeams };
 
   const client = await pool.connect();
   try {
@@ -285,7 +286,7 @@ export async function addEventRosters(
   await guard();
   const known = new Set<string>(DIVISION_NAMES);
   if (divisions.some((d) => !known.has(d.divisionName))) return { error: 'Unknown division' };
-  if (new Set(divisions.map((d) => d.divisionName)).size !== divisions.length) return { error: 'A division is listed twice' };
+  if (new Set(divisions.map((d) => d.divisionName)).size !== divisions.length) return { error: (await getT()).errors.divisionTwice };
 
   const client = await pool.connect();
   try {
@@ -366,8 +367,8 @@ export async function deleteRosterTeam(divisionId: string, teamId: string): Prom
     const key = teamKey(mine.player_ids);
     const inRound = teams.rows.find((t) => t.round_number !== ROSTER_ROUND && teamKey(t.player_ids) === key);
     if (inRound) {
-      const name = ROUNDS.find((r) => r.number === inRound.round_number)?.name ?? `round ${inRound.round_number}`;
-      return { error: `This team is still in ${name}; clear that round first` };
+      const t = await getT();
+      return { error: t.errors.teamStillIn(t.common.roundName(inRound.round_number)) };
     }
   }
 
@@ -385,7 +386,7 @@ export async function seedRoundFromRankings(
 ): Promise<ActionState & { seeded?: number; byes?: number }> {
   await guard();
   if (roundNumber < 1 || roundNumber > 4) return { error: 'Unknown round' };
-  if (await isRoundLocked(divisionId, roundNumber)) return { error: POOL_LOCKED_ERROR };
+  if (await isRoundLocked(divisionId, roundNumber)) return { error: await poolLockedError() };
 
   const division = await pool.query<{ division_name: string; pool_config: PoolConfig }>(
     'SELECT division_name, pool_config FROM divisions WHERE id = $1',
@@ -398,7 +399,7 @@ export async function seedRoundFromRankings(
   const roster = all
     .filter((t) => t.round_number === ROSTER_ROUND)
     .sort((a, b) => a.points - b.points || a.id.localeCompare(b.id));
-  if (roster.length === 0) return { error: 'Add teams to the roster first' };
+  if (roster.length === 0) return { error: (await getT()).errors.rosterFirst };
 
   const { poolCount } = getRoundConfig(pool_config ?? {}, roundNumber);
   let seeding;
@@ -437,7 +438,7 @@ export async function seedRoundFromRankings(
 export async function clearRound(divisionId: string, roundNumber: number): Promise<ActionState> {
   await guard();
   if (roundNumber < 1 || roundNumber > 4) return { error: 'Unknown round' };
-  if (await isRoundLocked(divisionId, roundNumber)) return { error: POOL_LOCKED_ERROR };
+  if (await isRoundLocked(divisionId, roundNumber)) return { error: await poolLockedError() };
   await pool.query('DELETE FROM teams WHERE division_id = $1 AND round_number = $2', [divisionId, roundNumber]);
   return { error: null };
 }
@@ -489,12 +490,12 @@ export async function addTeamToRound(
     const source = found.rows.find((r) => r.id === rosterTeamId && r.round_number === ROSTER_ROUND);
     if (!source) {
       await client.query('ROLLBACK');
-      return { error: "That team isn't on this division's team list" };
+      return { error: (await getT()).errors.teamNotOnList };
     }
     const key = teamKey(source.player_ids);
     if (found.rows.some((r) => r.round_number === roundNumber && teamKey(r.player_ids) === key)) {
       await client.query('ROLLBACK');
-      return { error: 'That team is already in this round' };
+      return { error: (await getT()).errors.teamAlreadyInRound };
     }
 
     const newId = await insertTeam(client, divisionId, roundNumber, poolId(letter), source.player_ids);
@@ -534,8 +535,8 @@ export async function removeTeamFromRound(divisionId: string, roundNumber: numbe
     );
     const row = existing.rows[0];
     if (!row) return { error: 'Team not found' };
-    if (row.place !== null) return { error: "This team has a result (place) and can't be removed" };
-    if (await isPoolLocked(divisionId, roundNumber, row.pool_id)) return { error: POOL_LOCKED_ERROR };
+    if (row.place !== null) return { error: (await getT()).errors.teamHasResult };
+    if (await isPoolLocked(divisionId, roundNumber, row.pool_id)) return { error: await poolLockedError() };
     return { error: 'Team not found' };
   }
   return { error: null };
@@ -567,7 +568,7 @@ export async function setEventDiscordChannel(
     return { error: null };
   }
   const channelId = parseChannelInput(input);
-  if (!channelId) return { error: 'Paste a channel link (right-click the channel → Copy Link) or its id.' };
+  if (!channelId) return { error: (await getT()).errors.pasteChannel };
   const described = await describeChannel(channelId);
   if (!described.ok) return { error: described.error };
 
@@ -611,8 +612,9 @@ export async function sendRoundForReviewOnDiscord(
   const { sent, noDiscord, failed } = outcome;
   // Nobody reached: the reason is the first failure (a missing bot token reads best on its own).
   if (sent.length === 0) {
-    if (failed.length > 0) return { error: `Couldn't send any review DMs: ${failed[0].error}` };
-    return { error: `None of the directors or committee have a linked Discord account: ${noDiscord.join(', ')}.` };
+    const t = await getT();
+  if (failed.length > 0) return { error: t.errors.noReviewDms(failed[0].error) };
+  return { error: t.errors.noLinkedDiscord(noDiscord.join(', ')) };
   }
   const parts = [`Sent for review to ${sent.join(', ')}.`];
   if (noDiscord.length > 0) parts.push(`No linked Discord: ${noDiscord.join(', ')}.`);

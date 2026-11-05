@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { ROUNDS, type JudgeStats } from '@/lib/event-creator';
 import type { TeamRow } from '@/lib/event-creator-queries';
 import { JudgePanel } from './JudgePanel';
+import { useT } from '@/lib/i18n/client';
 
 // The pool the Set Judges panel is open for.
 export type JudgePanelTarget = { roundNumber: number; roundName: string; letter: string };
@@ -69,6 +70,7 @@ export function DivisionWorkspace({
   roundKeys: Record<number, string[]>;
   children: React.ReactNode;
 }) {
+  const t = useT();
   const [activeNumber, setActiveNumber] = useState<number | null>(null);
   const [rosterDrag, setRosterDrag] = useState<TeamRow | null>(null);
   const [judgePanel, setJudgePanel] = useState<JudgePanelTarget | null>(null);
@@ -142,8 +144,8 @@ export function DivisionWorkspace({
   );
   const activeRound = useMemo(() => {
     const round = ROUNDS.find((r) => r.number === activeNumber);
-    return round ? { number: round.number, name: round.name } : null;
-  }, [activeNumber]);
+    return round ? { number: round.number, name: t.common.roundName(round.number) } : null;
+  }, [activeNumber, t]);
 
   const value = useMemo(
     () => ({

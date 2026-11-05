@@ -19,6 +19,7 @@ import {
   type SystemSettings,
 } from './judging-settings';
 import { DEFAULT_NEW_RULES_ID } from './event-creator';
+import { getT } from './i18n/server';
 
 // The logic behind the head judge's Settings tab. No permission check here on
 // purpose (judging-settings-actions.ts adds it) so it can be tested directly.
@@ -110,7 +111,7 @@ export async function saveEventSettings(
   values: unknown
 ): Promise<{ error: string | null; rescored?: number }> {
   if (!UUID.test(eventId)) return { error: 'Unknown event' };
-  const checked = validateSettings(rulesId, values);
+  const checked = validateSettings(rulesId, values, await getT());
   if ('error' in checked) return { error: checked.error };
   const rescored = await inTransaction((client) => applyEventSettings(client, eventId, rulesId, checked.settings, false));
   return rescored === null ? { error: 'Unknown event' } : { error: null, rescored };
@@ -210,7 +211,7 @@ export async function updateEventPreset(
   values: unknown
 ): Promise<{ error: string | null; rescored?: number }> {
   if (!UUID.test(eventId)) return { error: 'Unknown event' };
-  const checked = validateSettings(rulesId, values);
+  const checked = validateSettings(rulesId, values, await getT());
   if ('error' in checked) return { error: checked.error };
   const rescored = await inTransaction(async (client) => {
     const count = await applyEventSettings(client, eventId, rulesId, checked.settings, false);
@@ -356,9 +357,9 @@ export async function savePreset(
   overwrite: boolean
 ): Promise<{ error: string | null; exists?: boolean }> {
   const trimmed = typeof name === 'string' ? name.trim() : '';
-  if (trimmed.length === 0) return { error: 'Give the preset a name' };
-  if (trimmed.length > MAX_PRESET_NAME) return { error: `The name can be at most ${MAX_PRESET_NAME} characters` };
-  const checked = validateSettings(rulesId, values);
+  if (trimmed.length === 0) return { error: (await getT()).errors.presetNeedsName };
+  if (trimmed.length > MAX_PRESET_NAME) return { error: (await getT()).errors.presetNameMax(MAX_PRESET_NAME) };
+  const checked = validateSettings(rulesId, values, await getT());
   if ('error' in checked) return { error: checked.error };
 
   const json = JSON.stringify(checked.settings);

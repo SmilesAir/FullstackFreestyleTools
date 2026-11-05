@@ -6,6 +6,7 @@ import { MusicDialog, type MusicSaveActions } from '@/app/activity/_components/M
 import { clearEventTeamMusic, setEventTeamMusicFile, setEventTeamMusicLink } from '@/lib/event-music-actions';
 import { teamName, type HeadJudgeTeam } from '@/lib/head-judge';
 import type { TeamMusicByRound } from '@/lib/team-music-links';
+import { useT } from '@/lib/i18n/client';
 
 const EVENT_MUSIC_ACTIONS: MusicSaveActions = {
   setFile: setEventTeamMusicFile,
@@ -30,6 +31,7 @@ export function SetMusicButton({
   // Must keep its identity between renders when unchanged (no `?? {}` inline).
   music: TeamMusicByRound;
 }) {
+  const t = useT();
   const dialog = useRef<HTMLDialogElement>(null);
   const router = useRouter();
   // What the last save returned, until the page's data catches up with it.
@@ -48,7 +50,7 @@ export function SetMusicButton({
         onClick={() => dialog.current?.showModal()}
         className="cursor-pointer rounded border border-gray-300 bg-background px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
       >
-        ♪ {hasMusic ? 'Change music' : 'Set music'}
+        ♪ {hasMusic ? t.eventMusic.changeMusic : t.eventMusic.setMusic}
       </button>
       <MusicDialog
         dialog={dialog}

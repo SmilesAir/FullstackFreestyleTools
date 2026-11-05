@@ -3,23 +3,25 @@
 import Link from 'next/link';
 import type { PlayerWithAliasName } from '@/lib/players';
 import { useAliasPicker } from './AliasPickerContext';
+import { useT } from '@/lib/i18n/client';
 
 export function PlayerTable({ players }: { players: PlayerWithAliasName[] }) {
   const { highlightedId, setHighlightedId, picking, excludeId, pickPlayer } = useAliasPicker();
+  const t = useT();
 
   if (players.length === 0) {
-    return <p className="text-sm text-gray-500">No players found.</p>;
+    return <p className="text-sm text-gray-500">{t.players.noPlayersFound}</p>;
   }
 
   return (
     <table className="w-full border-collapse text-sm">
       <thead>
         <tr className="border-b text-left">
-          <th className="py-2">Name</th>
-          <th className="py-2">Country</th>
-          <th className="py-2">Gender</th>
-          <th className="py-2">FPA#</th>
-          <th className="py-2">Alias</th>
+          <th className="py-2">{t.players.name}</th>
+          <th className="py-2">{t.players.country}</th>
+          <th className="py-2">{t.players.gender}</th>
+          <th className="py-2">{t.players.fpaNumber}</th>
+          <th className="py-2">{t.players.alias}</th>
           <th className="py-2"></th>
         </tr>
       </thead>
@@ -37,7 +39,7 @@ export function PlayerTable({ players }: { players: PlayerWithAliasName[] }) {
               </Link>
               {p.hidden && (
                 <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-600">
-                  Hidden
+                  {t.players.hidden}
                 </span>
               )}
             </td>
@@ -61,7 +63,7 @@ export function PlayerTable({ players }: { players: PlayerWithAliasName[] }) {
                   onClick={() => pickPlayer(p.id, `${p.first_name} ${p.last_name}`)}
                   className="rounded border border-gray-300 px-2 py-1 text-xs whitespace-nowrap"
                 >
-                  Set as Primary
+                  {t.players.setAsPrimary}
                 </button>
               )}
             </td>

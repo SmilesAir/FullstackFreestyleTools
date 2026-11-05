@@ -1,0 +1,151 @@
+// The judging screens (app/judge), and the names of judging categories and notes
+// used wherever scores are shown. Looked up by key with lib/i18n/labels.ts.
+export const judging = {
+  // By category type (lib/judging.ts JUDGING_CATEGORIES).
+  category: { Diff: 'Difficulty', AI: 'Artistic Impression', Ex: 'Execution' },
+  categoryAverage: (category: string) => `${category} average`,
+  // Each note's button label, by note type (lib/judging.ts).
+  note: {
+    large_error: 'Large Error',
+    medium_error: 'Medium Error',
+    minor_error: 'Minor Error',
+    average_completion: 'Average Completion',
+    clean_completion: 'Clean Completion',
+    teamwork_great: 'Great',
+    teamwork_decent: 'Decent',
+    teamwork_minor: 'Minor',
+    music_great: 'Great',
+    music_decent: 'Decent',
+    form_good: 'Good',
+    form_bad: 'Bad',
+    good: 'Good',
+    average: 'Average',
+    bad: 'Bad',
+  },
+  // A note named where no area heading is shown (the same level is in two areas).
+  noteFull: {
+    large_error: 'Large Error',
+    medium_error: 'Medium Error',
+    minor_error: 'Minor Error',
+    average_completion: 'Average Completion',
+    clean_completion: 'Clean Completion',
+    teamwork_great: 'Teamwork Great',
+    teamwork_decent: 'Teamwork Decent',
+    teamwork_minor: 'Teamwork Minor',
+    music_great: 'Music Great',
+    music_decent: 'Music Decent',
+    form_good: 'Form Good',
+    form_bad: 'Form Bad',
+    good: 'Good',
+    average: 'Average',
+    bad: 'Bad',
+  },
+  // Artistic Impression's areas.
+  noteGroup: { Teamwork: 'Teamwork', Music: 'Music', Form: 'Form' },
+
+  notJudgingTitle: "You're not judging right now",
+  notJudgingBody: 'Go back to the main page. Your name appears there when your pool is playing.',
+  backLink: '← Back',
+  unknownEvent: 'Unknown event.',
+  seat: (n: number) => `Seat ${n}`,
+  seatTitle: (category: string, n: number) => `${category} seat ${n}`,
+  emptySeat:
+    'Nobody is in this seat in the pool that is playing. Keep this screen open: it switches to the judge as soon as the head judge sets a pool with one.',
+
+  // PIN pad
+  pinPrompt: 'Enter the judge PIN from the head judge.',
+  pinDigits: (n: number) => `${n} of 2 digits entered`,
+  pinTooMany: (wait: string) => `Too many tries. Try again in ${wait}.`,
+  pinChecking: 'Checking…',
+  pinRemember: 'Remember this device',
+  pinCouldNotCheck: 'Could not check the PIN. Check the connection and try again.',
+  pinIs2Digits: 'The PIN is 2 digits',
+  pinWrong: 'Wrong PIN',
+  pinTooManyWrong: 'Too many wrong PINs',
+  delete: 'Delete',
+
+  // Tabs and banners
+  play: 'Play',
+  review: 'Review',
+  notJudgingBanner: "You're not judging right now. The head judge may have changed pools. Your earlier notes are still in Review.",
+  connectionLost: 'Connection lost. What you press is kept and saved when it comes back.',
+  retrying: 'Not saved yet, retrying. What you press is kept.',
+  paused: (minutes: number) => `Paused after ${minutes} minutes without activity. Tap anywhere to resume.`,
+  dismiss: 'dismiss',
+  localServer: 'Local server',
+  online: 'Online',
+
+  // Play tab
+  noPoolPlaying: 'No pool is playing yet.',
+  waitingForTeam: 'Waiting for the head judge to choose the team.',
+  getReady: 'Get ready: the routine is about to start. Your taps are kept.',
+  startingSoon: 'Starting any moment — go ahead, your taps are kept.',
+  noTeamUp: '(no team up)',
+  scoreSubmitted: (score: number) => `Score submitted: ${score}`,
+  saving: 'Saving',
+  notSavedRetrying: 'Not saved yet, retrying',
+  removeOne: (note: string) => `Remove one ${note}`,
+  enterScore: 'Enter Score',
+  tapLine: 'Tap the line to place a move. Your notes show here.',
+  noteAt: (note: string, time: string, early: boolean) => `${note} at ${time}${early ? ', before the start' : ''}`,
+  numberline: 'Difficulty numberline',
+
+  // Scores
+  enterScoreTitle: 'Enter score',
+  yourScore: 'Your score',
+  yourScoreTitle: 'Your Score',
+  baselineEstimate: 'Baseline estimate',
+  baselineEstimateTitle: 'Baseline Estimate',
+  baselineUnrestricted: 'Baseline / Unrestricted',
+  baselineUnrestrictedValues: (baseline: number, unrestricted: number | null, percent: number) =>
+    `Baseline / Unrestricted ${baseline} / ${unrestricted} · ${percent}%`,
+  baselineValue: (baseline: number, percent: number) => `Baseline ${baseline} · ${percent}%`,
+  notSubmitted: 'Not submitted',
+  notSubmittedPress: 'Not submitted. Press to enter',
+  notSaved: 'Not saved',
+  notPlayed: 'Not played',
+  notPlayedPress: 'Not played. Press to enter',
+  raiseScore: (step: number) => `Raise score ${step}%`,
+  lowerScore: (step: number) => `Lower score ${step}%`,
+  submit: 'Submit',
+  submitting: 'Submitting…',
+
+  // Review tab
+  team: '(team)',
+  notPlayedYet: 'not played yet',
+  inProgress: 'in progress',
+  couldNotLoadHistory: 'Could not load your earlier routines.',
+  noNotesYet: 'No notes yet. Notes you take on the Play tab appear here as a graph.',
+  you: 'You',
+
+  // Graph
+  graphLabel: 'Notes over the routine as a filled line. Hold Ctrl and scroll, or pinch, to zoom.',
+  start: 'Start',
+  end: 'End',
+  notCounted: 'not counted',
+
+  // Errors from saving
+  stillSaving: 'Your notes are still saving. Try again in a moment.',
+  couldNotSubmit: 'Could not submit. Check the connection and try again.',
+  badNote: 'That note could not be read',
+  notJudgingNow: "You're not judging right now",
+  noRoutineRunning: 'No routine is running',
+  routineRestarted: 'That routine was restarted, so the note was not saved',
+  tooManyNotes: 'Too many notes for this routine',
+  badScore: 'That score could not be read',
+  notJudgingRoutine: "You're not judging this routine",
+  teamNotInPool: "That team isn't in the pool you're judging",
+
+  // Simple Ranking
+  nothingToRank: 'There is nothing to rank right now.',
+  rankTeams: (ranked: number, total: number) => `Rank the teams from best (1) to worst. ${ranked} of ${total} ranked.`,
+  rankingKept: "Connection lost. Your ranking is kept and will send once it's back.",
+  moveDown: (team: string) => `Move ${team} down`,
+  moveUp: (team: string) => `Move ${team} up`,
+  sentToHeadJudge: 'Sent to the head judge ✓',
+  sending: 'Sending…',
+  sendChanges: 'Send changes',
+  invalidRequest: 'Invalid request',
+  poolNotPlaying: "This pool isn't playing anymore. Reload to see what's current.",
+  rankingMismatch: "That ranking doesn't match the current teams. Reload and try again.",
+};

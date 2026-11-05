@@ -1,18 +1,12 @@
 'use client';
 
-import Link from 'next/link';
 import type { NoteCategory } from '@/lib/judging';
+import { useT } from '@/lib/i18n/client';
+import { ControlPanelLink } from '@/app/_components/ControlPanelLink';
 
 export type TrainerView = 'guide' | NoteCategory | 'results' | 'description';
 
-const VIEWS: { id: TrainerView; label: string }[] = [
-  { id: 'guide', label: 'Start Guide' },
-  { id: 'Diff', label: 'Diff Judge' },
-  { id: 'AI', label: 'AI Judge' },
-  { id: 'Ex', label: 'Ex Judge' },
-  { id: 'results', label: 'Results' },
-  { id: 'description', label: 'FPA2027 Description' },
-];
+const VIEWS: TrainerView[] = ['guide', 'Diff', 'AI', 'Ex', 'results', 'description'];
 
 const button =
   'cursor-pointer rounded border px-2.5 py-1 font-mono text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40';
@@ -36,26 +30,27 @@ export function DebugBar({
   onEndEarly: () => void;
   status: string;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-600 bg-slate-800 px-3 py-2 text-slate-100">
-      <span className="font-mono text-xs font-semibold uppercase tracking-wide text-slate-400">Judging Trainer</span>
+      <span className="font-mono text-xs font-semibold uppercase tracking-wide text-slate-400">{t.trainer.title}</span>
 
       <button type="button" onClick={onNewEvent} className={plain}>
-        New test event
+        {t.trainer.newTestEvent}
       </button>
 
-      <div className="flex flex-wrap gap-1" role="group" aria-label="Screen">
+      <div className="flex flex-wrap gap-1" role="group" aria-label={t.trainer.screen}>
         {VIEWS.map((v) => (
           <button
-            key={v.id}
+            key={v}
             type="button"
-            aria-pressed={view === v.id}
-            onClick={() => onView(v.id)}
+            aria-pressed={view === v}
+            onClick={() => onView(v)}
             className={
-              view === v.id ? `${button} border-sky-400 bg-sky-500 text-white` : plain
+              view === v ? `${button} border-sky-400 bg-sky-500 text-white` : plain
             }
           >
-            {v.label}
+            {t.trainer.views[v]}
           </button>
         ))}
       </div>
@@ -64,17 +59,15 @@ export function DebugBar({
         type="button"
         disabled={!canEndEarly}
         onClick={onEndEarly}
-        title="Stop the routine now so the judge can enter the score"
+        title={t.trainer.endEarlyTip}
         className={`${button} border-amber-500 bg-amber-700 text-white hover:bg-amber-600`}
       >
-        End early
+        {t.trainer.endEarly}
       </button>
 
       <span className="font-mono text-xs tabular-nums text-slate-300">{status}</span>
 
-      <Link href="/control-panel" className="ml-auto text-xs text-sky-300 underline">
-        ← Control Panel
-      </Link>
+      <ControlPanelLink label={t.headJudge.backToControlPanel} className="ml-auto" linkClassName="text-xs text-sky-300 underline" />
     </div>
   );
 }

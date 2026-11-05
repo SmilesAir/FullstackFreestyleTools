@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { divisionCounts, divisionCountsAtAll } from '@/lib/points/divisions';
 import type { PointsParams } from '@/lib/points/params';
 import type { GeneratorEvent } from '@/lib/points/load';
+import { useT } from '@/lib/i18n/client';
 
 // The date `years` before `date` (both "YYYY-MM-DD").
 export function yearsBefore(date: string, years: number): string {
@@ -37,6 +38,7 @@ export function EventsPanel({
   onSelect: (eventIds: readonly string[], on: boolean) => void;
   onExclude: (divisionId: string, on: boolean) => void;
 }) {
+  const t = useT();
   const [newestFirst, setNewestFirst] = useState(true);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const [search, setSearch] = useState('');
@@ -83,7 +85,7 @@ export function EventsPanel({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-xs text-gray-600">
-          As of
+          {t.rankings.asOf}
           <input type="date" value={asOf} onChange={(e) => e.target.value && onAsOf(e.target.value)} className="rounded border border-gray-300 bg-background px-2 py-1.5 text-sm" />
         </label>
         <button
@@ -95,29 +97,29 @@ export function EventsPanel({
           }}
           className="cursor-pointer rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
         >
-          Select the last 2 years
+          {t.rankings.lastTwoYears}
         </button>
         <button type="button" onClick={() => onSelect(events.map((e) => e.id), true)} className={button}>
-          Select all
+          {t.rankings.selectAll}
         </button>
         <button type="button" onClick={() => onSelect(events.map((e) => e.id), false)} className={button}>
-          Select none
+          {t.rankings.selectNone}
         </button>
         <button type="button" onClick={() => setNewestFirst((v) => !v)} className={button}>
-          {newestFirst ? 'Newest first' : 'Oldest first'}
+          {newestFirst ? t.rankings.newestFirst : t.rankings.oldestFirst}
         </button>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Find an event"
+          placeholder={t.rankings.findEvent}
           className="min-w-40 flex-1 rounded border border-gray-300 bg-background px-2 py-1.5 text-sm"
         />
       </div>
       <p className="text-sm">
         <span className="font-semibold">
-          {selected.size} of {events.length} events
+          {t.rankings.eventsSelected(selected.size, events.length)}
         </span>{' '}
-        selected, {selectedDivisions} divisions counted. The last 2 years from {asOf} start on {cutoff}.
+        {t.rankings.selectedSummary(selectedDivisions, asOf, cutoff)}
       </p>
 
       <div className="flex flex-col gap-4">
@@ -138,7 +140,7 @@ export function EventsPanel({
                 />
                 <span className="font-semibold">{group.year}</span>
                 <span className="text-xs text-gray-500">
-                  {ids.filter((id) => selected.has(id)).length} of {ids.length} selected
+                  {t.rankings.groupSelected(ids.filter((id) => selected.has(id)).length, ids.length)}
                 </span>
               </label>
               <ul>
@@ -149,15 +151,15 @@ export function EventsPanel({
                   return (
                     <li key={event.id} className="border-b border-gray-200 last:border-b-0">
                       <div className="flex items-center gap-3 px-3 py-1.5 text-sm">
-                        <input type="checkbox" checked={on} onChange={(e) => onSelect([event.id], e.target.checked)} aria-label={`Count ${event.name}`} />
+                        <input type="checkbox" checked={on} onChange={(e) => onSelect([event.id], e.target.checked)} aria-label={t.rankings.count(event.name)} />
                         <span className="w-24 shrink-0 tabular-nums text-gray-600">{event.startDate}</span>
                         <button type="button" onClick={() => toggleOpen(event.id)} className="min-w-0 flex-1 cursor-pointer truncate text-left hover:underline" aria-expanded={isOpen}>
                           {event.name}
                         </button>
                         <span className="shrink-0 text-xs text-gray-500">
                           {countedDivisions.length === 0
-                            ? 'no counted divisions'
-                            : `${countedDivisions.length} of ${event.divisions.length} divisions`}
+                            ? t.rankings.noCountedDivisions
+                            : t.rankings.divisionsOf(countedDivisions.length, event.divisions.length)}
                         </span>
                       </div>
                       {isOpen && (
@@ -173,11 +175,11 @@ export function EventsPanel({
                                   disabled={!counts}
                                   checked={counts && !excluded.has(division.id)}
                                   onChange={(e) => onExclude(division.id, !e.target.checked)}
-                                  aria-label={`Count ${division.name}`}
+                                  aria-label={t.rankings.count(division.name)}
                                 />
-                                <span className="flex-1">{division.name || '(no name)'}</span>
-                                <span className="text-xs">{division.teams} teams</span>
-                                <span className="w-32 text-right text-xs">{open_ ? 'open + women' : women_ ? 'women only' : 'not counted'}</span>
+                                <span className="flex-1">{division.name || t.rankings.noName}</span>
+                                <span className="text-xs">{t.rankings.teams(division.teams)}</span>
+                                <span className="w-32 text-right text-xs">{open_ ? t.rankings.openWomen : women_ ? t.rankings.womenOnly : t.rankings.notCounted}</span>
                               </li>
                             );
                           })}
@@ -190,7 +192,7 @@ export function EventsPanel({
             </section>
           );
         })}
-        {years.length === 0 && <p className="text-sm text-gray-500">No events match.</p>}
+        {years.length === 0 && <p className="text-sm text-gray-500">{t.rankings.noEventsMatch}</p>}
       </div>
     </div>
   );

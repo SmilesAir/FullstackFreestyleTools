@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import type { Slot } from '@/lib/results-parser/types';
 import { PlayerPicker } from '@/app/events/_components/PlayerPicker';
+import { useT } from '@/lib/i18n/client';
 
 const BADGE = {
   matched: 'bg-green-100 text-green-800',
   uncertain: 'bg-amber-100 text-amber-800',
   none: 'bg-red-100 text-red-800',
 } as const;
-const BADGE_LABEL = { matched: 'Matched', uncertain: 'Needs review', none: 'New player?' } as const;
+
 
 export function PlayerSlotEditor({
   slot,
@@ -25,6 +26,7 @@ export function PlayerSlotEditor({
   onRemove: () => void;
   createPlayer: (name: string) => Promise<{ error: string | null; player?: { id: string; name: string } }>;
 }) {
+  const t = useT();
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,7 +36,7 @@ export function PlayerSlotEditor({
     const result = await createPlayer(name);
     setCreating(false);
     if (result.error || !result.player) {
-      setError(result.error ?? 'Failed to create the player');
+      setError(result.error ?? t.resultsParser.failedToCreatePlayer);
       return;
     }
     onResolve(slot.input, { id: result.player.id, name: result.player.name, created: true });
@@ -46,9 +48,9 @@ export function PlayerSlotEditor({
         {slot.id ? (
           <>
             <span className="font-medium">{slot.name}</span>
-            {slot.created && <span className={`rounded px-2 py-0.5 text-xs ${BADGE.matched}`}>Created</span>}
+            {slot.created && <span className={`rounded px-2 py-0.5 text-xs ${BADGE.matched}`}>{t.resultsParser.created}</span>}
             {slot.input && !slot.created && slot.input !== slot.name && (
-              <span className="text-xs text-gray-500">written as &ldquo;{slot.input}&rdquo;</span>
+              <span className="text-xs text-gray-500">{t.resultsParser.writtenAs(slot.input)}</span>
             )}
             <button
               type="button"
@@ -60,12 +62,12 @@ export function PlayerSlotEditor({
           </>
         ) : (
           <>
-            {slot.input ? <span className="font-medium">&ldquo;{slot.input}&rdquo;</span> : <span className="text-gray-500">No player picked</span>}
-            {slot.status && <span className={`rounded px-2 py-0.5 text-xs ${BADGE[slot.status]}`}>{BADGE_LABEL[slot.status]}</span>}
+            {slot.input ? <span className="font-medium">&ldquo;{slot.input}&rdquo;</span> : <span className="text-gray-500">{t.resultsParser.noPlayerPicked}</span>}
+            {slot.status && <span className={`rounded px-2 py-0.5 text-xs ${BADGE[slot.status]}`}>{t.resultsParser.badge[slot.status]}</span>}
           </>
         )}
         <button type="button" onClick={onRemove} className="ml-auto text-xs text-red-600 underline">
-          remove player
+          {t.resultsParser.removePlayer}
         </button>
       </div>
 
@@ -90,7 +92,7 @@ export function PlayerSlotEditor({
             <div className="w-64">
               <PlayerPicker
                 onPick={(p) => (slot.input ? onResolve(slot.input, { id: p.id, name: p.name }) : onChange({ ...slot, id: p.id, name: p.name }))}
-                placeholder="Search for a player…"
+                placeholder={t.resultsParser.searchPlayer}
               />
             </div>
             {slot.input && (
@@ -100,7 +102,7 @@ export function PlayerSlotEditor({
                 disabled={creating}
                 className="rounded border border-gray-300 bg-white px-2 py-1 text-xs disabled:opacity-50"
               >
-                {creating ? 'Creating…' : <>Create &ldquo;{slot.input}&rdquo; as new player</>}
+                {creating ? t.resultsParser.creating : t.resultsParser.createAsNew(slot.input)}
               </button>
             )}
           </div>

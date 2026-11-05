@@ -5,13 +5,14 @@ import { SETTINGS, SETTING_SECTIONS } from '@/lib/settings';
 import { ClaudeSection } from './_components/ClaudeSection';
 import { SupportChatLog } from './_components/SupportChatLog';
 import { SettingForm } from '../_components/SettingForm';
+import { getT } from '@/lib/i18n/server';
 
 export default async function SettingsPage() {
-  const [current, usage, chats] = await Promise.all([getAllSettings(), getClaudeUsage(), getSupportChatLog()]);
+  const [current, usage, chats, t] = await Promise.all([getAllSettings(), getClaudeUsage(), getSupportChatLog(), getT()]);
 
   return (
     <main className="flex flex-col gap-8">
-      <h1 className="text-xl font-semibold">Settings</h1>
+      <h1 className="text-xl font-semibold">{t.tools.settings.label}</h1>
       {SETTING_SECTIONS.filter((section) => section.id !== 'api').map((section) => {
         // The Public API has its own tool now (rate limits + endpoint docs together).
         const forms = SETTINGS.filter((def) => def.section === section.id).map((def) => (

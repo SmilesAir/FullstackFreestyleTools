@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getPlayer } from '@/lib/players-queries';
 import { updatePlayer } from '@/lib/players-actions';
 import { PlayerForm } from '../_components/PlayerForm';
+import { getT } from '@/lib/i18n/server';
 
 export default async function PlayerDetailPage({
   params,
@@ -10,6 +11,7 @@ export default async function PlayerDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = await getT();
   const player = await getPlayer(id);
   if (!player) notFound();
 
@@ -21,13 +23,13 @@ export default async function PlayerDetailPage({
         </h1>
         <Link
           href="/players"
-          aria-label="Close"
+          aria-label={t.common.close}
           className="rounded border border-gray-300 px-2 py-1 text-sm leading-none text-gray-600 hover:bg-gray-100"
         >
           ×
         </Link>
       </div>
-      <PlayerForm action={updatePlayer.bind(null, id)} player={player} submitLabel="Save changes" />
+      <PlayerForm action={updatePlayer.bind(null, id)} player={player} submitLabel={t.players.saveChanges} />
     </main>
   );
 }

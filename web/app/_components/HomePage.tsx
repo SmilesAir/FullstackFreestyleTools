@@ -2,8 +2,10 @@ import Link from 'next/link';
 import { auth, signOut } from '@/auth';
 import { seatPath } from '@/lib/judging';
 import { getJudgingEvents } from '@/lib/judging-queries';
+import { getT } from '@/lib/i18n/server';
 import { HOME_PATH } from '@/lib/site';
 import { SignedInHome } from './SignedInHome';
+import { LanguageSwitch } from './LanguageSwitch';
 
 // The app's home page. Signed out: sign-in, and every judging event's seat
 // buttons. Signed in: the events running now and the user's own pools in them
@@ -11,16 +13,18 @@ import { SignedInHome } from './SignedInHome';
 export async function HomePage() {
   const session = await auth();
   const judgingEvents = session?.user ? [] : await getJudgingEvents();
+  const t = await getT();
 
   return (
     <>
       <header className="flex items-center justify-between gap-4 border-b border-gray-200 px-4 py-3">
-        <h1 className="text-lg font-semibold">Fullstack Freestyle Tools</h1>
+        <h1 className="text-lg font-semibold">{t.common.siteName}</h1>
         {session?.user ? (
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/control-panel" className="text-blue-600 underline">
-              Control panel
+              {t.common.controlPanel}
             </Link>
+            <LanguageSwitch inline />
             <form
               action={async () => {
                 'use server';
@@ -28,14 +32,17 @@ export async function HomePage() {
               }}
             >
               <button type="submit" className="cursor-pointer text-gray-500 underline">
-                Sign out
+                {t.common.signOut}
               </button>
             </form>
           </nav>
         ) : (
-          <Link href="/login" className="text-sm text-blue-600 underline">
-            Log in
-          </Link>
+          <nav className="flex items-center gap-4 text-sm">
+            <Link href="/login" className="text-blue-600 underline">
+              {t.common.logIn}
+            </Link>
+            <LanguageSwitch inline />
+          </nav>
         )}
       </header>
 
@@ -55,7 +62,7 @@ export async function HomePage() {
                     className="flex min-h-16 flex-col items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-center hover:bg-gray-50"
                   >
                     <span className="text-lg font-semibold">{judge.name}</span>
-                    <span className="text-sm text-gray-500">{judge.category.label}</span>
+                    <span className="text-sm text-gray-500">{t.judging.category[judge.category.type]}</span>
                   </Link>
                 ))}
                 {event.simpleRanking && (
@@ -64,8 +71,8 @@ export async function HomePage() {
                     href={`/judge/simple-ranking/${event.eventId}`}
                     className="flex min-h-16 flex-col items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-center hover:bg-gray-50"
                   >
-                    <span className="text-lg font-semibold">Judge</span>
-                    <span className="text-sm text-gray-500">Simple Ranking</span>
+                    <span className="text-lg font-semibold">{t.home.judge}</span>
+                    <span className="text-sm text-gray-500">{t.home.simpleRanking}</span>
                   </Link>
                 )}
               </div>

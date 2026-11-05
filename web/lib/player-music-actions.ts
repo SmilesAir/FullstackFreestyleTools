@@ -4,6 +4,7 @@ import { auth } from '@/auth';
 import { isMusicRound, parseMusicLink, type TeamMusicByRound } from './team-music-links';
 import { cleanMusicFileUrl, getTeamMusic, saveTeamMusic, type TeamKey } from './team-music';
 import { checkMyTeam } from './team-timecalls';
+import { getT } from './i18n/server';
 
 export type MusicActionResult = { error: string; music?: undefined } | { error: null; music: TeamMusicByRound };
 
@@ -11,7 +12,7 @@ export type MusicActionResult = { error: string; music?: undefined } | { error: 
 // set music for (see checkMyTeam).
 async function myTeam(teamId: string, round: number): Promise<{ error: string } | { error: null; team: TeamKey }> {
   const session = await auth();
-  if (!session?.user?.id) return { error: 'Sign in to set music.' };
+  if (!session?.user?.id) return { error: (await getT()).errors.signInMusic };
   if (!Number.isInteger(round) || !isMusicRound(round)) return { error: 'Unknown round' };
   const check = await checkMyTeam(teamId, session.user.id, round);
   if (check.error !== null) return { error: check.error };
@@ -42,7 +43,7 @@ export async function setMyTeamMusicLink(teamId: string, round: number, link: st
   const found = await myTeam(teamId, round);
   if (found.error !== null) return { error: found.error };
   const parsed = parseMusicLink(link);
-  if (!parsed) return { error: 'Paste a YouTube video or Spotify track link.' };
+  if (!parsed) return { error: (await getT()).errors.pasteLink };
 
   await saveTeamMusic(found.team, round, { link: parsed.link });
   return { error: null, music: await getTeamMusic(found.team) };

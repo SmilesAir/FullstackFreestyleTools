@@ -1,8 +1,16 @@
 import type { CalendarEvent } from '@/lib/event-editor-queries';
+import { useT } from '@/lib/i18n/client';
 
 export function EventPill({ event, pulsing, onClick }: { event: CalendarEvent; pulsing: boolean; onClick: () => void }) {
   const muted = event.is_test || event.is_hidden;
-  const badge = event.is_test && event.is_hidden ? 'Test·Hidden' : event.is_test ? 'Test' : event.is_hidden ? 'Hidden' : null;
+  const t = useT();
+  const badge = event.is_test && event.is_hidden
+    ? t.eventEditor.testHidden
+    : event.is_test
+      ? t.eventEditor.test
+      : event.is_hidden
+        ? t.eventEditor.hidden
+        : null;
 
   return (
     <button

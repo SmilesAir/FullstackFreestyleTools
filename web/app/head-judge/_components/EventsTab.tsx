@@ -4,11 +4,13 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { chooseHeadJudgeEvent } from '@/lib/judging-settings-actions';
 import type { EventListItem } from '@/lib/event-creator-queries';
+import { useT } from '@/lib/i18n/client';
 
 // Picking an event loads its event presets into it (undoing settings changes
 // that weren't saved to them), then opens its Pools tab.
 export function EventsTab({ events, selectedId }: { events: EventListItem[]; selectedId: string | null }) {
   const router = useRouter();
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [choosing, setChoosing] = useState<string | null>(null);
 
@@ -26,8 +28,8 @@ export function EventsTab({ events, selectedId }: { events: EventListItem[]; sel
 
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-lg font-semibold">Recent events</h2>
-      {events.length === 0 && <p className="text-sm text-gray-500">No events yet.</p>}
+      <h2 className="text-lg font-semibold">{t.headJudge.recentEvents}</h2>
+      {events.length === 0 && <p className="text-sm text-gray-500">{t.headJudge.noEvents}</p>}
       {events.map((e) => (
         <button
           key={e.id}
@@ -40,10 +42,10 @@ export function EventsTab({ events, selectedId }: { events: EventListItem[]; sel
         >
           <div className="font-medium text-blue-600">
             {e.event_name}
-            {pending && choosing === e.id && <span className="ml-2 text-xs font-normal text-gray-500">Loading…</span>}
+            {pending && choosing === e.id && <span className="ml-2 text-xs font-normal text-gray-500">{t.common.loading}</span>}
           </div>
           <div className="text-xs text-gray-500">
-            {e.start_date} → {e.end_date} · {e.division_count} division(s) · {e.player_count} player(s)
+            {t.headJudge.eventLine(e.start_date, e.end_date, e.division_count, e.player_count)}
           </div>
         </button>
       ))}

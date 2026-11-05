@@ -4,12 +4,14 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { getOpenBridgeConflicts, resolveBridgeConflict, runBridgeNow, type BridgeConflictRow } from '@/lib/bridge-actions';
 import type { ReconcileSummary } from '@/lib/bridge/reconcile';
+import { useT } from '@/lib/i18n/client';
 
 // The Dynamo bridge's admin surface: a manual run (dry or for real, for testing against the
 // real live table before trusting the scheduled cron) and the open conflicts a person
 // resolves by hand - see web/lib/bridge/reconcile.ts for why these are never auto-guessed.
 export function BridgeSection({ initialConflicts }: { initialConflicts: BridgeConflictRow[] }) {
   const router = useRouter();
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [summary, setSummary] = useState<ReconcileSummary | null>(null);
   const [conflicts, setConflicts] = useState(initialConflicts);
@@ -38,11 +40,9 @@ export function BridgeSection({ initialConflicts }: { initialConflicts: BridgeCo
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">Run &amp; conflicts</h2>
+      <h2 className="text-lg font-semibold">{t.admin.runConflicts}</h2>
       <p className="text-sm text-gray-500">
-        Runs automatically once a day (see <code className="rounded bg-gray-100 px-1">vercel.json</code>) for every
-        event with its Bridge toggle on below. Use Dry run to preview a run against the real table with nothing
-        written.
+        {t.admin.runHelpBefore} <code className="rounded bg-gray-100 px-1">vercel.json</code>{t.admin.runHelpAfter}
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -52,7 +52,7 @@ export function BridgeSection({ initialConflicts }: { initialConflicts: BridgeCo
           disabled={pending}
           className="rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
         >
-          {pending ? 'Running…' : 'Dry run'}
+          {pending ? t.admin.running : t.admin.dryRun}
         </button>
         <button
           type="button"
@@ -60,18 +60,18 @@ export function BridgeSection({ initialConflicts }: { initialConflicts: BridgeCo
           disabled={pending}
           className="rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
         >
-          {pending ? 'Running…' : 'Run now'}
+          {pending ? t.admin.running : t.admin.runNow}
         </button>
       </div>
 
       {summary && (
         <div className="rounded border border-gray-300 p-3 text-sm">
-          <div className="font-medium">{summary.dryRun ? 'Dry run result (nothing written):' : 'Run result:'}</div>
+          <div className="font-medium">{summary.dryRun ? t.admin.dryRunResult : t.admin.runResult}</div>
           <ul className="mt-1 list-disc pl-5 text-gray-700">
-            <li>{summary.eventsChecked} bridged event(s) checked</li>
-            <li>{summary.applied.toPostgres} change(s) applied to Postgres</li>
-            <li>{summary.applied.toDynamo} change(s) applied to Dynamo</li>
-            <li>{summary.conflicts} new conflict(s) flagged</li>
+            <li>{t.admin.eventsChecked(summary.eventsChecked)}</li>
+            <li>{t.admin.toPostgres(summary.applied.toPostgres)}</li>
+            <li>{t.admin.toDynamo(summary.applied.toDynamo)}</li>
+            <li>{t.admin.conflictsFlagged(summary.conflicts)}</li>
           </ul>
           {summary.errors.length > 0 && (
             <div className="mt-2 rounded border border-red-300 bg-red-50 p-2 text-red-800">
@@ -86,10 +86,10 @@ export function BridgeSection({ initialConflicts }: { initialConflicts: BridgeCo
 
       <div>
         <h3 className="mb-1 text-sm font-medium text-gray-600">
-          Open conflicts {conflicts.length > 0 && `(${conflicts.length})`}
+          {t.admin.openConflicts} {conflicts.length > 0 && `(${conflicts.length})`}
         </h3>
         {conflicts.length === 0 ? (
-          <p className="text-sm text-gray-500">None right now.</p>
+          <p className="text-sm text-gray-500">{t.admin.noneNow}</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {conflicts.map((c) => (
@@ -108,7 +108,7 @@ export function BridgeSection({ initialConflicts }: { initialConflicts: BridgeCo
                     onClick={() => resolve(c.id, 'dynamo')}
                     className="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
                   >
-                    Accept Dynamo (left)
+                    {t.admin.acceptDynamo}
                   </button>
                   <button
                     type="button"
@@ -116,7 +116,7 @@ export function BridgeSection({ initialConflicts }: { initialConflicts: BridgeCo
                     onClick={() => resolve(c.id, 'postgres')}
                     className="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
                   >
-                    Accept Postgres (right)
+                    {t.admin.acceptPostgres}
                   </button>
                   <button
                     type="button"
@@ -124,7 +124,7 @@ export function BridgeSection({ initialConflicts }: { initialConflicts: BridgeCo
                     onClick={() => resolve(c.id, 'ignored')}
                     className="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
                   >
-                    Ignore
+                    {t.admin.ignore}
                   </button>
                 </div>
               </li>

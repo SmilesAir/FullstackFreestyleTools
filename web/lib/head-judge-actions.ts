@@ -14,7 +14,7 @@ import {
 import {
   isPoolLocked,
   setPoolLockedRow,
-  POOL_LOCKED_ERROR,
+  poolLockedError,
 } from "./pool-locks";
 import { postPoolResults, type PostOutcome } from "./discord-posts";
 import {
@@ -26,6 +26,7 @@ import { getOrCreateAnnouncerCode } from "./announcer-link";
 import { regenerateJudgePin } from "./judge-pin";
 import { relayPlayState } from "./play-state-relay";
 import { getMode } from "./db-mode";
+import { getT } from "./i18n/server";
 
 const guard = () => requirePermission("head_judge");
 
@@ -61,7 +62,7 @@ export async function setPlayingPool(
   if (found.rows.length === 0)
     return { error: "That pool has no teams in this event" };
   if (await isPoolLocked(divisionId, roundNumber, poolId(letter)))
-    return { error: POOL_LOCKED_ERROR };
+    return { error: await poolLockedError() };
 
   // A running routine is never dropped by changing the pool: cancel it first.
   const saved = await pool.query(
@@ -277,9 +278,9 @@ export async function clearPoolResults(
   const row = event.rows[0];
   if (!row) return { error: "Unknown division" };
   if (!row.is_test)
-    return { error: "Only a test event’s results can be cleared." };
+    return { error: (await getT()).errors.onlyTestClear };
   if (await isPoolLocked(divisionId, roundNumber, id))
-    return { error: POOL_LOCKED_ERROR };
+    return { error: await poolLockedError() };
 
   const client = await pool.connect();
   try {

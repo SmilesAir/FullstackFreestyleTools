@@ -5,6 +5,7 @@ import { setTeamTimecallsChecked } from './team-timecalls';
 import { isMusicRound, parseMusicLink } from './team-music-links';
 import { cleanMusicFileUrl, getTeamKey, getTeamMusic, saveTeamMusic, type TeamKey } from './team-music';
 import type { MusicActionResult } from './player-music-actions';
+import { getT } from './i18n/server';
 
 // Sets a team's time calls from the Event Music screen, like the Head Judge's
 // Play tab. Refused while the team's pool is locked.
@@ -46,7 +47,7 @@ export async function setEventTeamMusicLink(teamId: string, round: number, link:
   const found = await anyTeam(teamId, round);
   if (found.error !== null) return { error: found.error };
   const parsed = parseMusicLink(link);
-  if (!parsed) return { error: 'Paste a YouTube video or Spotify track link.' };
+  if (!parsed) return { error: (await getT()).errors.pasteLink };
 
   await saveTeamMusic(found.team, round, { link: parsed.link });
   return { error: null, music: await getTeamMusic(found.team) };

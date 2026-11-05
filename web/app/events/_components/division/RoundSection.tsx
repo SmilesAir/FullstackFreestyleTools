@@ -34,17 +34,19 @@ import type { TeamRow } from '@/lib/event-creator-queries';
 import { Collapsible } from '../Collapsible';
 import { useDivisionUi } from './DivisionWorkspace';
 import { PoolJudgeColumns } from './PoolJudgeColumns';
+import { useT } from '@/lib/i18n/client';
 
 // One shared empty list, so a pool with no judges keeps a stable identity.
 const NO_JUDGES: PoolJudgeView[] = [];
 
 // The Head Judge Pools tab's tags (PoolsTab.tsx), plus one for a pool that has results.
 function PoolStatusTags({ playing, results, published }: { playing: boolean; results: boolean; published: boolean }) {
+  const tr = useT();
   return (
     <>
-      {playing && <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-800">Playing</span>}
-      {results && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">Results</span>}
-      {published && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-800">📢 Published</span>}
+      {playing && <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-800">{tr.events.playing}</span>}
+      {results && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">{tr.events.results}</span>}
+      {published && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-800">{tr.events.published}</span>}
     </>
   );
 }
@@ -82,6 +84,7 @@ export function RoundSection({
   discordReady: boolean;
 }) {
   const router = useRouter();
+  const tr = useT();
   // Imported rounds can have more pools than the configured count; show every
   // pool that has teams, and don't let the count drop below one.
   const minPoolCount = populatedPoolCount(teams);
@@ -126,7 +129,7 @@ export function RoundSection({
   }
 
   function seed() {
-    if (teams.length > 0 && !confirm(`Re-seed ${roundName}? This replaces the teams currently in this round.`)) return;
+    if (teams.length > 0 && !confirm(tr.events.reseedConfirm(roundName))) return;
     startTransition(async () => {
       // Make sure the pool count on screen is what gets used.
       const saved = await setRoundConfig(divisionId, roundNumber, poolCount);
@@ -135,7 +138,7 @@ export function RoundSection({
       setMessage(
         result.error
           ? { text: result.error, error: true }
-          : { text: `Seeded ${result.seeded} team(s)${result.byes ? `; ${result.byes} top seed(s) have byes` : ''}.`, error: false }
+          : { text: tr.events.seeded(result.seeded ?? 0, result.byes ?? 0), error: false }
       );
       if (!result.error) router.refresh();
     });
@@ -188,7 +191,7 @@ export function RoundSection({
   }
 
   function removeTeam(teamId: string, poolLetter: string) {
-    if (!confirm(`Remove this team from Pool ${poolLetter}? It stays on the Teams list.`)) return;
+    if (!confirm(tr.events.removeFromPoolConfirm(poolLetter))) return;
     run(() => removeTeamFromRound(divisionId, roundNumber, teamId));
   }
 
@@ -215,7 +218,7 @@ export function RoundSection({
       {roundName}
       {headingPools.map((s) => (
         <span key={s.letter} className="flex items-center gap-1">
-          {showLetters && <span className="text-xs font-medium text-gray-500">Pool {s.letter}</span>}
+          {showLetters && <span className="text-xs font-medium text-gray-500">{tr.common.pool(s.letter)}</span>}
           <PoolStatusTags {...s} />
         </span>
       ))}
@@ -226,7 +229,7 @@ export function RoundSection({
     <Collapsible title={title} variant="card" defaultOpen={teams.length > 0} sectionRef={trackRef}>
       <div className="flex flex-wrap items-end gap-3 text-sm">
         <label className="flex flex-col gap-1">
-          Pools
+          {tr.events.pools}
           <select
             value={poolCount}
             disabled={isFinals}
@@ -241,30 +244,30 @@ export function RoundSection({
           </select>
         </label>
         <button type="button" onClick={saveConfig} disabled={pending} className="rounded border border-gray-300 px-3 py-1 disabled:opacity-50">
-          Save
+          {tr.events.save}
         </button>
         <button
           type="button"
           onClick={seed}
           disabled={pending || rosterCount === 0 || roundLocked}
-          title={roundLocked ? 'A pool of this round is locked by the Head Judge.' : undefined}
+          title={roundLocked ? tr.events.roundLockedTip : undefined}
           className="rounded bg-black px-3 py-1 text-white disabled:opacity-50"
         >
-          Seed from rankings
+          {tr.events.seedFromRankings}
         </button>
         {teams.length > 0 && (
           <button
             type="button"
             disabled={pending || roundLocked}
-            title={roundLocked ? 'A pool of this round is locked by the Head Judge.' : undefined}
-            onClick={() => confirm(`Clear all teams from ${roundName}?`) && run(() => clearRound(divisionId, roundNumber))}
+            title={roundLocked ? tr.events.roundLockedTip : undefined}
+            onClick={() => confirm(tr.events.clearRoundConfirm(roundName)) && run(() => clearRound(divisionId, roundNumber))}
             className="text-xs text-red-600 underline disabled:opacity-50"
           >
-            clear round
+            {tr.events.clearRound}
           </button>
         )}
         {roundLocked && (
-          <span className="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">🔒 Locked by the Head Judge</span>
+          <span className="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">{tr.events.lockedByHeadJudge}</span>
         )}
         {teams.length > 0 && (
           <div className="ml-auto flex flex-wrap gap-2">
@@ -272,31 +275,31 @@ export function RoundSection({
               <button
                 type="button"
                 disabled={pending}
-                onClick={() => run(() => postRoundPlayOrderToDiscord(divisionId, roundNumber), () => 'Play order and judges posted to Discord.')}
+                onClick={() => run(() => postRoundPlayOrderToDiscord(divisionId, roundNumber), () => tr.events.playOrderPosted)}
                 className="rounded border border-indigo-300 px-3 py-1 text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
               >
-                Post Play Order/Judges to Discord
+                {tr.events.postPlayOrder}
               </button>
             )}
             <button
               type="button"
               disabled={pending}
-              title="DM the division's directors and the event's committee a Pool Review link for this round."
+              title={tr.events.reviewTip}
               onClick={() =>
-                confirm(`Send ${roundName} to the directors and committee for review? They each get a Discord DM with a Pool Review link.`) &&
+                confirm(tr.events.sendForReviewConfirm(roundName)) &&
                 run(
                   () => sendRoundForReviewOnDiscord(divisionId, roundNumber),
-                  (r: { summary?: string }) => r.summary ?? 'Sent for review.'
+                  (r: { summary?: string }) => r.summary ?? tr.events.sentForReview
                 )
               }
               className="rounded border border-indigo-300 px-3 py-1 text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
             >
-              Send for Review
+              {tr.events.sendForReview}
             </button>
           </div>
         )}
       </div>
-      {rosterCount === 0 && <p className="text-xs text-gray-500">Add teams before seeding.</p>}
+      {rosterCount === 0 && <p className="text-xs text-gray-500">{tr.events.addTeamsFirst}</p>}
       {message && <p className={`text-sm ${message.error ? 'text-red-600' : 'text-green-700'}`}>{message.text}</p>}
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -326,8 +329,8 @@ export function RoundSection({
             }`}
           >
             <div className="text-sm font-medium">
-              Pool {letter} <span className="text-xs font-normal text-gray-500">({poolTeams.length} teams)</span>
-              {poolLocked && <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-700">🔒 Locked</span>}
+              {tr.common.pool(letter)} <span className="text-xs font-normal text-gray-500">{tr.events.poolTeams(poolTeams.length)}</span>
+              {poolLocked && <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-700">{tr.events.locked}</span>}
               <span className="ml-2 inline-flex gap-1 align-middle">
                 <PoolStatusTags {...statusOf(letter, poolTeams)} />
               </span>
@@ -368,14 +371,14 @@ export function RoundSection({
                       remove
                     </button>
                   ) : (
-                    <span title="This team has a result, so it can't be removed" className="text-[15.6px] text-gray-400">
+                    <span title={tr.events.hasResult} className="text-[15.6px] text-gray-400">
                       place {t.place}
                     </span>
                   )}
                 </li>
               ))}
               {poolTeams.length === 0 && (
-                <li className="text-[15.6px] text-gray-400">{roundIsEmpty ? 'Not seeded' : 'Drop a team here'}</li>
+                <li className="text-[15.6px] text-gray-400">{roundIsEmpty ? tr.events.notSeeded : tr.events.dropHere}</li>
               )}
             </ol>
 

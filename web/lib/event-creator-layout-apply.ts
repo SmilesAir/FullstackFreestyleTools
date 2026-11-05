@@ -1,7 +1,8 @@
 import 'server-only';
 import type { QueryResult, QueryResultRow } from 'pg';
 import { POOL_LETTERS, poolId } from './event-creator';
-import { isPoolLocked, POOL_LOCKED_ERROR } from './pool-locks';
+import { isPoolLocked, poolLockedError } from './pool-locks';
+import { getT } from './i18n/server';
 
 // The plumbing `setRoundLayout`/`addTeamToRound` (event-creator-actions.ts) share, plus
 // the bridge (web/lib/bridge/postgres-writer.ts). Pulled out of that 'use server' file so
@@ -59,9 +60,9 @@ export async function applyRoundLayout(
       // and that alone determines the order (matching sortPoolTeams); before
       // that (fresh from seeding) the order isn't pinned down the same way on
       // both sides, so play it safe and refuse any submission naming this pool.
-      if (inPool.some((r) => r.play_order === null)) return POOL_LOCKED_ERROR;
+      if (inPool.some((r) => r.play_order === null)) return await poolLockedError();
       const have = inPool.sort((a, b) => (a.play_order as number) - (b.play_order as number)).map((r) => r.id);
-      if (JSON.stringify(layout[letter] ?? []) !== JSON.stringify(have)) return POOL_LOCKED_ERROR;
+      if (JSON.stringify(layout[letter] ?? []) !== JSON.stringify(have)) return await poolLockedError();
     }
   }
 
@@ -82,7 +83,7 @@ export async function applyRoundLayout(
   ]);
   const currentIds = new Set(current.rows.map((r) => r.id));
   if (new Set(ids).size !== ids.length || ids.length !== currentIds.size || ids.some((id) => !currentIds.has(id))) {
-    return 'This round changed since the page loaded; refresh and try again';
+    return (await getT()).errors.roundChanged;
   }
 
   await db.query(
