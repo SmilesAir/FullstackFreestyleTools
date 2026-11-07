@@ -19,5 +19,7 @@ export const config = {
     '/activity/:path*',
     '/judging-trainer/:path*',
     '/settings/:path*',
+    '/event-registration/:path*',
+    '/register/:path*',
   ],
 };

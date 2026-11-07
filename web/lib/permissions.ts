@@ -8,6 +8,7 @@ export const PERMISSIONS = [
   { key: 'pool_review', label: 'Pool Review' },
   { key: 'rankings_generator', label: 'Rankings Generator' },
   { key: 'results_parser', label: 'Results Parser' },
+  { key: 'event_registration', label: 'Event Registration' },
 ] as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[number]['key'];

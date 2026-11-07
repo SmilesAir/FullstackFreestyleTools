@@ -17,6 +17,7 @@ const TOOL_HREF: Record<PermissionKey, string> = {
   pool_review: '/pool-review',
   rankings_generator: '/rankings-generator',
   results_parser: '/results-parser',
+  event_registration: '/event-registration',
 };
 
 export const FLAGGED_TOOLS: ToolInfo[] = PERMISSIONS.map((p) => ({ key: p.key, href: TOOL_HREF[p.key] }));

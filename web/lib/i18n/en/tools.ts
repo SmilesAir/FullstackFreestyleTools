@@ -43,6 +43,11 @@ export const tools = {
     description:
       'Enter the results of events run outside this system: paste them for Claude to fill in, check the rounds, pools, places and players, then save.',
   },
+  event_registration: {
+    label: 'Event Registration',
+    description:
+      "Build an event's sign-up form (custom questions, each mandatory or optional), get the code to embed it on the tournament's website, see everyone who registered, and mark who has paid.",
+  },
   permissions: {
     label: 'Permissions Editor',
     description: 'Create user accounts, toggle admin access, and manage permission groups.',

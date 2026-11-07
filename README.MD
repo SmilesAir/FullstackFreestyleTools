@@ -177,6 +177,43 @@ One row per player per rankings
 | player_id     | uuid    | Foreign key to players                                          |
 | points      | numeric | Points earned from this result         |
 
+**Registration forms table** (Event Registration: an event's sign-up form, embedded on the tournament's own site. Kept apart from rosters: registering adds nobody to a division or team)
+
+| Field      | Type        | Description                                                  |
+| ---------- | ----------- | ------------------------------------------------------------ |
+| id         | uuid        | Random GUID, primary key; the embed is `/embed/register/<id>` |
+| event_id   | uuid        | Foreign key to events; one form per event                     |
+| title      | text        | Shown above the form (the event's name when empty)            |
+| intro      | text        | Text above the questions (fees, how to pay, deadlines)        |
+| is_open    | boolean     | Players can register / change answers only while open (default false) |
+| questions  | jsonb       | Ordered questions `{id, type, label, help, required, options}` (types in `web/lib/registration.ts`) |
+| style      | jsonb       | The embed's look: `{accent, theme, buttonText, showEventInfo}` |
+| created_at, updated_at | timestamptz | |
+
+**Registrations table** (one signed-in account's registration for a form)
+
+| Field        | Type        | Description                                                  |
+| ------------ | ----------- | ------------------------------------------------------------ |
+| id           | uuid        | Random GUID, primary key                                     |
+| form_id      | uuid        | Foreign key to registration_forms; unique with user_id        |
+| user_id      | uuid        | Foreign key to users: who registered                          |
+| player_id    | uuid        | The account's linked player: registrations are always as a player (no player linked, no registration) |
+| name, email  | text        | The player's name and the account's email when they registered |
+| answers      | jsonb       | By question id (per-division answers by division id, meals by date) |
+| paid         | boolean     | Marked by hand by staff in Event Registration                 |
+| paid_at, paid_by | timestamptz, uuid | When and by whom it was first marked paid           |
+| payment_note | text        | Staff's note (e.g. PayPal / Revolut reference)                |
+| created_at, updated_at | timestamptz | |
+
+**Registration handoffs table** (the embed's sign-in: a random code the embed opens `/register/<form>/connect?n=<code>` with; once the player signs in and presses Continue it names their account, and the embed collects it once as a signed token. Single use, 10 minutes, not backed up)
+
+| Field      | Type        | Description                          |
+| ---------- | ----------- | ------------------------------------ |
+| nonce      | text        | The embed's code, primary key        |
+| form_id    | uuid        | Foreign key to registration_forms    |
+| user_id    | uuid        | Foreign key to users                 |
+| created_at | timestamptz | When Continue was pressed            |
+
 
 
 ### List of APIs

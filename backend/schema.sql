@@ -570,3 +570,54 @@ CREATE TABLE IF NOT EXISTS team_music (
   updated_at   timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (division_id, player_ids, round_number)
 );
+
+-- Event Registration (web/app/event-registration): a sign-up form an event's staff build
+-- and embed on the tournament's own website (/embed/register/<form id>). Kept apart from
+-- rosters and results: registering adds nobody to a division or team. One form per event.
+-- questions: the ordered questions, each {id, type, label, help, required, options}
+-- (web/lib/registration.ts); style: how the embed looks (accent, theme, button text).
+CREATE TABLE IF NOT EXISTS registration_forms (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id    uuid NOT NULL UNIQUE REFERENCES events(id) ON DELETE CASCADE,
+  title       text NOT NULL DEFAULT '',
+  intro       text NOT NULL DEFAULT '',
+  is_open     boolean NOT NULL DEFAULT false,
+  questions   jsonb NOT NULL DEFAULT '[]',
+  style       jsonb NOT NULL DEFAULT '{}',
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- One signed-in account's registration for a form, always as the account's linked player
+-- (an account with no player can't register). name is the player's name when they
+-- registered. answers is keyed by question id (a per-division answer by division id inside
+-- it, a meals answer by date). paid is set by hand by staff in the Event Registration tool
+-- (payment itself happens outside the app).
+CREATE TABLE IF NOT EXISTS registrations (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  form_id       uuid NOT NULL REFERENCES registration_forms(id) ON DELETE CASCADE,
+  user_id       uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  player_id     uuid NOT NULL REFERENCES players(id) ON DELETE RESTRICT,
+  name          text NOT NULL,
+  email         text,
+  answers       jsonb NOT NULL DEFAULT '{}',
+  paid          boolean NOT NULL DEFAULT false,
+  paid_at       timestamptz,
+  paid_by       uuid REFERENCES users(id) ON DELETE SET NULL,
+  payment_note  text NOT NULL DEFAULT '',
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (form_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_registrations_form_id ON registrations(form_id);
+
+-- The embed's sign-in hand-off (web/lib/registration-queries.ts): the embed makes a random
+-- code and opens /register/<form>/connect?n=<code>; once the player has signed in there and
+-- pressed Continue, a row here names their account, and the embed collects it once, as a
+-- token. Used once, and only for 10 minutes; not backed up.
+CREATE TABLE IF NOT EXISTS registration_handoffs (
+  nonce       text PRIMARY KEY,
+  form_id     uuid NOT NULL REFERENCES registration_forms(id) ON DELETE CASCADE,
+  user_id     uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);

@@ -45,6 +45,11 @@ export const tools: Dictionary['tools'] = {
     description:
       'Carga los resultados de eventos hechos fuera de este sistema: pégalos para que Claude los complete, revisa rondas, grupos, puestos y jugadores, y guarda.',
   },
+  event_registration: {
+    label: 'Inscripción al Evento',
+    description:
+      'Crea el formulario de inscripción de un evento (preguntas personalizadas, cada una obligatoria u opcional), obtén el código para insertarlo en el sitio web del torneo, ve a todos los inscritos y marca quién ha pagado.',
+  },
   permissions: {
     label: 'Editor de permisos',
     description: 'Crea cuentas de usuario, activa o quita el acceso de administrador y gestiona los grupos de permisos.',

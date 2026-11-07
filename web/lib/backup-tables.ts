@@ -29,6 +29,8 @@ export const BACKUP_TABLES = [
   'group_permissions',
   'user_permission_groups',
   'app_settings',
+  'registration_forms',
+  'registrations',
 ] as const;
 
 export type BackupTableName = (typeof BACKUP_TABLES)[number];
@@ -49,4 +51,6 @@ export const TABLES_ADDED_LATER: readonly BackupTableName[] = [
   'simple_ranking_ballots',
   'user_logins',
   'team_music',
+  'registration_forms',
+  'registrations',
 ];

@@ -91,3 +91,12 @@ body {
 body:has(.lang-inline) .lang-floating {
   display: none;
 }
+
+/* The registration embed sits in an iframe on a tournament's own site: no floating
+   language switch (its language comes from ?lang=), and that site shows around it. */
+body:has(.registration-embed) .lang-floating {
+  display: none;
+}
+body:has(.registration-embed) {
+  background: transparent;
+}
