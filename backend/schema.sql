@@ -613,8 +613,9 @@ CREATE INDEX IF NOT EXISTS idx_registrations_form_id ON registrations(form_id);
 
 -- The embed's sign-in hand-off (web/lib/registration-queries.ts): the embed makes a random
 -- code and opens /register/<form>/connect?n=<code>; once the player has signed in there and
--- pressed Continue, a row here names their account, and the embed collects it once, as a
--- token. Used once, and only for 10 minutes; not backed up.
+-- pressed Continue, a row here names their account, and the embed collects it as a token.
+-- Good for 10 minutes (collecting again in that time is allowed, in case a reply is lost);
+-- older rows are deleted. Not backed up.
 CREATE TABLE IF NOT EXISTS registration_handoffs (
   nonce       text PRIMARY KEY,
   form_id     uuid NOT NULL REFERENCES registration_forms(id) ON DELETE CASCADE,

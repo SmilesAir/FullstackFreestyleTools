@@ -5,6 +5,7 @@ export const eventRegistration = {
   register: 'Register',
   signInPrompt: 'Sign in to register for this event.',
   signInToRegister: 'Sign in to register',
+  registerInNewTab: 'Or register in a new tab',
   waitingForSignIn: 'Finish signing in in the window that opened, then press Continue there.',
   checking: 'Checking…',
   continue: 'Continue',

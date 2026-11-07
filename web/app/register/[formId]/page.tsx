@@ -11,8 +11,9 @@ export async function generateMetadata({ params }: PageProps<'/register/[formId]
   return { title: form ? form.title || form.eventName : undefined };
 }
 
-// The registration form on this site: a link staff can share as well as the embed.
-// Signed-in only (the proxy sends anyone else through /login and back).
+// The registration form on this site: a link staff can share as well as the embed, and the
+// embed's "register in a new tab". Signed out, it offers sign-in (through /login, or through
+// a sign-in window when this page has been put in another site's iframe).
 export default async function RegisterPage({ params }: PageProps<'/register/[formId]'>) {
   const form = await getForm((await params).formId);
   if (!form) notFound();

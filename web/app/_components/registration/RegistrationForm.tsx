@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore, useTransition } from 'react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { formatDay, formatDayRange, formatDateTime } from '@/lib/i18n/format';
 import {
@@ -36,6 +36,11 @@ const POLL_FOR_MS = 10 * 60 * 1000;
 
 type Mode = 'embed' | 'page' | 'preview';
 
+// Whether the page is inside a frame (another site's iframe). Never changes, so nothing to
+// subscribe to; false while rendering on the server.
+const noSubscribe = () => () => {};
+const inFrame = () => window.self !== window.top;
+
 // The player's registration form.
 // - embed: in an iframe on a tournament's site; signs in through a window of this
 //   site (see registration-queries.ts)
@@ -67,6 +72,11 @@ export function RegistrationForm({
   const [error, setError] = useState<string | null>(null);
   const [waitingFor, setWaitingFor] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Inside a frame the sign-in cookie isn't sent, so signing in goes through a window of
+  // this site and a token (see registration-queries.ts): always in the embed, and on
+  // /register/<form> when someone has put that page in an iframe.
+  const framed = useSyncExternalStore(noSubscribe, inFrame, () => false);
+  const popupSignIn = mode === 'embed' || (mode === 'page' && framed);
   const [tab, setTab] = useState<'register' | 'players'>('register');
   const [roster, setRoster] = useState(initialRoster ?? null);
   const refreshRoster = useCallback(() => {
@@ -85,7 +95,10 @@ export function RegistrationForm({
   const acceptToken = useCallback(
     (tok: string) => {
       startTransition(async () => {
-        const next = await loadMyRegistration(form.id, tok);
+        // Tried twice: a browser can cancel a request as the sign-in window closes.
+        const next = await loadMyRegistration(form.id, tok).catch(
+          () => new Promise<MyRegistrationState>((resolve, reject) => setTimeout(() => loadMyRegistration(form.id, tok).then(resolve, reject), 1000))
+        );
         try {
           if (next.signedIn) sessionStorage.setItem(tokenKey(form.id), tok);
           else sessionStorage.removeItem(tokenKey(form.id));
@@ -100,13 +113,13 @@ export function RegistrationForm({
 
   // A token kept from earlier in this tab (the iframe's own storage).
   useEffect(() => {
-    if (mode !== 'embed' || initial.signedIn) return;
+    if (!popupSignIn || initial.signedIn) return;
     let kept: string | null = null;
     try {
       kept = sessionStorage.getItem(tokenKey(form.id));
     } catch {}
     if (kept) acceptToken(kept);
-  }, [mode, initial.signedIn, form.id, acceptToken]);
+  }, [popupSignIn, initial.signedIn, form.id, acceptToken]);
 
   // After opening the sign-in window: ask every 2 seconds, for 10 minutes, whether
   // the player has signed in and pressed Continue there.
@@ -133,14 +146,14 @@ export function RegistrationForm({
 
   // Keeps the page around the embed told how tall the form is.
   useEffect(() => {
-    if (mode !== 'embed' || window.parent === window) return;
+    if (!popupSignIn || window.parent === window) return;
     const send = () =>
       window.parent.postMessage({ type: HEIGHT_MESSAGE, formId: form.id, height: document.documentElement.scrollHeight }, '*');
     const observer = new ResizeObserver(send);
     observer.observe(document.body);
     send();
     return () => observer.disconnect();
-  }, [mode, form.id]);
+  }, [popupSignIn, form.id]);
 
   const openSignIn = () => {
     const bytes = crypto.getRandomValues(new Uint8Array(24));
@@ -163,7 +176,7 @@ export function RegistrationForm({
     if (mode === 'preview') return;
     setError(null);
     startTransition(async () => {
-      const result = await submitRegistration(form.id, token, answers);
+      const result = await submitRegistration(form.id, token, answers, locale);
       setMissing(result.missing ?? []);
       if (result.error) return setError(result.error);
       showState({ ...state, registration: result.registration ?? null });
@@ -174,7 +187,7 @@ export function RegistrationForm({
   const withdraw = () => {
     setError(null);
     startTransition(async () => {
-      const result = await withdrawRegistration(form.id, token);
+      const result = await withdrawRegistration(form.id, token, locale);
       if (result.error) return setError(result.error);
       showState({ ...state, registration: null });
       refreshRoster();
@@ -255,10 +268,16 @@ export function RegistrationForm({
       {form.isOpen && !state.signedIn && (
         <div className="flex flex-col items-start gap-2">
           <p className="text-sm">{tr.signInPrompt}</p>
-          {mode === 'embed' ? (
-            <button type="button" onClick={openSignIn} className={button} disabled={pending}>
-              {pending ? tr.checking : tr.signInToRegister}
-            </button>
+          {popupSignIn ? (
+            <>
+              <button type="button" onClick={openSignIn} className={button} disabled={pending}>
+                {pending ? tr.checking : tr.signInToRegister}
+              </button>
+              {/* The fallback: the whole registration as a page of its own, signed in as usual. */}
+              <a href={`/register/${form.id}`} target="_blank" rel="noreferrer" className="text-xs text-[var(--muted)] underline">
+                {tr.registerInNewTab}
+              </a>
+            </>
           ) : (
             <a href={`/login?callbackUrl=${encodeURIComponent(`/register/${form.id}`)}`} className={button}>
               {tr.signInToRegister}

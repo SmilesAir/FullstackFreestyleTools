@@ -205,7 +205,7 @@ One row per player per rankings
 | payment_note | text        | Staff's note (e.g. PayPal / Revolut reference)                |
 | created_at, updated_at | timestamptz | |
 
-**Registration handoffs table** (the embed's sign-in: a random code the embed opens `/register/<form>/connect?n=<code>` with; once the player signs in and presses Continue it names their account, and the embed collects it once as a signed token. Single use, 10 minutes, not backed up)
+**Registration handoffs table** (the embed's sign-in: a random code the embed opens `/register/<form>/connect?n=<code>` with; once the player signs in and presses Continue it names their account, and the embed collects it as a signed token. Good for 10 minutes (it can be collected again in that time, in case a reply is lost), not backed up)
 
 | Field      | Type        | Description                          |
 | ---------- | ----------- | ------------------------------------ |
@@ -307,6 +307,17 @@ Every pool has a public, no-login permalink — a short code, not its ids (`free
 - **Public tools**
   - Results Viewer — a pool's public permalink (see above): a short code, no login, browsable by Division/Round/Pool
   - Rankings Viewer
+
+### Embedding the registration form
+
+A tournament's site shows the form from Event Registration's Embed tab: an iframe of `/embed/register/<form id>` (`?lang=en|es`) and a small script that sizes it. Inside another site this app's cookies are third-party, so Safari and Firefox (and often Chrome) don't send them, and the embed doesn't use any:
+
+- **Signing in** happens in a window of its own (`/register/<form>/connect?n=<random code>`), a top-level page where the normal sign-in works (Google included). After the player presses Continue there, the embed swaps the code for a token signed with `AUTH_SECRET` (one form, 6 hours; `web/lib/registration-queries.ts`) and sends it in the body of each call instead of a cookie. Form state stays in the page.
+- **CSRF**: Next.js checks server actions by comparing `Origin` with `Host`, not with a cookie; the iframe's own page is this site, so its calls pass.
+- **Language** comes from `?lang=` and is sent with each call.
+- **Framing**: `/embed/*` and `/register/<form>` send `Content-Security-Policy: frame-ancestors *` (`web/next.config.ts`); nothing sends `X-Frame-Options`.
+- **Fallback**: "Or register in a new tab" opens `/register/<form>` as a normal page. A pop-up blocker turns the sign-in window into a tab, and the embed still collects the sign-in. `/register/<form>` put in an iframe by mistake signs in the same way as the embed.
+- **Height**: the embed posts `{ type: "fft-registration-height", formId, height }` to the parent page; the snippet only accepts it from this site's origin.
 
 # Running a local server at an event
 

@@ -5,6 +5,8 @@ import { auth } from '@/auth';
 import { getCurrentUserAccess } from './authz';
 import { pool } from './db';
 import { getT } from './i18n/server';
+import { dictionaries } from './i18n/dictionaries';
+import { isLocale } from './i18n/locales';
 import {
   cleanAnswers,
   cleanQuestions,
@@ -39,6 +41,12 @@ import {
 } from './registration-queries';
 
 export type ActionResult = { error: string | null };
+
+// The text for a call from the players' form: in the form's own language (an embed's
+// ?lang=, sent along), since the language cookie isn't sent inside another site.
+async function formText(locale: unknown) {
+  return (isLocale(locale) ? dictionaries[locale] : await getT()).eventRegistration;
+}
 
 // ---- Staff (the Event Registration tool)
 
@@ -193,8 +201,13 @@ export type SubmitResult = { error: string | null; missing?: string[]; registrat
 // Registers the player, or changes their answers. Only while the form is open.
 // The registration is in the name of the account's linked player; no player linked, no
 // registration (players link theirs on Profile).
-export async function submitRegistration(formId: string, token: string | null, rawAnswers: Answers): Promise<SubmitResult> {
-  const t = (await getT()).eventRegistration;
+export async function submitRegistration(
+  formId: string,
+  token: string | null,
+  rawAnswers: Answers,
+  locale?: string
+): Promise<SubmitResult> {
+  const t = await formText(locale);
   const form = await getForm(formId);
   if (!form) return { error: t.formNotFound };
   const userId = await caller(form.id, token);
@@ -237,8 +250,8 @@ export async function submitRegistration(formId: string, token: string | null, r
 }
 
 // A player takes back their own registration, until staff have marked it paid.
-export async function withdrawRegistration(formId: string, token: string | null): Promise<ActionResult> {
-  const t = (await getT()).eventRegistration;
+export async function withdrawRegistration(formId: string, token: string | null, locale?: string): Promise<ActionResult> {
+  const t = await formText(locale);
   const userId = isUuid(formId) ? await caller(formId, token) : null;
   if (!userId) return { error: t.signInToRegister };
   const result = await pool.query('DELETE FROM registrations WHERE form_id = $1 AND user_id = $2 AND NOT paid', [formId, userId]);

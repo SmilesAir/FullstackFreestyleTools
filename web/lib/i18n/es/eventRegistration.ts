@@ -5,6 +5,7 @@ export const eventRegistration: Dictionary['eventRegistration'] = {
   register: 'Inscribirme',
   signInPrompt: 'Inicia sesión para inscribirte en este evento.',
   signInToRegister: 'Inicia sesión para inscribirte',
+  registerInNewTab: 'O inscríbete en una pestaña nueva',
   waitingForSignIn: 'Termina de iniciar sesión en la ventana que se abrió y presiona Continuar allí.',
   checking: 'Comprobando…',
   continue: 'Continuar',

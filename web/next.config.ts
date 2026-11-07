@@ -26,6 +26,18 @@ const nextConfig: NextConfig = {
   // and runtime errors still show their overlay.
   devIndicators: false,
 
+  // The registration form is embedded in an iframe on tournaments' own sites (any domain),
+  // so its pages say outright that any site may frame them. Its sign-in window
+  // (/register/<form>/connect) is a top-level page and isn't included. Nothing in the app
+  // sends X-Frame-Options.
+  async headers() {
+    const frameable = [{ key: "Content-Security-Policy", value: "frame-ancestors *" }];
+    return [
+      { source: "/embed/:path*", headers: frameable },
+      { source: "/register/:formId", headers: frameable },
+    ];
+  },
+
   async rewrites() {
     if (!legacyOrigin) return [];
     return {

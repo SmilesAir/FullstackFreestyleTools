@@ -60,12 +60,14 @@ export async function recordHandoff(formId: string, code: string, userId: string
   );
 }
 
-// The account a code was recorded for, once; null until then (or once it's too old).
+// The account a code was recorded for; null until then (or once it's too old). Can be
+// collected again within the 10 minutes, so a reply lost on the way (the browser cancelling
+// a request as the sign-in window closes) doesn't lose the sign-in: the embed's next check
+// gets it. The code is random and known only to the embed and its sign-in window.
 export async function claimHandoff(formId: string, code: string): Promise<string | null> {
   const { rows } = await pool.query<{ user_id: string }>(
-    `DELETE FROM registration_handoffs
-     WHERE nonce = $1 AND form_id = $2 AND created_at > now() - interval '10 minutes'
-     RETURNING user_id`,
+    `SELECT user_id FROM registration_handoffs
+     WHERE nonce = $1 AND form_id = $2 AND created_at > now() - interval '10 minutes'`,
     [code, formId]
   );
   return rows[0]?.user_id ?? null;

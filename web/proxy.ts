@@ -20,6 +20,5 @@ export const config = {
     '/judging-trainer/:path*',
     '/settings/:path*',
     '/event-registration/:path*',
-    '/register/:path*',
   ],
 };
