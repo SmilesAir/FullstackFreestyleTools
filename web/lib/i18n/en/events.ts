@@ -3,6 +3,7 @@ export const events = {
   eventSummary: (start: string, end: string) => `${start} → ${end} · event settings below; pick a division tab above to edit it`,
   committee: (n: number) => `Committee (${n})`,
   addWithClaude: 'Add teams to several divisions with Claude',
+  addFromRegistration: 'Add players and teams from registration',
   players: (n: number) => `Players (${n})`,
   noPlayers: 'No players yet — add teams in a division tab.',
   pts: (n: number) => `${n} pts`,
@@ -78,6 +79,21 @@ export const events = {
     `${lines}.${skipped ? ` Skipped ${skipped} team(s) with unresolved players.` : ''}`,
   addedRoster: (added: number, skipped: number) =>
     `Added ${added} team(s)${skipped ? `; skipped ${skipped} with unresolved players` : ''}.`,
+
+  // Teams from registration
+  fromRegistrationHelp:
+    "Builds the teams from this event's registrations: each registered player with the teammates they named for each division they ticked. Partners who registered and named each other become one team, and teams already in a division are left out, so you can load again as more people register.",
+  onlyPaid: 'Only paid registrations',
+  teammatesFrom: 'Teammates from',
+  loadRegistration: 'Load from registration',
+  loadingRegistration: 'Loading…',
+  noRegistrationForm: "This event doesn't have a registration form yet.",
+  openEventRegistration: 'Open Event Registration',
+  noRegistrationTeams: 'No new teams in the registrations.',
+  registrationSummary: (registrations: number, already: number) =>
+    `${registrations} registration(s)${already ? ` · ${already} team(s) already added` : ''}`,
+  withoutTeam: 'Registered without a team:',
+  lookingForPartner: 'looking for a partner',
 
   // Teams review
   badge: { matched: 'Matched', uncertain: 'Needs review', none: 'New player?' },

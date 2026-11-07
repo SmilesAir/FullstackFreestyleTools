@@ -36,6 +36,7 @@ Division settings (in each division's tab)
 Adding teams
 - One division: in the division's Add teams section, paste the teams in any format (one team per line, names separated by "/", "&", commas, a copied spreadsheet...) and press Parse with Claude.
 - Several divisions at once: on the selected event, use Add teams to several divisions with Claude and paste, for example, a spreadsheet with a heading row per division. Divisions the event doesn't have yet are created.
+- From registration: on the selected event, Add players and teams from registration builds the teams from the Event Registration sign-ups (each player with the teammates they named per division; partners who named each other become one team). Tick Only paid registrations to leave out unpaid ones. Teams already in a division are left out, so it can be loaded again as more people register; players who named no teammate are listed separately.
 - Each name is matched to a player. Review the list: Matched, Needs review (pick the right player) or New player? (create one). Teams with any unresolved player are skipped.
 - Remove a team from the Teams list with its remove button.
 

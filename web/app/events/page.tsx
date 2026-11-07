@@ -5,6 +5,7 @@ import { NewEventForm } from './_components/NewEventForm';
 import { NewDivisionForm } from './_components/NewDivisionForm';
 import { EventPlayingToggle } from './_components/EventPlayingToggle';
 import { EventRosterPasteForm } from './_components/EventRosterPasteForm';
+import { RegistrationTeamsForm } from './_components/RegistrationTeamsForm';
 import { Collapsible } from './_components/Collapsible';
 import { EventDiscordSettings } from './_components/EventDiscordSettings';
 import { EventCommitteeSettings } from './_components/EventCommitteeSettings';
@@ -75,6 +76,10 @@ export default async function EventsPage({
 
           <Collapsible title={t.events.addWithClaude} variant="card" defaultOpen={false}>
             <EventRosterPasteForm eventId={selected.id} existing={divisions.map((d) => d.division_name)} />
+          </Collapsible>
+
+          <Collapsible title={t.events.addFromRegistration} variant="card" defaultOpen={false}>
+            <RegistrationTeamsForm eventId={selected.id} existing={divisions.map((d) => d.division_name)} />
           </Collapsible>
 
           <Collapsible title={t.events.players(players.length)} variant="card" defaultOpen={false}>

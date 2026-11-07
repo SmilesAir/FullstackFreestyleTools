@@ -4,6 +4,7 @@ export const events: Dictionary['events'] = {
   eventSummary: (start, end) => `${start} → ${end} · ajustes del evento abajo; elige una pestaña de división arriba para editarla`,
   committee: (n) => `Comité (${n})`,
   addWithClaude: 'Agregar equipos a varias divisiones con Claude',
+  addFromRegistration: 'Agregar jugadores y equipos desde la inscripción',
   players: (n) => `Jugadores (${n})`,
   noPlayers: 'Todavía no hay jugadores: agrega equipos en una pestaña de división.',
   pts: (n) => `${n} pts`,
@@ -71,6 +72,20 @@ export const events: Dictionary['events'] = {
     `${division}: ${added} agregados${created ? ' (división nueva)' : ''}${duplicates ? `, ${duplicates} ya estaban` : ''}`,
   addedNotice: (lines, skipped) => `${lines}.${skipped ? ` Se omitieron ${skipped} equipo(s) con jugadores sin resolver.` : ''}`,
   addedRoster: (added, skipped) => `Se agregaron ${added} equipo(s)${skipped ? `; se omitieron ${skipped} con jugadores sin resolver` : ''}.`,
+
+  fromRegistrationHelp:
+    'Arma los equipos a partir de las inscripciones del evento: cada jugador inscrito con los compañeros que indicó en cada división que marcó. Los compañeros que se inscribieron y se nombraron entre sí forman un solo equipo, y los equipos que ya están en una división se omiten, así que puedes volver a cargar a medida que se inscribe más gente.',
+  onlyPaid: 'Solo inscripciones pagadas',
+  teammatesFrom: 'Compañeros de',
+  loadRegistration: 'Cargar desde la inscripción',
+  loadingRegistration: 'Cargando…',
+  noRegistrationForm: 'Este evento todavía no tiene formulario de inscripción.',
+  openEventRegistration: 'Abrir Inscripción al Evento',
+  noRegistrationTeams: 'No hay equipos nuevos en las inscripciones.',
+  registrationSummary: (registrations, already) =>
+    `${registrations} inscripción(es)${already ? ` · ${already} equipo(s) ya agregados` : ''}`,
+  withoutTeam: 'Inscritos sin equipo:',
+  lookingForPartner: 'busca pareja',
 
   badge: { matched: 'Coincide', uncertain: 'Revisar', none: '¿Jugador nuevo?' },
   team: (n) => `Equipo ${n}`,

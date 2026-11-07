@@ -3,12 +3,9 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { parseEventRosterText } from '@/lib/roster-parser';
-import { addEventRosters } from '@/lib/event-creator-actions';
-import { applyResolution, completeTeams, slotCounts, toSlots, type Slot } from '@/lib/roster-review';
-import { TeamsReview } from './division/TeamsReview';
+import { toSlots } from '@/lib/roster-review';
+import { RostersReview, type FoundDivision } from './RostersReview';
 import { useT } from '@/lib/i18n/client';
-
-type Found = { divisionName: string; teams: Slot[][] };
 
 // Paste the rosters of several divisions at once (a spreadsheet with one block per
 // division works); Claude sorts them into the event's divisions, and any division the
@@ -17,12 +14,11 @@ export function EventRosterPasteForm({ eventId, existing }: { eventId: string; e
   const router = useRouter();
   const t = useT();
   const [text, setText] = useState('');
-  const [found, setFound] = useState<Found[] | null>(null);
+  const [found, setFound] = useState<FoundDivision[] | null>(null);
   const [unparsed, setUnparsed] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [parsing, startParse] = useTransition();
-  const [saving, startSave] = useTransition();
 
   function parse() {
     setError(null);
@@ -38,40 +34,13 @@ export function EventRosterPasteForm({ eventId, existing }: { eventId: string; e
     });
   }
 
-  const updateDivision = (index: number, change: (prev: Slot[][]) => Slot[][]) =>
-    setFound((prev) => prev && prev.map((d, i) => (i === index ? { ...d, teams: change(d.teams) } : d)));
-
-  // A name fixed in one place is fixed in every division it is still unresolved in.
-  const resolveEverywhere = (input: string, patch: Partial<Slot>) =>
-    setFound((prev) => prev && prev.map((d) => ({ ...d, teams: applyResolution(d.teams, input, patch) })));
-
-  const removeDivision = (index: number) => setFound((prev) => prev && prev.filter((_, i) => i !== index));
-
-  function confirm() {
-    if (!found) return;
-    const payload = found.map((d) => ({ divisionName: d.divisionName, ...completeTeams(d.teams) }));
-    const skipped = payload.reduce((n, d) => n + d.skipped, 0);
-    startSave(async () => {
-      const result = await addEventRosters(
-        eventId,
-        payload.map((d) => ({ divisionName: d.divisionName, teams: d.ids }))
-      );
-      if (result.error) {
-        setError(result.error);
-        return;
-      }
-      const lines = (result.results ?? []).map(
-        (r) => t.events.addedLine(r.divisionName, r.added, !!r.created, r.duplicates ?? 0)
-      );
-      setNotice(t.events.addedNotice(lines.join('; '), skipped));
-      setFound(null);
-      setUnparsed([]);
-      setText('');
-      router.refresh();
-    });
+  function added(message: string) {
+    setNotice(message);
+    setFound(null);
+    setUnparsed([]);
+    setText('');
+    router.refresh();
   }
-
-  const totalTeams = found?.reduce((n, d) => n + d.teams.length, 0) ?? 0;
 
   return (
     <div className="flex flex-col gap-3">
@@ -97,9 +66,15 @@ export function EventRosterPasteForm({ eventId, existing }: { eventId: string; e
       {notice && <p className="text-sm text-green-700">{notice}</p>}
 
       {found && (
-        <div className="flex flex-col gap-4 rounded border border-gray-300 p-3">
-          {found.length === 0 && <p className="text-sm text-amber-800">{t.events.noneFound}</p>}
-
+        <RostersReview
+          eventId={eventId}
+          existing={existing}
+          found={found}
+          setFound={setFound}
+          onAdded={added}
+          onError={setError}
+          emptyMessage={t.events.noneFound}
+        >
           {unparsed.length > 0 && (
             <div className="rounded border border-amber-300 bg-amber-50 p-2 text-sm">
               <div className="font-medium text-amber-800">{t.events.couldntParse}</div>
@@ -110,44 +85,7 @@ export function EventRosterPasteForm({ eventId, existing }: { eventId: string; e
               </ul>
             </div>
           )}
-
-          {found.map((division, di) => {
-            const counts = slotCounts(division.teams);
-            return (
-              <section key={division.divisionName} className="flex flex-col gap-3">
-                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-gray-200 pb-1">
-                  <h3 className="font-semibold">{division.divisionName}</h3>
-                  <span className="text-xs text-gray-500">{existing.includes(division.divisionName) ? t.events.existingDivision : t.events.newDivisionTag}</span>
-                  <span className="text-sm">
-                    <strong>{division.teams.length}</strong> {t.events.teamsFound} <span className="text-green-700">{t.events.matched(counts.matched)}</span>
-                    {counts.created > 0 && <span className="text-green-700">{t.events.created(counts.created)}</span>},{' '}
-                    <span className={counts.review ? 'font-medium text-amber-700' : ''}>{counts.review} need review</span>,{' '}
-                    <span className={counts.unresolved ? 'font-medium text-red-700' : ''}>{counts.unresolved} new player(s)</span>
-                  </span>
-                  <button type="button" onClick={() => removeDivision(di)} className="ml-auto text-xs text-red-600 underline">
-                    leave out
-                  </button>
-                </div>
-                <TeamsReview teams={division.teams} update={(change) => updateDivision(di, change)} resolve={resolveEverywhere} onError={setError} />
-              </section>
-            );
-          })}
-
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={confirm}
-              disabled={saving || totalTeams === 0}
-              className="rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
-              {saving ? t.events.adding : t.events.addToDivisions(totalTeams, found.length)}
-            </button>
-            <button type="button" onClick={() => setFound(null)} className="rounded border border-gray-300 px-3 py-2 text-sm">
-              {t.events.discard}
-            </button>
-          </div>
-          <p className="text-xs text-gray-500">{t.events.skippedNote}</p>
-        </div>
+        </RostersReview>
       )}
     </div>
   );
