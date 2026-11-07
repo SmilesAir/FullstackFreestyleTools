@@ -153,11 +153,11 @@ export async function adjustRoutineStart(
   routineId: string,
   startedAt: number,
 ): Promise<PlayActionResult & { startedAt?: number }> {
-  await guard();
+  const { userId } = await guard();
   if (!UUID.test(eventId) || !UUID.test(routineId)) return BAD_ID;
   if (!Number.isFinite(startedAt)) return { error: "Bad start time" };
 
-  const result = await adjustRoutineStartRow(eventId, routineId, startedAt);
+  const result = await adjustRoutineStartRow(eventId, routineId, startedAt, userId);
   if (!result.error) relayPlayState(eventId);
   return result;
 }

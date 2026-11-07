@@ -18,6 +18,7 @@ import { byPlace, poolStandings } from '@/lib/pool-standings';
 import { askSupportChat, useSupportChatAvailable } from '@/app/_components/support-chat-ask';
 import { PoolOverviewGraph, type OverviewTeam } from './PoolOverviewGraph';
 import { PublicLinkControl } from './PublicLinkControl';
+import { ScoreWithHistory } from './ScoreHistory';
 import { SimpleRankingResults } from './SimpleRankingResults';
 import { SortToggle, type ResultsSortOrder } from './SortToggle';
 import { useT } from '@/lib/i18n/client';
@@ -639,7 +640,6 @@ export function DifficultyTable({
         <tbody>
           {judges.map((judge) => {
             const row = result.judges[judge.playerId];
-            const submitted = row?.submitted ?? null;
             const moves = row?.moves ?? [];
             const dropped = moves.filter((m) => !m.counted).length;
             return (
@@ -678,7 +678,9 @@ export function DifficultyTable({
                 </td>
                 <td className={cell}>{row ? round2(row.points) : 0}</td>
                 <td className={cell}>{baselineText(row)}</td>
-                <td className={`${cell} font-semibold`}>{submitted ? submitted.score : dash}</td>
+                <td className={`${cell} font-semibold`}>
+                  <ScoreWithHistory row={row} playerId={judge.playerId} judgeName={judge.name} category="Diff" />
+                </td>
               </tr>
             );
           })}
@@ -807,7 +809,6 @@ export function NotesTable({
         <tbody>
           {judges.map((judge) => {
             const row = result.judges[judge.playerId];
-            const submitted = row?.submitted ?? null;
             return (
               <tr key={judge.playerId}>
                 <td className="border border-gray-300 px-3 py-1.5 text-left">{judge.name}</td>
@@ -822,7 +823,9 @@ export function NotesTable({
                   );
                 })}
                 <td className={cell}>{baselineText(row)}</td>
-                <td className={`${cell} font-semibold`}>{submitted ? submitted.score : dash}</td>
+                <td className={`${cell} font-semibold`}>
+                  <ScoreWithHistory row={row} playerId={judge.playerId} judgeName={judge.name} category={category} />
+                </td>
               </tr>
             );
           })}

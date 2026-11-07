@@ -106,6 +106,11 @@ const JUDGING_SPECS: Spec[] = [
     scope: `SELECT * FROM fpa2027_judge_scores WHERE routine_id IN (${EVENT_ROUTINES})`,
     unique: ['@.routine_id', '@.judge_player_id', '@.category_type'],
   },
+  {
+    table: 'fpa2027_judge_score_history',
+    pk: ['id'],
+    scope: `SELECT * FROM fpa2027_judge_score_history WHERE routine_id IN (${EVENT_ROUTINES})`,
+  },
   { table: 'event_play_state', pk: ['event_id'], scope: `SELECT * FROM event_play_state WHERE event_id = $1`, keep: true },
   {
     table: 'pools',

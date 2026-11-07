@@ -19,6 +19,7 @@ export const BACKUP_TABLES = [
   'event_play_state',
   'fpa2027_judge_notes',
   'fpa2027_judge_scores',
+  'fpa2027_judge_score_history',
   'judging_presets',
   'rankings',
   'ranking_points',
@@ -53,4 +54,5 @@ export const TABLES_ADDED_LATER: readonly BackupTableName[] = [
   'team_music',
   'registration_forms',
   'registrations',
+  'fpa2027_judge_score_history',
 ];

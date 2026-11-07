@@ -169,7 +169,8 @@ export async function getPublicPoolResults(
     const anonJudges: PoolResultsData[string]['judges'] = {};
     for (const [realPlayerId, judgeResult] of Object.entries(result.judges)) {
       const anonId = idMap.get(realPlayerId);
-      if (anonId) anonJudges[anonId] = judgeResult;
+      // A score's history is for the Head Judge only.
+      if (anonId) anonJudges[anonId] = { ...judgeResult, history: undefined };
     }
     data[teamId] = { ...result, judges: anonJudges };
   }

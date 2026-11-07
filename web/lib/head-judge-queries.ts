@@ -19,6 +19,7 @@ import {
 import { getRoutineJudgeCurves } from "./judging-queries";
 import { getLockedPoolKeys } from "./pool-locks";
 import { getPublishedPoolKeys } from "./pool-publish";
+import { judgeVersionCounts } from "./score-history";
 import {
   DEFAULT_TIMECALLS,
   poolKey,
@@ -366,7 +367,7 @@ export async function getPoolRoutines(
   if (routines.rows.length === 0) return [];
   const ids = routines.rows.map((r) => r.id);
 
-  const [notes, scores, curves] = await Promise.all([
+  const [notes, scores, curves, saves] = await Promise.all([
     pool.query<{
       routine_id: string;
       player_id: string;
@@ -398,6 +399,7 @@ export async function getPoolRoutines(
       [ids],
     ),
     getRoutineJudgeCurves(ids),
+    judgeVersionCounts(pool, ids),
   ]);
 
   // Each judge's notes and score per routine, then their result from them: the
@@ -456,23 +458,25 @@ export async function getPoolRoutines(
         : null;
       const settings = snapshot !== null ? snapshot : current;
       const judgeNotes = notesByJudge.get(k) ?? [];
+      const result = judgeResultFromNotes(
+        judgeNotes,
+        { startedAt: r.started_ms, routineSeconds: r.routine_seconds },
+        settings,
+        noteCategory,
+        s
+          ? {
+              score: Number(s.score),
+              baseline: Number(s.baseline_estimate),
+              adjustPercent: Number(s.adjust_percent),
+            }
+          : null,
+      );
+      if (s) result.history = { routineId: r.id, judgeSaves: saves.get(k) ?? 0 };
       entry.judges[playerId] = {
         category: noteCategory,
         notes: judgeNotes,
         settings,
-        result: judgeResultFromNotes(
-          judgeNotes,
-          { startedAt: r.started_ms, routineSeconds: r.routine_seconds },
-          settings,
-          noteCategory,
-          s
-            ? {
-                score: Number(s.score),
-                baseline: Number(s.baseline_estimate),
-                adjustPercent: Number(s.adjust_percent),
-              }
-            : null,
-        ),
+        result,
       };
     }
     return entry;

@@ -1,5 +1,6 @@
 'use server';
 
+import { headers } from 'next/headers';
 import { pool } from './db';
 import { judgePinOk } from './judge-pin';
 import { JUDGE_PIN_ERROR, JUDGING_RULES_ID, MAX_NOTES_PER_ROUTINE, noteTypesFor, type NoteCategory } from './judging';
@@ -14,6 +15,7 @@ import {
 } from './judging-settings';
 import { poolLockedError } from './pool-locks';
 import { getT } from './i18n/server';
+import { writeScore, type ScoreSource } from './score-history';
 
 // Public on purpose: judges don't log in. Every action checks that this device
 // has the event's judge PIN (JUDGE_PIN_ERROR otherwise; see judge-pin.ts) and
@@ -298,11 +300,31 @@ export async function submitScore(
   routineId: string,
   adjustPercent: number
 ): Promise<SubmitResult> {
+  return saveScore(eventId, playerId, categoryType, routineId, adjustPercent, 'judge');
+}
+
+// The judge's device address, kept with each version of their score (judges
+// don't sign in). Vercel sets x-forwarded-for; Next fills it in locally.
+async function judgeClientIp(): Promise<string | null> {
+  const list = await headers();
+  return list.get('x-forwarded-for')?.split(',')[0].trim() || list.get('x-real-ip')?.trim() || null;
+}
+
+// submitScore, and the backup score's save, which records itself as such.
+async function saveScore(
+  eventId: string,
+  playerId: string,
+  categoryType: string,
+  routineId: string,
+  adjustPercent: number,
+  source: ScoreSource
+): Promise<SubmitResult> {
   if (!UUID.test(eventId) || !UUID.test(playerId) || !UUID.test(routineId)) return badScore();
   if (!noteTypesFor(categoryType)) return badScore();
   if (!Number.isFinite(adjustPercent)) return badScore();
   if (!(await judgePinOk(eventId))) return PIN_NEEDED;
   const percent = Math.round(adjustPercent * 100) / 100;
+  const change = { source, clientIp: await judgeClientIp() };
 
   const lockCheck = await pool.query<{ locked: boolean }>(
     `SELECT COALESCE(p.locked, false) AS locked
@@ -361,11 +383,13 @@ export async function submitScore(
     const baseline = Number(ctx.stored_baseline);
     const own = snapshotCategorySettings(ctx.stored_settings, categoryType, scoreLimitOf(settings)) || settings;
     const score = adjustedScore(baseline, percent, adjustUnit(category, own));
-    await pool.query(
+    await writeScore(
+      pool,
       `UPDATE fpa2027_judge_scores
        SET adjust_percent = $4, score = $5, submitted_at = now()
        WHERE routine_id = $1 AND judge_player_id = $2 AND category_type = $3`,
-      [routineId, playerId, categoryType, percent, score]
+      [routineId, playerId, categoryType, percent, score],
+      change
     );
     return { error: null, score, baseline, adjustPercent: percent };
   }
@@ -384,15 +408,17 @@ export async function submitScore(
     ).baseline;
   const snapshot = JSON.stringify({ rulesId: ctx.rules_id, [categoryType]: settings });
 
-  const save = (baseline: number) =>
-    pool.query(
+  const save = (baseline: number, amendLast = false) =>
+    writeScore(
+      pool,
       `INSERT INTO fpa2027_judge_scores
          (routine_id, judge_player_id, category_type, baseline_estimate, adjust_percent, score, settings)
        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
        ON CONFLICT (routine_id, judge_player_id, category_type)
        DO UPDATE SET baseline_estimate = EXCLUDED.baseline_estimate, adjust_percent = EXCLUDED.adjust_percent,
                      score = EXCLUDED.score, settings = EXCLUDED.settings, submitted_at = now()`,
-      [routineId, playerId, categoryType, baseline, percent, adjustedScore(baseline, percent, unit), snapshot]
+      [routineId, playerId, categoryType, baseline, percent, adjustedScore(baseline, percent, unit), snapshot],
+      { ...change, amendLast }
     );
 
   const first = await readNotes(routineId, playerId, categoryType);
@@ -401,11 +427,11 @@ export async function submitScore(
 
   // A note pressed between reading the notes and saving the score would be
   // missing from the baseline. The score row now locks further notes, so one
-  // more look settles it.
+  // more look settles it (correcting the version just recorded: it is the same submit).
   const second = await readNotes(routineId, playerId, categoryType);
   if (JSON.stringify(second) !== JSON.stringify(first)) {
     baseline = baselineOf(second);
-    await save(baseline);
+    await save(baseline, true);
   }
   return { error: null, score: adjustedScore(baseline, percent, unit), baseline, adjustPercent: percent };
 }
@@ -489,6 +515,6 @@ export async function submitBackupScore(
     client.release();
   }
 
-  const result = await submitScore(eventId, playerId, categoryType, routineId, adjustPercent);
+  const result = await saveScore(eventId, playerId, categoryType, routineId, adjustPercent, 'backup');
   return { ...result, routineId };
 }

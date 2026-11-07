@@ -77,6 +77,21 @@ export const results: Dictionary['results'] = {
     rawPoints: 'Los movimientos contados del juez sumados: el valor de cada movimiento en la recta por el multiplicador de su calificación',
   },
 
+  scoreEdited: (n) => `editado ×${n}`,
+  scoreEditedTip: 'El juez cambió esta puntuación después de enviarla. Haz clic para ver cada versión.',
+  scoreHistoryTitle: (judge) => `${judge}: historial de la puntuación`,
+  scoreHistoryLoading: 'Cargando…',
+  scoreHistoryFailed: 'No se pudo cargar el historial.',
+  scoreHistoryEmpty: 'No hay historial guardado para esta puntuación.',
+  scoreHistorySource: {
+    judge: 'Juez',
+    backup: 'Juez (puntuación de respaldo)',
+    adjust_start: 'Inicio ajustado',
+    settings: 'Ajustes cambiados',
+  },
+  scoreHistoryBy: (name) => `por ${name}`,
+  scoreHistoryLine: (score, adjust, baseline) => `${score} (${adjust > 0 ? '+' : ''}${adjust}% de ${baseline})`,
+
   noRankings: 'Todavía no hay clasificaciones.',
   noRankingsJudges: 'Todavía no hay clasificaciones. Los jueces clasifican desde la página principal.',
   judgesCount: (n) => `${n} juez${n === 1 ? '' : 'es'}`,

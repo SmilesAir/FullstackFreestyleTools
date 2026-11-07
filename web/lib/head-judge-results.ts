@@ -17,6 +17,8 @@ import { limitScores, type CurveScore } from './score-curve';
 // on the numberline (0 to 1), its rating, and whether it counted.
 // `unrestricted` is the baseline the submitted score would have had with every
 // note counted (null = no score, or no limit).
+// `history` (Head Judge only) is the routine the score is from and how many
+// times the judge saved it: more than one means they changed it later.
 export type JudgeResult = {
   counts: Record<string, number>;
   used: Record<string, number> | null;
@@ -24,6 +26,7 @@ export type JudgeResult = {
   moves: { position: number; rating: string; counted: boolean }[];
   submitted: SubmittedScore | null;
   unrestricted: number | null;
+  history?: { routineId: string; judgeSaves: number };
 };
 
 export type ResultNote = {

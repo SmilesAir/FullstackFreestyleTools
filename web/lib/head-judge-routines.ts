@@ -13,6 +13,7 @@ import {
 import { ensureEventPresets } from "./judging-settings-store";
 import { isPoolLocked, poolLockedError } from "./pool-locks";
 import { getT } from "./i18n/server";
+import { writeScore } from "./score-history";
 
 // Starting and cancelling a routine, as the Head Judge's actions do it. No
 // permission check here (head-judge-actions.ts adds it) so it can be tested.
@@ -206,6 +207,7 @@ export async function adjustRoutineStartRow(
   eventId: string,
   routineId: string,
   startedAt: number,
+  userId: string | null,
 ): Promise<{ error: string | null; startedAt?: number }> {
   const state = await pool.query<{
     division_id: string;
@@ -247,16 +249,18 @@ export async function adjustRoutineStartRow(
   if (!moved.rows[0])
     return { error: (await getT()).errors.startWithin10 };
   const newStart = Math.round(moved.rows[0].started_ms);
-  await rescoreRoutine(routineId, newStart);
+  await rescoreRoutine(routineId, newStart, userId);
   return { error: null, startedAt: newStart };
 }
 
 // Works out again the baseline (and so the score) of every score submitted for
 // the routine, from its notes and a new start time, with the settings each score
 // was made with (as the results read them) and the judge's percentage change.
+// A score that comes out the same isn't written (so no new version is kept).
 async function rescoreRoutine(
   routineId: string,
   startedAt: number,
+  userId: string | null,
 ): Promise<void> {
   const scores = await pool.query<{
     judge_player_id: string;
@@ -316,9 +320,11 @@ async function rescoreRoutine(
       category,
       scoreLimitOf(settings),
     );
-    await pool.query(
+    await writeScore(
+      pool,
       `UPDATE fpa2027_judge_scores SET baseline_estimate = $4, score = $5
-       WHERE routine_id = $1 AND judge_player_id = $2 AND category_type = $3`,
+       WHERE routine_id = $1 AND judge_player_id = $2 AND category_type = $3
+         AND (baseline_estimate, score) IS DISTINCT FROM ($4::numeric, $5::numeric)`,
       [
         routineId,
         sc.judge_player_id,
@@ -326,6 +332,7 @@ async function rescoreRoutine(
         baseline,
         adjustedScore(baseline, Number(sc.adjust_percent), adjustUnit(category, settings)),
       ],
+      { source: "adjust_start", userId },
     );
   }
 }

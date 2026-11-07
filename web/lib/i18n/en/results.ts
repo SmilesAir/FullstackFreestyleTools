@@ -78,6 +78,23 @@ export const results = {
     rawPoints: "The judge's counted moves added up: each move's numberline value times its rating's multiplier",
   },
 
+  // A score's history (Head Judge)
+  scoreEdited: (n: number) => `edited ×${n}`,
+  scoreEditedTip: 'The judge changed this score after first submitting it. Click to see every version.',
+  scoreHistoryTitle: (judge: string) => `${judge}: score history`,
+  scoreHistoryLoading: 'Loading…',
+  scoreHistoryFailed: 'Could not load the history.',
+  scoreHistoryEmpty: 'No history kept for this score.',
+  scoreHistorySource: {
+    judge: 'Judge',
+    backup: 'Judge (backup score)',
+    adjust_start: 'Start adjusted',
+    settings: 'Settings changed',
+  } as Record<string, string>,
+  scoreHistoryBy: (name: string) => `by ${name}`,
+  scoreHistoryLine: (score: number, adjust: number, baseline: number) =>
+    `${score} (${adjust > 0 ? '+' : ''}${adjust}% of ${baseline})`,
+
   // Simple Ranking
   noRankings: 'No rankings yet.',
   noRankingsJudges: 'No rankings yet. Judges rank from the main landing page.',

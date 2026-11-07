@@ -20,6 +20,7 @@ import {
 } from './judging-settings';
 import { DEFAULT_NEW_RULES_ID } from './event-creator';
 import { getT } from './i18n/server';
+import { writeScore } from './score-history';
 
 // The logic behind the head judge's Settings tab. No permission check here on
 // purpose (judging-settings-actions.ts adds it) so it can be tested directly.
@@ -85,7 +86,8 @@ async function applyEventSettings(
   eventId: string,
   rulesId: string,
   settings: SystemSettings,
-  onlyIfChanged: boolean
+  onlyIfChanged: boolean,
+  userId: string | null
 ): Promise<number | null> {
   const current = await client.query<{ judging_settings: unknown }>(
     'SELECT judging_settings FROM events WHERE id = $1 FOR UPDATE',
@@ -99,7 +101,7 @@ async function applyEventSettings(
      WHERE id = $1`,
     [eventId, rulesId, JSON.stringify(settings)]
   );
-  return rescoreResults(client, eventId, rulesId, settings);
+  return rescoreResults(client, eventId, rulesId, settings, userId);
 }
 
 // Replaces one system's settings for the event; other systems are untouched.
@@ -108,12 +110,15 @@ async function applyEventSettings(
 export async function saveEventSettings(
   eventId: string,
   rulesId: string,
-  values: unknown
+  values: unknown,
+  userId: string | null
 ): Promise<{ error: string | null; rescored?: number }> {
   if (!UUID.test(eventId)) return { error: 'Unknown event' };
   const checked = validateSettings(rulesId, values, await getT());
   if ('error' in checked) return { error: checked.error };
-  const rescored = await inTransaction((client) => applyEventSettings(client, eventId, rulesId, checked.settings, false));
+  const rescored = await inTransaction((client) =>
+    applyEventSettings(client, eventId, rulesId, checked.settings, false, userId)
+  );
   return rescored === null ? { error: 'Unknown event' } : { error: null, rescored };
 }
 
@@ -189,7 +194,7 @@ export async function ensureEventPresets(eventId: string): Promise<void> {
 // it): changes saved to the event but not to its preset are undone, and its
 // results rescored to match. An event without event presets is left as is.
 // Returns how many scores were rescored.
-export async function loadEventPresets(eventId: string): Promise<number> {
+export async function loadEventPresets(eventId: string, userId: string | null): Promise<number> {
   if (!UUID.test(eventId)) return 0;
   const presets = await pool.query<{ rules_id: string; settings: unknown }>(
     'SELECT rules_id, settings FROM judging_presets WHERE event_id = $1',
@@ -198,7 +203,7 @@ export async function loadEventPresets(eventId: string): Promise<number> {
   let rescored = 0;
   for (const p of presets.rows) {
     const settings = resolveSettings(p.rules_id, p.settings);
-    rescored += (await inTransaction((client) => applyEventSettings(client, eventId, p.rules_id, settings, true))) ?? 0;
+    rescored += (await inTransaction((client) => applyEventSettings(client, eventId, p.rules_id, settings, true, userId))) ?? 0;
   }
   return rescored;
 }
@@ -208,13 +213,14 @@ export async function loadEventPresets(eventId: string): Promise<number> {
 export async function updateEventPreset(
   eventId: string,
   rulesId: string,
-  values: unknown
+  values: unknown,
+  userId: string | null
 ): Promise<{ error: string | null; rescored?: number }> {
   if (!UUID.test(eventId)) return { error: 'Unknown event' };
   const checked = validateSettings(rulesId, values, await getT());
   if ('error' in checked) return { error: checked.error };
   const rescored = await inTransaction(async (client) => {
-    const count = await applyEventSettings(client, eventId, rulesId, checked.settings, false);
+    const count = await applyEventSettings(client, eventId, rulesId, checked.settings, false, userId);
     if (count === null) return null;
     const updated = await client.query(
       'UPDATE judging_presets SET settings = $3::jsonb, updated_at = now() WHERE event_id = $1 AND rules_id = $2',
@@ -230,8 +236,15 @@ export async function updateEventPreset(
 // divisions on `rulesId`: each Difficulty note's numberline score and multiplier,
 // then each submitted score's baseline. The judge's change from the baseline is
 // kept as the same percentage, so the score moves with the baseline. Pool locks
-// don't stop it. Returns how many scores it rescored.
-async function rescoreResults(client: PoolClient, eventId: string, rulesId: string, settings: SystemSettings): Promise<number> {
+// don't stop it. A score that comes out the same isn't written (so no new
+// version is kept). Returns how many scores it rescored.
+async function rescoreResults(
+  client: PoolClient,
+  eventId: string,
+  rulesId: string,
+  settings: SystemSettings,
+  userId: string | null
+): Promise<number> {
   const diff = settings.Diff;
   if (diff?.line) {
     await client.query(
@@ -312,10 +325,12 @@ async function rescoreResults(client: PoolClient, eventId: string, rulesId: stri
       category,
       scoreLimitOf(own)
     ).baseline;
-    await client.query(
+    await writeScore(
+      client,
       `UPDATE fpa2027_judge_scores
        SET baseline_estimate = $4, score = $5, settings = $6::jsonb
-       WHERE routine_id = $1 AND judge_player_id = $2 AND category_type = $3`,
+       WHERE routine_id = $1 AND judge_player_id = $2 AND category_type = $3
+         AND (baseline_estimate, score, settings) IS DISTINCT FROM ($4::numeric, $5::numeric, $6::jsonb)`,
       [
         s.routine_id,
         s.judge_player_id,
@@ -323,7 +338,8 @@ async function rescoreResults(client: PoolClient, eventId: string, rulesId: stri
         baseline,
         adjustedScore(baseline, Number(s.adjust_percent), adjustUnit(category, own)),
         JSON.stringify({ rulesId, [s.category_type]: own }),
-      ]
+      ],
+      { source: 'settings', userId }
     );
     rescored++;
   }

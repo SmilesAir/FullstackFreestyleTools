@@ -249,6 +249,34 @@ CREATE TABLE IF NOT EXISTS fpa2027_judge_scores (
 );
 CREATE INDEX IF NOT EXISTS idx_fpa2027_scores_judge ON fpa2027_judge_scores(judge_player_id);
 
+-- Every version of every score above, oldest first: a row is added in the same
+-- statement as each write to fpa2027_judge_scores (web/lib/score-history.ts), so
+-- a changed score can be seen and its earlier values read back. Only ever
+-- inserted (except that a submit which has to save twice, because a note
+-- arrived while it saved, corrects its own version). `source` is what made the change: 'judge' (the judge's screen),
+-- 'backup' (a judge's backup score), 'adjust_start' (the Head Judge moved the
+-- routine's start) or 'settings' (the Head Judge changed the judging settings).
+-- `changed_by_user` is the signed-in Head Judge for the last two (no FK: the
+-- local server's users may differ); judges don't sign in, so for theirs
+-- `client_ip` is kept instead.
+CREATE TABLE IF NOT EXISTS fpa2027_judge_score_history (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  routine_id        uuid NOT NULL REFERENCES routines(id) ON DELETE CASCADE,
+  judge_player_id   uuid NOT NULL REFERENCES players(id) ON DELETE RESTRICT,
+  category_type     text NOT NULL,
+  baseline_estimate numeric NOT NULL,
+  adjust_percent    numeric NOT NULL,
+  score             numeric NOT NULL,
+  settings          jsonb NOT NULL,
+  source            text NOT NULL,
+  changed_by_user   uuid,
+  client_ip         text,
+  -- clock_timestamp, not now(): versions written in one transaction still sort in order.
+  changed_at        timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+CREATE INDEX IF NOT EXISTS idx_fpa2027_score_history_key
+  ON fpa2027_judge_score_history(routine_id, judge_player_id, category_type, changed_at);
+
 -- Counts of each note type per routine, judge and category, straight from the notes.
 CREATE OR REPLACE VIEW fpa2027_judge_note_counts AS
   SELECT routine_id, player_id AS judge_player_id, category_type, note_type, count(*) AS n,

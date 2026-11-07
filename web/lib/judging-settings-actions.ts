@@ -18,8 +18,8 @@ export async function saveSettings(
   rulesId: string,
   values: unknown
 ): Promise<SettingsActionResult & { rescored?: number }> {
-  await guard();
-  return saveEventSettings(eventId, rulesId, values);
+  const { userId } = await guard();
+  return saveEventSettings(eventId, rulesId, values, userId);
 }
 
 // Saves the values into the event and into its event preset.
@@ -28,15 +28,15 @@ export async function saveEventPreset(
   rulesId: string,
   values: unknown
 ): Promise<SettingsActionResult & { rescored?: number }> {
-  await guard();
-  return updateEventPreset(eventId, rulesId, values);
+  const { userId } = await guard();
+  return updateEventPreset(eventId, rulesId, values, userId);
 }
 
 // The head judge chose the event in the Events tab: its event presets are
 // loaded back into it.
 export async function chooseHeadJudgeEvent(eventId: string): Promise<SettingsActionResult> {
-  await guard();
-  await loadEventPresets(eventId);
+  const { userId } = await guard();
+  await loadEventPresets(eventId, userId);
   return { error: null };
 }
 
