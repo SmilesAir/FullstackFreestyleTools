@@ -8,6 +8,11 @@
 
 import type { PaymentSettings } from './registration-payment';
 
+// The player form's tabs, as ?tab= and the embed's tab message name them.
+export const FORM_TABS = ['register', 'pay', 'donate', 'players'] as const;
+export type FormTab = (typeof FORM_TABS)[number];
+export const isFormTab = (v: unknown): v is FormTab => FORM_TABS.includes(v as FormTab);
+
 export const QUESTION_TYPES = [
   'text',
   'longtext',

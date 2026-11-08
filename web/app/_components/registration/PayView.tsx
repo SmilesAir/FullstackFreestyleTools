@@ -8,15 +8,14 @@ import type { PublicForm } from '@/lib/registration';
 import type { Registration } from '@/lib/registration-queries';
 import {
   currenciesInUse,
+  amountFor,
   formatMoney,
-  methodAmount,
   packagePrices,
   paymentNote,
   paypalLink,
   revolutLink,
   venmoLink,
   type PaymentMethod,
-  type PaymentPackage,
 } from '@/lib/registration-payment';
 
 // The form's Pay tab: pick a package, then each way to pay with the amount for it and
@@ -97,7 +96,7 @@ export function PayView({
           <div className="flex flex-col gap-3">
             {packages.length > 0 && !pkg && <p className="text-sm text-[var(--muted)]">{tr.pickPackage}</p>}
             {methods.map((m) => (
-              <MethodCard key={m.id} method={m} pkg={pkg} note={note} />
+              <MethodCard key={m.id} method={m} price={pkg?.prices[m.currency] ?? null} note={note} />
             ))}
             <p className="text-xs text-[var(--muted)]">{tr.addNote}</p>
           </div>
@@ -107,10 +106,12 @@ export function PayView({
   );
 }
 
-function MethodCard({ method: m, pkg, note }: { method: PaymentMethod; pkg: PaymentPackage | null; note: string }) {
+// One way to pay, with the amount to send for a price in its currency (PayPal's fee added)
+// and the note; also used by the Donate tab.
+export function MethodCard({ method: m, price, note }: { method: PaymentMethod; price: number | null; note: string }) {
   const tr = useT().eventRegistration;
   const intl = INTL_LOCALE[useLocale()];
-  const due = methodAmount(m, pkg);
+  const due = amountFor(m, price);
   const money = (n: number) => formatMoney(intl, n, m.currency);
   const linkButton = 'inline-block rounded bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:brightness-110';
 

@@ -11,9 +11,11 @@ import {
   METHOD_TYPES,
   cleanPayment,
   currenciesInUse,
+  isWholeUnits,
   newMethod,
   newPaymentId,
   type MethodType,
+  type PaymentDonations,
   type PaymentMethod,
   type PaymentPackage,
   type PaymentSettings,
@@ -31,17 +33,29 @@ const moveItem = <T,>(list: T[], index: number, by: number) => {
   return next;
 };
 
+// Suggested donation amounts as staff type them, "10, 25, 50" ("50.000, 100.000" in COP).
+const parseAmounts = (text: string, currency: string) =>
+  text
+    .split(/[,;\s]+/)
+    .map((v) => Number(isWholeUnits(currency) ? v.replace(/\./g, '') : v))
+    .filter((n) => Number.isFinite(n) && n > 0);
+
 // The Payment tab: the packages players pick from, the ways to pay (in the order players
-// see them), and a preview of the form's Pay tab.
+// see them), donations, and a preview of the form's Pay and Donate tabs.
 export function PaymentEditor({ form }: { form: PublicForm }) {
   const tr = useT().eventRegistration;
   const router = useRouter();
   const [packages, setPackages] = useState<PaymentPackage[]>(form.payment.packages);
   const [methods, setMethods] = useState<PaymentMethod[]>(form.payment.methods);
+  const [donations, setDonations] = useState<PaymentDonations>(form.payment.donations);
+  // The suggested amounts as typed, per currency (parsed into donations as they change).
+  const [amountText, setAmountText] = useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(form.payment.donations.amounts).map(([c, list]) => [c, list.join(', ')]))
+  );
   const [savedJson, setSavedJson] = useState(() => JSON.stringify(form.payment));
   const [message, setMessage] = useState<{ error: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
-  const payment: PaymentSettings = useMemo(() => ({ packages, methods }), [packages, methods]);
+  const payment: PaymentSettings = useMemo(() => ({ packages, methods, donations }), [packages, methods, donations]);
   const dirty = JSON.stringify(payment) !== savedJson;
   const currencies = currenciesInUse(methods);
 
@@ -63,6 +77,7 @@ export function PaymentEditor({ form }: { form: PublicForm }) {
       setSavedJson(JSON.stringify(cleanPayment(payment)));
       setPackages((ps) => cleanPayment({ packages: ps, methods: [] }).packages);
       setMethods((ms) => cleanPayment({ packages: [], methods: ms }).methods);
+      setDonations(cleanPayment(payment).donations);
       setMessage({ error: false, text: tr.saved });
       router.refresh();
     });
@@ -174,6 +189,57 @@ export function PaymentEditor({ form }: { form: PublicForm }) {
           >
             {tr.addPackage}
           </button>
+        </section>
+
+        <section className="flex flex-col gap-3">
+          <h2 className="text-sm font-semibold">{tr.donations}</h2>
+          <p className="-mt-2 text-xs text-gray-500">{tr.donationsHelp}</p>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={donations.enabled} onChange={(e) => setDonations((d) => ({ ...d, enabled: e.target.checked }))} />
+            {tr.acceptDonations}
+          </label>
+          {donations.enabled && methods.length === 0 && <p className="text-xs text-amber-700">{tr.donationsNeedMethods}</p>}
+          {donations.enabled && (
+            <div className="flex flex-col gap-3 rounded border border-gray-200 p-3">
+              <label className="flex flex-col gap-1 text-xs text-gray-600">
+                {tr.donationIntro}
+                <textarea
+                  value={donations.intro}
+                  onChange={(e) => setDonations((d) => ({ ...d, intro: e.target.value }))}
+                  placeholder={tr.donateIntro}
+                  rows={2}
+                  className={`${input} text-xs`}
+                  maxLength={1000}
+                />
+              </label>
+              <div className="flex flex-wrap gap-3">
+                {currencies.map((c) => (
+                  <label key={c} className="flex flex-col gap-1 text-xs text-gray-600">
+                    {tr.suggestedAmounts(c)}
+                    <input
+                      value={amountText[c] ?? ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setAmountText((t) => ({ ...t, [c]: value }));
+                        setDonations((d) => {
+                          const amounts = { ...d.amounts };
+                          const list = parseAmounts(value, c);
+                          if (list.length) amounts[c] = list;
+                          else delete amounts[c];
+                          return { ...d, amounts };
+                        });
+                      }}
+                      placeholder={c === 'COP' ? '20000, 50000, 100000' : '10, 25, 50'}
+                      inputMode="decimal"
+                      className="w-48 rounded border border-gray-300 px-2 py-1.5 text-sm"
+                      maxLength={100}
+                    />
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500">{tr.suggestedAmountsHelp}</p>
+            </div>
+          )}
         </section>
 
         <div className="sticky bottom-0 flex flex-wrap items-center gap-3 border-t border-gray-200 bg-background py-3">

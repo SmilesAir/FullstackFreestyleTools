@@ -12,6 +12,7 @@ export const CURRENCIES = ['USD', 'EUR', 'GBP', 'COP', 'CAD', 'MXN', 'AUD', 'CHF
 export const FIXED_CURRENCY: Partial<Record<MethodType, string>> = { venmo: 'USD', bank_co: 'COP' };
 // Paid in whole units (no cents).
 const WHOLE_UNITS = new Set(['COP']);
+export const isWholeUnits = (currency: string) => WHOLE_UNITS.has(currency);
 
 export const ID_TYPES = ['CC', 'CE', 'NIT', 'PP'] as const;
 
@@ -39,11 +40,21 @@ export type PaymentMethod = {
 // A registration tier, priced in each currency the methods use.
 export type PaymentPackage = { id: string; name: string; description: string; prices: Record<string, number> };
 
-export type PaymentSettings = { packages: PaymentPackage[]; methods: PaymentMethod[] };
+// Donations, in the form's Donate tab: open to anyone (no sign-in) and not recorded, paid
+// with the same ways to pay. amounts: the suggested amounts per currency (donors can also
+// type their own).
+export type PaymentDonations = { enabled: boolean; intro: string; amounts: Record<string, number[]> };
 
-export const EMPTY_PAYMENT: PaymentSettings = { packages: [], methods: [] };
+export type PaymentSettings = { packages: PaymentPackage[]; methods: PaymentMethod[]; donations: PaymentDonations };
 
+export const EMPTY_DONATIONS: PaymentDonations = { enabled: false, intro: '', amounts: {} };
+export const EMPTY_PAYMENT: PaymentSettings = { packages: [], methods: [], donations: EMPTY_DONATIONS };
+
+// Whether the form has a Pay tab (packages or ways to pay) and a Donate tab.
 export const hasPayment = (p: PaymentSettings) => p.packages.length > 0 || p.methods.length > 0;
+export const canDonate = (p: PaymentSettings) => p.donations.enabled && p.methods.length > 0;
+
+const MAX_SUGGESTED = 6;
 
 export const newPaymentId = () => Math.random().toString(36).slice(2, 10);
 
@@ -123,7 +134,19 @@ export function cleanPayment(raw: unknown): PaymentSettings {
       instructions: text(o.instructions, 1000),
     });
   }
-  return { packages, methods };
+  return { packages, methods, donations: cleanDonations(r.donations) };
+}
+
+function cleanDonations(raw: unknown): PaymentDonations {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const rawAmounts = (o.amounts && typeof o.amounts === 'object' ? o.amounts : {}) as Record<string, unknown>;
+  const amounts: Record<string, number[]> = {};
+  for (const c of CURRENCIES) {
+    const list = Array.isArray(rawAmounts[c]) ? (rawAmounts[c] as unknown[]) : [];
+    const clean = [...new Set(list.map((v) => num(v, 1e9)).filter((n) => n > 0))].slice(0, MAX_SUGGESTED);
+    if (clean.length) amounts[c] = clean;
+  }
+  return { enabled: o.enabled === true, intro: text(o.intro, 1000), amounts };
 }
 
 // Whether a method is missing what players need to pay with it.
@@ -147,16 +170,17 @@ export function currenciesInUse(methods: PaymentMethod[]): string[] {
 
 const roundUp = (n: number, currency: string) => (WHOLE_UNITS.has(currency) ? Math.ceil(n) : Math.ceil(n * 100 - 1e-6) / 100);
 
-// What to send with a method for a package: its price in the method's currency, plus
-// PayPal's fee on top ((price + fixed) / (1 - percent), so the fee leaves the whole price).
-// Null when the package has no price in that currency.
-export function methodAmount(m: PaymentMethod, pkg: PaymentPackage | null): { amount: number; fee: number } | null {
-  const price = pkg?.prices[m.currency];
-  if (!price) return null;
+// What to send with a method for a price in its currency, plus PayPal's fee on top
+// ((price + fixed) / (1 - percent), so the fee leaves the whole price). Null without a price.
+export function amountFor(m: PaymentMethod, price: number | null | undefined): { amount: number; fee: number } | null {
+  if (!price || price <= 0) return null;
   if (m.type !== 'paypal' || (!m.feePercent && !m.feeFixed)) return { amount: roundUp(price, m.currency), fee: 0 };
   const amount = roundUp((price + m.feeFixed) / (1 - m.feePercent / 100), m.currency);
   return { amount, fee: Math.round((amount - price) * 100) / 100 };
 }
+
+// The same for a package: its price in the method's currency (null when it has none).
+export const methodAmount = (m: PaymentMethod, pkg: PaymentPackage | null) => amountFor(m, pkg?.prices[m.currency]);
 
 // The note sent with a payment, naming what it's for: "Worlds 2027 · Ann Lee · Full package".
 export const paymentNote = (event: string, player: string, pkg: string | null) => [event, player, pkg].filter(Boolean).join(' · ');

@@ -643,7 +643,8 @@ CREATE INDEX IF NOT EXISTS idx_registrations_form_id ON registrations(form_id);
 -- to pay, shown in the form's Pay tab. Payment goes straight to the organizers (Venmo,
 -- Revolut, bank transfer, PayPal); the app only shows the details, amounts and notes.
 -- payment: {packages: [{id, name, description, prices: {USD: 120, COP: 450000}}],
---           methods: [{id, type, currency, username, ..., feePercent, feeFixed, instructions}]}
+--           methods: [{id, type, currency, username, ..., feePercent, feeFixed, instructions}],
+--           donations: {enabled, intro, amounts: {USD: [10, 25, 50]}}}  (the Donate tab: no sign-in, nothing recorded)
 ALTER TABLE registration_forms ADD COLUMN IF NOT EXISTS payment jsonb NOT NULL DEFAULT '{}';
 -- The package the player picked in the Pay tab (or staff set), by its id in the form's
 -- payment; package_name as it was then, so one renamed or removed later still reads right.

@@ -320,6 +320,7 @@ A tournament's site shows the form from Event Registration's Embed tab: an ifram
 - **Framing**: `/embed/*` and `/register/<form>` send `Content-Security-Policy: frame-ancestors *` (`web/next.config.ts`); nothing sends `X-Frame-Options`.
 - **Fallback**: "Or register in a new tab" opens `/register/<form>` as a normal page. A pop-up blocker turns the sign-in window into a tab, and the embed still collects the sign-in. `/register/<form>` put in an iframe by mistake signs in the same way as the embed.
 - **Height**: the embed posts `{ type: "fft-registration-height", formId, height }` to the parent page; the snippet only accepts it from this site's origin.
+- **Tabs and donations**: `?tab=pay|donate|players` (on the embed or `/register/<form>`) opens on that tab. The Donate tab (Payment tab → Accept donations) needs no sign-in and records nothing: suggested amounts or the donor's own, then the ways to pay with a "· Donation" note. The parent page can switch tabs by posting `{ type: "fft-registration-tab", formId, tab }` to the iframe; the snippet does this for `#donate` / `#pay` / `#register` in the page address and for `fftRegistrationTab('donate')`, so a Donate button can be `<a href="#donate">`.
 
 # Running a local server at an event
 

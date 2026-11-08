@@ -6,7 +6,8 @@ import { useT } from '@/lib/i18n/client';
 import { LOCALES, LOCALE_NAMES, type Locale } from '@/lib/i18n/locales';
 import { cleanStyle, type FormStyle, type PublicForm } from '@/lib/registration';
 import { saveStyle, type MyRegistrationState } from '@/lib/registration-actions';
-import { HEIGHT_MESSAGE, RegistrationForm } from '@/app/_components/registration/RegistrationForm';
+import { canDonate, hasPayment } from '@/lib/registration-payment';
+import { HEIGHT_MESSAGE, RegistrationForm, TAB_MESSAGE } from '@/app/_components/registration/RegistrationForm';
 
 const noSubscribe = () => () => {};
 
@@ -18,6 +19,7 @@ export function EmbedCode({ form }: { form: PublicForm }) {
   const [savedStyle, setSavedStyle] = useState(JSON.stringify(form.style));
   const [lang, setLang] = useState<Locale | ''>('');
   const [kind, setKind] = useState<'iframe' | 'link'>('iframe');
+  const [openOn, setOpenOn] = useState<'register' | 'pay' | 'donate'>('register');
   const [signedInPreview, setSignedInPreview] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,20 +47,46 @@ export function EmbedCode({ form }: { form: PublicForm }) {
       router.refresh();
     });
 
-  const query = lang ? `?lang=${lang}` : '';
-  const embedUrl = `${origin}/embed/register/${form.id}${query}`;
-  const pageUrl = `${origin}/register/${form.id}`;
+  // The tabs the form can open on, and the tab the code opens it on.
+  const openTabs = (['register', 'pay', 'donate'] as const).filter(
+    (t) => t === 'register' || (t === 'pay' ? hasPayment(form.payment) : canDonate(form.payment))
+  );
+  const tab = openTabs.includes(openOn) ? openOn : 'register';
+  const params = (entries: [string, string][]) => {
+    const q = new URLSearchParams(entries.filter(([, v]) => v)).toString();
+    return q ? `?${q}` : '';
+  };
+  const embedUrl = `${origin}/embed/register/${form.id}${params([['lang', lang], ['tab', tab === 'register' ? '' : tab]])}`;
+  const pageUrl = `${origin}/register/${form.id}${params([['tab', tab === 'register' ? '' : tab]])}`;
   const frameId = `fft-registration-${form.id.slice(0, 8)}`;
   const code =
     kind === 'link'
       ? pageUrl
       : `<iframe id="${frameId}" src="${embedUrl}" title="${(form.title || form.eventName).replace(/"/g, '&quot;')}" style="width:100%;max-width:680px;height:640px;border:0;" allow="clipboard-write" loading="lazy"></iframe>
 <script>
-  // Sizes the form to fit as it changes.
-  window.addEventListener('message', function (e) {
-    if (e.origin !== '${origin}' || !e.data || e.data.type !== '${HEIGHT_MESSAGE}' || e.data.formId !== '${form.id}') return;
-    document.getElementById('${frameId}').style.height = e.data.height + 'px';
-  });
+  (function () {
+    var frame = document.getElementById('${frameId}'), ready = false;
+    // Opens a tab of the form: fftRegistrationTab('donate'), or a link to #donate, #pay or #register.
+    function show(tab) {
+      frame.contentWindow.postMessage({ type: '${TAB_MESSAGE}', formId: '${form.id}', tab: tab }, '${origin}');
+      frame.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    function fromHash() {
+      var tab = location.hash.slice(1);
+      if (tab === 'donate' || tab === 'pay' || tab === 'register') show(tab);
+    }
+    window.fftRegistrationTab = show;
+    window.addEventListener('hashchange', fromHash);
+    // Sizes the form to fit as it changes (and, once it has loaded, opens the tab in the address).
+    window.addEventListener('message', function (e) {
+      if (e.origin !== '${origin}' || !e.data || e.data.type !== '${HEIGHT_MESSAGE}' || e.data.formId !== '${form.id}') return;
+      frame.style.height = e.data.height + 'px';
+      if (!ready) {
+        ready = true;
+        fromHash();
+      }
+    });
+  })();
 </script>`;
 
   const copy = async () => {
@@ -146,6 +174,18 @@ export function EmbedCode({ form }: { form: PublicForm }) {
                 ))}
               </div>
             </div>
+            {openTabs.length > 1 && (
+              <label className={label}>
+                <span>{tr.opensOn}</span>
+                <select value={tab} onChange={(e) => setOpenOn(e.target.value as typeof openOn)} className="rounded border border-gray-300 px-2 py-1 text-sm">
+                  {openTabs.map((t) => (
+                    <option key={t} value={t}>
+                      {tr.formTabs[t]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {kind === 'iframe' && (
               <label className={label}>
                 <span>{tr.language}</span>
@@ -161,6 +201,7 @@ export function EmbedCode({ form }: { form: PublicForm }) {
             )}
           </div>
           <p className="text-xs text-gray-500">{kind === 'iframe' ? tr.iframeHelp : tr.linkHelp}</p>
+          {kind === 'iframe' && canDonate(form.payment) && <p className="text-xs text-gray-500">{tr.donateButtonHelp}</p>}
           <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs">
             <code>{origin ? code : ''}</code>
           </pre>

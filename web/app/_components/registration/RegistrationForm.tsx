@@ -10,15 +10,18 @@ import {
   eventDays,
   teammateSlots,
   teammatesKey,
+  isFormTab,
   type Answers,
   type AnswerValue,
+  type FormTab,
   type PublicForm,
   type Question,
   type RosterDivision,
 } from '@/lib/registration';
 import type { PlayerOption } from '@/lib/registration-queries';
-import { hasPayment } from '@/lib/registration-payment';
+import { canDonate, hasPayment } from '@/lib/registration-payment';
 import { PayView } from './PayView';
+import { DonateView } from './DonateView';
 import {
   choosePackage,
   collectHandoff,
@@ -33,6 +36,9 @@ import {
 // What the embed tells the page around it: its height, so the embed code can size
 // the iframe to fit (see the Event Registration tool's Embed tab).
 export const HEIGHT_MESSAGE = 'fft-registration-height';
+// What the page around the embed can send it: a tab to show ({type, formId, tab}), so a
+// Donate button on the tournament's site can open the Donate tab.
+export const TAB_MESSAGE = 'fft-registration-tab';
 const tokenKey = (formId: string) => `registration-token-${formId}`;
 const POLL_MS = 2000;
 const POLL_FOR_MS = 10 * 60 * 1000;
@@ -50,8 +56,9 @@ const inFrame = () => window.self !== window.top;
 // - page: this site's /register/<form> page, signed in by cookie
 // - preview: the staff tool's live preview, shown as if signed in; never sent
 // Tabs: Register; Pay when the form has packages or ways to pay (opened after
-// registering); Players & teams with a roster (not in the preview).
-type FormTab = 'register' | 'pay' | 'players';
+// registering); Donate when it takes donations (anyone, signed in or not); Players &
+// teams with a roster (not in the preview).
+
 
 export function RegistrationForm({
   form,
@@ -85,10 +92,18 @@ export function RegistrationForm({
   // /register/<form> when someone has put that page in an iframe.
   const framed = useSyncExternalStore(noSubscribe, inFrame, () => false);
   const popupSignIn = mode === 'embed' || (mode === 'page' && framed);
-  const [tab, setTab] = useState<FormTab>(initialTab);
+  const [chosenTab, setTab] = useState<FormTab>(initialTab);
   const [roster, setRoster] = useState(initialRoster ?? null);
   const payable = hasPayment(form.payment);
-  const tabs: FormTab[] = ['register', ...(payable ? (['pay'] as const) : []), ...(roster ? (['players'] as const) : [])];
+  const donatable = canDonate(form.payment);
+  const tabs: FormTab[] = [
+    'register',
+    ...(payable ? (['pay'] as const) : []),
+    ...(donatable ? (['donate'] as const) : []),
+    ...(roster ? (['players'] as const) : []),
+  ];
+  // A tab the form doesn't have (?tab=donate with donations off) shows Register.
+  const tab = tabs.includes(chosenTab) ? chosenTab : 'register';
   // The package picked in the Pay tab: the registration's, else one picked here (before
   // registering, or in the preview), else the only one there is.
   const [pickedPackage, setPickedPackage] = useState<string | null>(null);
@@ -168,6 +183,20 @@ export function RegistrationForm({
     send();
     return () => observer.disconnect();
   }, [popupSignIn, form.id]);
+
+  // The page around the embed asking for a tab (its Donate button, a #donate link).
+  useEffect(() => {
+    if (!popupSignIn || window.parent === window) return;
+    const onMessage = (e: MessageEvent) => {
+      if (e.source !== window.parent || !e.data || e.data.type !== TAB_MESSAGE || e.data.formId !== form.id) return;
+      if (isFormTab(e.data.tab)) {
+        setTab(e.data.tab);
+        if (e.data.tab === 'players') refreshRoster();
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [popupSignIn, form.id, refreshRoster]);
 
   const openSignIn = () => {
     const bytes = crypto.getRandomValues(new Uint8Array(24));
@@ -287,7 +316,7 @@ export function RegistrationForm({
                 tab === id ? 'border-[var(--accent)] font-semibold' : 'border-transparent text-[var(--muted)] hover:text-inherit'
               }`}
             >
-              {id === 'register' ? tr.tabRegister : id === 'pay' ? tr.tabPay : tr.tabPlayers(countPlayers(roster ?? []))}
+              {id === 'register' ? tr.tabRegister : id === 'pay' ? tr.tabPay : id === 'donate' ? tr.tabDonate : tr.tabPlayers(countPlayers(roster ?? []))}
             </button>
           ))}
         </div>
@@ -295,7 +324,9 @@ export function RegistrationForm({
 
       {roster && tab === 'players' ? (
         <RosterView roster={roster} />
-      ) : payable && tab === 'pay' ? (
+      ) : tab === 'donate' ? (
+        <DonateView form={form} defaultName={registration?.name || state.registrant?.name || ''} />
+      ) : tab === 'pay' ? (
         <PayView
           form={form}
           registration={registration}
