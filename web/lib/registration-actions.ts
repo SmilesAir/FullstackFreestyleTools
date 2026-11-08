@@ -21,6 +21,7 @@ import {
   type RosterDivision,
   type TeammateInvite,
 } from './registration';
+import { cleanPayment, methodIncomplete, type PaymentSettings } from './registration-payment';
 import {
   claimHandoff,
   getForm,
@@ -96,6 +97,47 @@ export async function saveStyle(formId: string, style: FormStyle): Promise<Actio
     JSON.stringify(cleanStyle(style)),
   ]);
   if (!result.rowCount) return { error: (await getT()).eventRegistration.formNotFound };
+  revalidatePath('/event-registration');
+  return { error: null };
+}
+
+// The Payment tab: packages and ways to pay.
+export async function savePayment(formId: string, payment: PaymentSettings): Promise<ActionResult> {
+  const staff = await staffOnly();
+  if ('error' in staff) return staff;
+  if (!isUuid(formId)) return { error: 'Bad form' };
+  const t = (await getT()).eventRegistration;
+  const clean = cleanPayment(payment);
+  if (clean.packages.some((p) => !p.name)) return { error: t.packageNeedsName };
+  const incomplete = clean.methods.find(methodIncomplete);
+  if (incomplete) return { error: t.methodNeedsDetails(t.methodNames[incomplete.type]) };
+  const result = await pool.query('UPDATE registration_forms SET payment = $2, updated_at = now() WHERE id = $1', [formId, JSON.stringify(clean)]);
+  if (!result.rowCount) return { error: t.formNotFound };
+  revalidatePath('/event-registration');
+  return { error: null };
+}
+
+// Sets (or, with '', clears) the package a registration is for, by its id in the form.
+async function writePackage(formId: string, where: string, params: unknown[], packageId: string): Promise<number> {
+  const form = await getForm(formId);
+  const pkg = form?.payment.packages.find((p) => p.id === packageId) ?? null;
+  if (!form || (packageId && !pkg)) return 0;
+  const result = await pool.query(
+    `UPDATE registrations SET package_id = $1, package_name = $2, updated_at = now() WHERE form_id = $3 AND ${where}`,
+    [pkg?.id ?? null, pkg?.name ?? '', form.id, ...params]
+  );
+  return result.rowCount ?? 0;
+}
+
+// Staff set the package bought (Registrations tab), paid or not.
+export async function setPackage(registrationId: string, packageId: string): Promise<ActionResult> {
+  const staff = await staffOnly();
+  if ('error' in staff) return staff;
+  if (!isUuid(registrationId)) return { error: 'Bad registration' };
+  const { rows } = await pool.query<{ form_id: string }>('SELECT form_id FROM registrations WHERE id = $1', [registrationId]);
+  if (!rows[0] || !(await writePackage(rows[0].form_id, 'id = $4', [registrationId], String(packageId ?? '')))) {
+    return { error: (await getT()).eventRegistration.formNotFound };
+  }
   revalidatePath('/event-registration');
   return { error: null };
 }
@@ -245,8 +287,25 @@ export async function submitRegistration(
            email = EXCLUDED.email, updated_at = now()`,
     [form.id, userId, registrant.playerId, registrant.name, registrant.email, JSON.stringify(answers)]
   );
+  // With a single package there's nothing to pick: it's theirs.
+  if (form.payment.packages.length === 1) {
+    await writePackage(form.id, 'user_id = $4 AND package_id IS NULL', [userId], form.payment.packages[0].id);
+  }
   revalidatePath('/event-registration');
   return { error: null, registration: await getMyRegistration(form.id, userId) };
+}
+
+// The Pay tab: the player picks their package. Not once staff have marked them paid
+// (then the organizers change it); allowed after the form closes, to pay late.
+export async function choosePackage(formId: string, token: string | null, packageId: string, locale?: string): Promise<SubmitResult> {
+  const t = await formText(locale);
+  const userId = isUuid(formId) ? await caller(formId, token) : null;
+  if (!userId) return { error: t.signInToRegister };
+  const changed = await writePackage(formId, 'user_id = $4 AND NOT paid', [userId], String(packageId ?? ''));
+  const registration = await getMyRegistration(formId, userId);
+  if (!changed) return { error: registration?.paid ? t.packageLocked : t.formNotFound, registration };
+  revalidatePath('/event-registration');
+  return { error: null, registration };
 }
 
 // A player takes back their own registration, until staff have marked it paid.

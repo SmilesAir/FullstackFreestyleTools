@@ -6,10 +6,11 @@ import { EventPicker } from './_components/EventPicker';
 import { FormBuilder } from './_components/FormBuilder';
 import { RegistrationsTable } from './_components/RegistrationsTable';
 import { EmbedCode } from './_components/EmbedCode';
+import { PaymentEditor } from './_components/PaymentEditor';
 
 export const dynamic = 'force-dynamic';
 
-const TABS = ['form', 'embed', 'registrations'] as const;
+const TABS = ['form', 'payment', 'embed', 'registrations'] as const;
 type TabId = (typeof TABS)[number];
 
 // Event Registration: pick an event, build its sign-up form from the questions on
@@ -58,6 +59,12 @@ export default async function EventRegistrationPage({ searchParams }: PageProps<
             initialActive={activeTab}
             tabs={[
               { id: 'form', label: tr.tabForm, href: href('form'), content: <FormBuilder key={loaded.form.eventId} form={loaded.form} saved={loaded.saved} /> },
+              {
+                id: 'payment',
+                label: tr.tabPayment,
+                href: href('payment'),
+                content: loaded.saved ? <PaymentEditor key={loaded.form.id} form={loaded.form} /> : saveFirst,
+              },
               { id: 'embed', label: tr.tabEmbed, href: href('embed'), content: loaded.saved ? <EmbedCode form={loaded.form} /> : saveFirst },
               {
                 id: 'registrations',

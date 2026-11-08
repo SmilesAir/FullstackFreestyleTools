@@ -6,6 +6,8 @@
 //   when the form also has a `divisions` question)
 // - meals: once for each day of the event, ticking options such as Lunch / Dinner
 
+import type { PaymentSettings } from './registration-payment';
+
 export const QUESTION_TYPES = [
   'text',
   'longtext',
@@ -55,6 +57,7 @@ export type PublicForm = {
   isOpen: boolean;
   questions: Question[];
   style: FormStyle;
+  payment: PaymentSettings; // the Pay tab: packages and ways to pay
   divisions: FormDivision[];
 };
 

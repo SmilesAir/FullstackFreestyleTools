@@ -639,6 +639,17 @@ CREATE TABLE IF NOT EXISTS registrations (
 );
 CREATE INDEX IF NOT EXISTS idx_registrations_form_id ON registrations(form_id);
 
+-- Payments (web/lib/registration-payment.ts): the packages players pick from and the ways
+-- to pay, shown in the form's Pay tab. Payment goes straight to the organizers (Venmo,
+-- Revolut, bank transfer, PayPal); the app only shows the details, amounts and notes.
+-- payment: {packages: [{id, name, description, prices: {USD: 120, COP: 450000}}],
+--           methods: [{id, type, currency, username, ..., feePercent, feeFixed, instructions}]}
+ALTER TABLE registration_forms ADD COLUMN IF NOT EXISTS payment jsonb NOT NULL DEFAULT '{}';
+-- The package the player picked in the Pay tab (or staff set), by its id in the form's
+-- payment; package_name as it was then, so one renamed or removed later still reads right.
+ALTER TABLE registrations ADD COLUMN IF NOT EXISTS package_id text;
+ALTER TABLE registrations ADD COLUMN IF NOT EXISTS package_name text NOT NULL DEFAULT '';
+
 -- The embed's sign-in hand-off (web/lib/registration-queries.ts): the embed makes a random
 -- code and opens /register/<form>/connect?n=<code>; once the player has signed in there and
 -- pressed Continue, a row here names their account, and the embed collects it as a token.

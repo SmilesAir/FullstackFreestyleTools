@@ -188,6 +188,7 @@ One row per player per rankings
 | is_open    | boolean     | Players can register / change answers only while open (default false) |
 | questions  | jsonb       | Ordered questions `{id, type, label, help, required, options}` (types in `web/lib/registration.ts`) |
 | style      | jsonb       | The embed's look: `{accent, theme, buttonText, showEventInfo}` |
+| payment    | jsonb       | The form's Pay tab: `{packages: [{id, name, description, prices: {USD, COP, …}}], methods: [{id, type, currency, …}]}` in the order players see them; types venmo, revolut, bank_co, paypal (`web/lib/registration-payment.ts`). Paid directly to the organizers: the app only shows details, amounts and notes |
 | created_at, updated_at | timestamptz | |
 
 **Registrations table** (one signed-in account's registration for a form)
@@ -203,6 +204,7 @@ One row per player per rankings
 | paid         | boolean     | Marked by hand by staff in Event Registration                 |
 | paid_at, paid_by | timestamptz, uuid | When and by whom it was first marked paid           |
 | payment_note | text        | Staff's note (e.g. PayPal / Revolut reference)                |
+| package_id, package_name | text, text | The package picked in the Pay tab (or set by staff): its id in the form's payment, and its name as it was then |
 | created_at, updated_at | timestamptz | |
 
 **Registration handoffs table** (the embed's sign-in: a random code the embed opens `/register/<form>/connect?n=<code>` with; once the player signs in and presses Continue it names their account, and the embed collects it as a signed token. Good for 10 minutes (it can be collected again in that time, in case a reply is lost), not backed up)

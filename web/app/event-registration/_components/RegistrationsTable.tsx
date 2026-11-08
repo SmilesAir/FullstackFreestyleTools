@@ -6,7 +6,9 @@ import { useLocale, useT } from '@/lib/i18n/client';
 import { formatDay, formatShortDateTime } from '@/lib/i18n/format';
 import { answerText, eventDays, type PublicForm } from '@/lib/registration';
 import type { Registration } from '@/lib/registration-queries';
-import { removeRegistration, setPaid } from '@/lib/registration-actions';
+import { removeRegistration, setPackage, setPaid } from '@/lib/registration-actions';
+import { currenciesInUse, packagePrices } from '@/lib/registration-payment';
+import { INTL_LOCALE } from '@/lib/i18n/locales';
 
 type Filter = 'all' | 'paid' | 'unpaid';
 
@@ -65,16 +67,26 @@ export function RegistrationsTable({
           ),
         })),
       }));
-    return { perDivision, meals };
-  }, [form, registrations]);
+    // By package name as registered (a package since removed still counts), the form's own first.
+    const names = [...new Set([...form.payment.packages.map((p) => p.name), ...registrations.map((r) => r.packageName).filter(Boolean)])];
+    const perPackage = form.payment.packages.length
+      ? [
+          ...names.map((name) => ({ name, count: registrations.filter((r) => r.packageName === name).length })),
+          { name: tr.noPackage, count: registrations.filter((r) => !r.packageName).length },
+        ].filter((p) => p.count > 0)
+      : [];
+    return { perDivision, meals, perPackage };
+  }, [form, registrations, tr.noPackage]);
 
   const downloadCsv = () => {
-    const header = [tr.name, tr.email, ...form.questions.map((q) => q.label), tr.registeredAt, tr.paid, tr.paymentNote];
+    const withPackages = form.payment.packages.length > 0 || registrations.some((r) => r.packageName);
+    const header = [tr.name, tr.email, ...form.questions.map((q) => q.label), tr.registeredAt, ...(withPackages ? [tr.package] : []), tr.paid, tr.paymentNote];
     const rows = registrations.map((r) => [
       r.name,
       r.email ?? '',
       ...form.questions.map((q) => answerText(q, r.answers, form.divisions, words, dayName, playerName)),
       r.createdAt,
+      ...(withPackages ? [r.packageName] : []),
       r.paid ? tr.yes : tr.no,
       r.paymentNote,
     ]);
@@ -142,7 +154,7 @@ export function RegistrationsTable({
             {shown.map((r) => (
               <tr key={r.id} className={r.paid ? '' : 'bg-amber-50/40'}>
                 <td className="px-3 py-2 align-top">
-                  <PaidCell registration={r} />
+                  <PaidCell registration={r} form={form} />
                 </td>
                 <td className="px-3 py-2 align-top">
                   <div className="font-medium">{r.name}</div>
@@ -166,8 +178,23 @@ export function RegistrationsTable({
         </table>
       </div>
 
-      {(totals.perDivision.length > 0 || totals.meals.length > 0) && (
+      {(totals.perDivision.length > 0 || totals.meals.length > 0 || totals.perPackage.length > 0) && (
         <div className="flex flex-wrap gap-8">
+          {totals.perPackage.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <h3 className="text-sm font-semibold">{tr.perPackage}</h3>
+              <table className="text-xs">
+                <tbody>
+                  {totals.perPackage.map((p) => (
+                    <tr key={p.name}>
+                      <td className="py-0.5 pr-4">{p.name}</td>
+                      <td className="text-right font-medium">{p.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           {totals.perDivision.length > 0 && (
             <div className="flex flex-col gap-1">
               <h3 className="text-sm font-semibold">{tr.perDivision}</h3>
@@ -218,14 +245,17 @@ export function RegistrationsTable({
   );
 }
 
-// The Paid tick, with a note (e.g. "PayPal 12 Mar", "Revolut, cash") and who marked it.
-function PaidCell({ registration: r }: { registration: Registration }) {
+// The Paid tick, with the package bought (picked by the player in the Pay tab, or set
+// here), a note (e.g. "PayPal 12 Mar", "Revolut, cash") and who marked it.
+function PaidCell({ registration: r, form }: { registration: Registration; form: PublicForm }) {
   const tr = useT().eventRegistration;
   const locale = useLocale();
   const router = useRouter();
   const [note, setNote] = useState(r.paymentNote);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const packages = form.payment.packages;
+  const current = packages.find((p) => p.id === r.packageId) ?? null;
 
   const save = (paid: boolean, newNote: string) =>
     startTransition(async () => {
@@ -233,9 +263,35 @@ function PaidCell({ registration: r }: { registration: Registration }) {
       setError(result.error);
       router.refresh();
     });
+  const savePackage = (packageId: string) =>
+    startTransition(async () => {
+      const result = await setPackage(r.id, packageId);
+      setError(result.error);
+      router.refresh();
+    });
 
   return (
-    <div className="flex w-44 flex-col gap-1">
+    <div className="flex w-48 flex-col gap-1">
+      {(packages.length > 0 || r.packageName) && (
+        <div className="flex flex-col gap-0.5">
+          <select
+            value={current?.id ?? ''}
+            disabled={pending}
+            onChange={(e) => savePackage(e.target.value)}
+            aria-label={tr.package}
+            className={`rounded border border-gray-200 px-1 py-0.5 ${current || r.packageName ? 'font-medium' : 'text-gray-500'}`}
+          >
+            {/* A package since removed from the form shows by its name until changed. */}
+            <option value="">{!current && r.packageName ? r.packageName : tr.noPackage}</option>
+            {packages.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          {current && <span className="text-gray-500">{packagePrices(INTL_LOCALE[locale], current, currenciesInUse(form.payment.methods))}</span>}
+        </div>
+      )}
       <label className="flex items-center gap-1.5">
         <input type="checkbox" checked={r.paid} disabled={pending} onChange={(e) => save(e.target.checked, note)} />
         <span className={r.paid ? 'font-medium text-green-700' : 'text-amber-700'}>{r.paid ? tr.paid : tr.notPaid}</span>

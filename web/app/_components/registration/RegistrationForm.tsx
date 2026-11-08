@@ -17,7 +17,10 @@ import {
   type RosterDivision,
 } from '@/lib/registration';
 import type { PlayerOption } from '@/lib/registration-queries';
+import { hasPayment } from '@/lib/registration-payment';
+import { PayView } from './PayView';
 import {
+  choosePackage,
   collectHandoff,
   loadMyRegistration,
   loadRoster,
@@ -46,17 +49,22 @@ const inFrame = () => window.self !== window.top;
 //   site (see registration-queries.ts)
 // - page: this site's /register/<form> page, signed in by cookie
 // - preview: the staff tool's live preview, shown as if signed in; never sent
-// With a roster (not in the preview) it has two tabs: Register, and Players & teams.
+// Tabs: Register; Pay when the form has packages or ways to pay (opened after
+// registering); Players & teams with a roster (not in the preview).
+type FormTab = 'register' | 'pay' | 'players';
+
 export function RegistrationForm({
   form,
   initial,
   mode,
   roster: initialRoster,
+  initialTab = 'register',
 }: {
   form: PublicForm;
   initial: MyRegistrationState;
   mode: Mode;
   roster?: RosterDivision[];
+  initialTab?: FormTab;
 }) {
   const t = useT();
   const tr = t.eventRegistration;
@@ -77,8 +85,14 @@ export function RegistrationForm({
   // /register/<form> when someone has put that page in an iframe.
   const framed = useSyncExternalStore(noSubscribe, inFrame, () => false);
   const popupSignIn = mode === 'embed' || (mode === 'page' && framed);
-  const [tab, setTab] = useState<'register' | 'players'>('register');
+  const [tab, setTab] = useState<FormTab>(initialTab);
   const [roster, setRoster] = useState(initialRoster ?? null);
+  const payable = hasPayment(form.payment);
+  const tabs: FormTab[] = ['register', ...(payable ? (['pay'] as const) : []), ...(roster ? (['players'] as const) : [])];
+  // The package picked in the Pay tab: the registration's, else one picked here (before
+  // registering, or in the preview), else the only one there is.
+  const [pickedPackage, setPickedPackage] = useState<string | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
   const refreshRoster = useCallback(() => {
     if (initialRoster) loadRoster(form.id).then(setRoster).catch(() => {});
   }, [form.id, initialRoster]);
@@ -179,8 +193,21 @@ export function RegistrationForm({
       const result = await submitRegistration(form.id, token, answers, locale);
       setMissing(result.missing ?? []);
       if (result.error) return setError(result.error);
+      // Registering (not changing answers) goes on to paying.
+      if (!state.registration && payable && result.registration) setTab('pay');
       showState({ ...state, registration: result.registration ?? null });
       refreshRoster();
+    });
+  };
+
+  const pickPackage = (packageId: string) => {
+    setPickedPackage(packageId);
+    setPayError(null);
+    if (mode === 'preview' || !state.registration) return;
+    startTransition(async () => {
+      const result = await choosePackage(form.id, token, packageId, locale);
+      if (result.error) setPayError(result.error);
+      if (result.registration !== undefined) setState((s) => ({ ...s, registration: result.registration ?? null }));
     });
   };
 
@@ -203,6 +230,13 @@ export function RegistrationForm({
     'inline-block cursor-pointer rounded bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:brightness-110 disabled:cursor-default disabled:opacity-60';
   const quiet = 'cursor-pointer rounded border border-[var(--line)] px-3 py-1.5 text-sm disabled:opacity-60';
   const registration = state.registration;
+  const packages = form.payment.packages;
+  const known = (id: string | null | undefined) => (id && packages.some((p) => p.id === id) ? id : null);
+  const selectedPackage =
+    (registration?.paid ? known(registration.packageId) : null) ??
+    known(pickedPackage) ??
+    known(registration?.packageId) ??
+    (packages.length === 1 ? packages[0].id : null);
   // Players register as the player linked to their account (Profile), so an account
   // with none is asked to link one first.
   const hasPlayer = !!state.registrant?.playerId;
@@ -237,9 +271,9 @@ export function RegistrationForm({
       )}
       {form.intro && <p className="whitespace-pre-line text-sm">{form.intro}</p>}
 
-      {roster && (
+      {tabs.length > 1 && (
         <div role="tablist" className="flex gap-1 border-b border-[var(--line)] text-sm">
-          {(['register', 'players'] as const).map((id) => (
+          {tabs.map((id) => (
             <button
               key={id}
               type="button"
@@ -253,7 +287,7 @@ export function RegistrationForm({
                 tab === id ? 'border-[var(--accent)] font-semibold' : 'border-transparent text-[var(--muted)] hover:text-inherit'
               }`}
             >
-              {id === 'register' ? tr.tabRegister : tr.tabPlayers(countPlayers(roster))}
+              {id === 'register' ? tr.tabRegister : id === 'pay' ? tr.tabPay : tr.tabPlayers(countPlayers(roster ?? []))}
             </button>
           ))}
         </div>
@@ -261,6 +295,17 @@ export function RegistrationForm({
 
       {roster && tab === 'players' ? (
         <RosterView roster={roster} />
+      ) : payable && tab === 'pay' ? (
+        <PayView
+          form={form}
+          registration={registration}
+          playerName={registration?.name || state.registrant?.name || ''}
+          selectedId={selectedPackage}
+          onChoose={pickPackage}
+          onGoRegister={() => setTab('register')}
+          pending={pending}
+          error={payError}
+        />
       ) : (
         <>
       {!form.isOpen && !registration && <p className="text-sm text-[var(--muted)]">{tr.closed}</p>}
@@ -307,8 +352,21 @@ export function RegistrationForm({
           <div className="flex flex-col gap-1 rounded border border-[var(--line)] p-3 text-sm">
             <span className="font-medium">✓ {tr.youAreRegistered(registration.name)}</span>
             <span className="text-[var(--muted)]">{tr.registeredOn(formatDateTime(locale, registration.createdAt))}</span>
+            {registration.packageName && (
+              <span>
+                {tr.packageHeading}: <span className="font-medium">{registration.packageName}</span>
+              </span>
+            )}
             <span className={registration.paid ? 'text-green-600' : 'text-[var(--muted)]'}>
               {registration.paid ? tr.paymentReceived : tr.paymentNotYet}
+              {!registration.paid && payable && (
+                <>
+                  {' '}
+                  <button type="button" onClick={() => setTab('pay')} className="cursor-pointer text-[var(--accent)] underline">
+                    {tr.tabPay}
+                  </button>
+                </>
+              )}
             </span>
           </div>
           {form.isOpen && inviteNotes.length > 0 && (

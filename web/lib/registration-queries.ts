@@ -12,6 +12,7 @@ import {
   type RosterDivision,
   type TeammateInvite,
 } from './registration';
+import { cleanPayment, EMPTY_PAYMENT } from './registration-payment';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isUuid = (s: unknown): s is string => typeof s === 'string' && UUID.test(s);
@@ -79,10 +80,10 @@ async function loadForm(column: 'f.id' | 'f.event_id', value: string): Promise<P
   if (!isUuid(value)) return null;
   const { rows } = await pool.query<{
     id: string; event_id: string; event_name: string; start_date: string; end_date: string;
-    title: string; intro: string; is_open: boolean; questions: unknown; style: unknown;
+    title: string; intro: string; is_open: boolean; questions: unknown; style: unknown; payment: unknown;
   }>(
     `SELECT f.id, f.event_id, e.event_name, e.start_date::text, e.end_date::text,
-            f.title, f.intro, f.is_open, f.questions, f.style
+            f.title, f.intro, f.is_open, f.questions, f.style, f.payment
      FROM registration_forms f JOIN events e ON e.id = f.event_id
      WHERE ${column} = $1`,
     [value]
@@ -104,6 +105,7 @@ async function loadForm(column: 'f.id' | 'f.event_id', value: string): Promise<P
     isOpen: r.is_open,
     questions: cleanQuestions(r.questions),
     style: cleanStyle(r.style),
+    payment: cleanPayment(r.payment),
     divisions: divisions.rows,
   };
 }
@@ -139,6 +141,7 @@ export async function getFormOrDraft(eventId: string): Promise<{ form: PublicFor
       isOpen: false,
       questions: [],
       style: cleanStyle({}),
+      payment: EMPTY_PAYMENT,
       divisions: divisions.rows,
     },
   };
@@ -202,6 +205,8 @@ export type Registration = {
   paidAt: string | null;
   paidByName: string | null;
   paymentNote: string;
+  packageId: string | null; // picked in the Pay tab (or set by staff)
+  packageName: string; // as it was when picked
   createdAt: string;
   updatedAt: string;
   discordId: string | null; // the account's Discord user id, when it has one
@@ -210,12 +215,13 @@ export type Registration = {
 type RegistrationRow = {
   id: string; name: string; email: string | null; player_id: string | null; answers: Answers;
   paid: boolean; paid_at: Date | null; paid_by_name: string | null; payment_note: string;
+  package_id: string | null; package_name: string;
   created_at: Date; updated_at: Date; discord_id: string | null;
 };
 
 const SELECT_REGISTRATION = `
   SELECT r.id, COALESCE(NULLIF(trim(concat_ws(' ', rp.first_name, rp.last_name)), ''), r.name) AS name,
-         r.email, r.player_id, r.answers, r.paid, r.paid_at, r.payment_note,
+         r.email, r.player_id, r.answers, r.paid, r.paid_at, r.payment_note, r.package_id, r.package_name,
          r.created_at, r.updated_at, ru.discord_id,
          COALESCE(NULLIF(trim(concat_ws(' ', pp.first_name, pp.last_name)), ''), pu.discord_username, pu.email) AS paid_by_name
   FROM registrations r
@@ -234,6 +240,8 @@ const toRegistration = (r: RegistrationRow): Registration => ({
   paidAt: r.paid_at?.toISOString() ?? null,
   paidByName: r.paid_by_name,
   paymentNote: r.payment_note,
+  packageId: r.package_id,
+  packageName: r.package_name,
   createdAt: r.created_at.toISOString(),
   updatedAt: r.updated_at.toISOString(),
   discordId: r.discord_id && /^\d{5,25}$/.test(r.discord_id) ? r.discord_id : null,

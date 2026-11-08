@@ -52,7 +52,7 @@ export function EmbedCode({ form }: { form: PublicForm }) {
   const code =
     kind === 'link'
       ? pageUrl
-      : `<iframe id="${frameId}" src="${embedUrl}" title="${(form.title || form.eventName).replace(/"/g, '&quot;')}" style="width:100%;max-width:680px;height:640px;border:0;" loading="lazy"></iframe>
+      : `<iframe id="${frameId}" src="${embedUrl}" title="${(form.title || form.eventName).replace(/"/g, '&quot;')}" style="width:100%;max-width:680px;height:640px;border:0;" allow="clipboard-write" loading="lazy"></iframe>
 <script>
   // Sizes the form to fit as it changes.
   window.addEventListener('message', function (e) {
