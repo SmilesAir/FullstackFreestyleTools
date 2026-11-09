@@ -18,6 +18,7 @@ export const SUPPORT_GUIDE = `# Freestyle judging tools: guide for event staff
 - Results Parser: enter results of events that ran outside this system.
 - Rankings Generator: build and publish the rankings and ratings.
 - Player Editor: create and fix player records, hide players, and link duplicates.
+- Wiki (/wiki, no sign-in needed): step-by-step guides, "Running an event as head judge" and "Running the system locally". Point people there for a full walkthrough.
 - Settings, Permissions Editor, Backups and Public API: admin only.
 
 ## Event Creator (setting up an event)

@@ -21,6 +21,7 @@ import { resultsParser } from './resultsParser';
 import { supportChat } from './supportChat';
 import { tools } from './tools';
 import { trainer } from './trainer';
+import { wiki } from './wiki';
 
 // The English dictionary: the source every other language is checked against.
-export const en = { activity, admin, common, db, discord, errors, eventEditor, eventMusic, eventRegistration, events, headJudge, home, judging, login, players, profile, publicPages, rankings, results, resultsParser, supportChat, tools, trainer };
+export const en = { activity, admin, common, db, discord, errors, eventEditor, eventMusic, eventRegistration, events, headJudge, home, judging, login, players, profile, publicPages, rankings, results, resultsParser, supportChat, tools, trainer, wiki };

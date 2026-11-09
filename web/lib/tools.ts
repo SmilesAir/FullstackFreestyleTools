@@ -3,7 +3,7 @@ import { PERMISSIONS, type PermissionKey } from './permissions';
 
 // Each tool's name and description are in the dictionaries (lib/i18n/*/tools.ts), under
 // the tool's key.
-export type ToolKey = PermissionKey | 'permissions' | 'settings' | 'backups' | 'public_api' | 'profile' | 'activity' | 'judging_trainer';
+export type ToolKey = PermissionKey | 'permissions' | 'settings' | 'backups' | 'public_api' | 'profile' | 'activity' | 'judging_trainer' | 'wiki';
 type ToolInfo = { key: ToolKey; href: string };
 
 // TypeScript enforces an entry here for every key in PERMISSIONS.
@@ -31,11 +31,13 @@ export const ADMIN_ONLY_TOOLS: ToolInfo[] = [
   { key: 'public_api', href: '/public-api' },
 ];
 
-// Available to any logged-in user regardless of permissions/admin status.
+// Available to any logged-in user regardless of permissions/admin status (the Wiki
+// needs no sign-in at all; it's listed here so the Control Panel shows it).
 export const ALWAYS_AVAILABLE_TOOLS: ToolInfo[] = [
   { key: 'profile', href: '/profile' },
   { key: 'activity', href: '/activity' },
   { key: 'judging_trainer', href: '/judging-trainer' },
+  { key: 'wiki', href: '/wiki' },
 ];
 
 // The browser tab title for a tool's pages: its name in the Control Panel.

@@ -78,4 +78,9 @@ export const tools = {
     description:
       'Practice Fpa2027 judging on a test pool of 8 teams: play every judge and the head judge, then see how the scores and places are worked out. Everything stays in your browser.',
   },
+  wiki: {
+    label: 'Wiki',
+    description:
+      'Step-by-step guides: running an event as head judge (access, setup, each routine, the judges, results) and running the system locally on a laptop. No sign-in needed.',
+  },
 };

@@ -38,6 +38,9 @@ export async function HomePage() {
           </nav>
         ) : (
           <nav className="flex items-center gap-4 text-sm">
+            <Link href="/wiki" className="text-blue-600 underline">
+              {t.tools.wiki.label}
+            </Link>
             <Link href="/login" className="text-blue-600 underline">
               {t.common.logIn}
             </Link>

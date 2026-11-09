@@ -80,4 +80,9 @@ export const tools: Dictionary['tools'] = {
     description:
       'Practica el jueceo Fpa2027 con un grupo de prueba de 8 equipos: haz de cada juez y del juez principal, y luego mira cómo se calculan los puntajes y puestos. Todo queda en tu navegador.',
   },
+  wiki: {
+    label: 'Wiki',
+    description:
+      'Guías paso a paso: organizar un evento como juez principal (acceso, preparación, cada rutina, los jueces, resultados) y usar el sistema en local en una laptop. No hace falta iniciar sesión.',
+  },
 };

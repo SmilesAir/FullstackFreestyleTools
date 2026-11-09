@@ -307,6 +307,7 @@ Every pool has a public, no-login permalink — a short code, not its ids (`free
   - Results Parser — enter results from events run outside the system, with Claude filling the form from pasted text (see below)
   - Rankings Generator — choose events, tune the settings, preview and publish the rankings and ratings (see below)
 - **Public tools**
+  - **Wiki** (`/wiki`, no sign-in; also in the Control Panel and the signed-out home page's header) — step-by-step guides for event staff: *Running an event as head judge* and *Running the system locally*. The pages are listed in `web/lib/wiki.ts`; each page's text is a component per language in `web/app/wiki/_pages/` (English and Spanish, kept in step). Screenshots are in `web/public/images/wiki/<language>/`, one set per language, taken from a demo event with invented names (never a real event's players or judges), with their sizes in `web/app/wiki/_pages/shots.ts`. When a button or step changes, update the Wiki pages and their screenshots along with `web/lib/support-guide.ts`
   - Results Viewer — a pool's public permalink (see above): a short code, no login, browsable by Division/Round/Pool
   - Rankings Viewer
 
