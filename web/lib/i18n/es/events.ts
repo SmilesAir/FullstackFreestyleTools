@@ -122,6 +122,12 @@ export const events: Dictionary['events'] = {
   pools: 'Grupos',
   save: 'Guardar',
   seedFromRankings: 'Sembrar según rankings',
+  teamsPerPool: 'Equipos por grupo',
+  fillFromResults: 'Llenar según resultados',
+  fillFromResultsTip: (round) => `Llena los grupos con los equipos que avanzan de ${round}, más los que pasan directo.`,
+  refillConfirm: (round) => `¿Llenar ${round} según resultados? Esto reemplaza los equipos que hay ahora en esta ronda.`,
+  filledFromResults: (n, byes, cut) =>
+    `Se colocaron ${n} equipo(s)${byes ? `, ${byes} pasan directo` : ''}; ${cut} equipo(s) no avanzaron.`,
   clearRoundConfirm: (round) => `¿Quitar todos los equipos de ${round}?`,
   lockedByHeadJudge: '🔒 Bloqueado por el juez principal',
   postPlayOrder: 'Publicar orden de juego/jueces en Discord',

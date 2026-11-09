@@ -132,6 +132,11 @@ export function HeadJudgeGuide() {
             seed order. You can also drag teams from the Teams list into a pool, and drag them within or between pools.
             The order in a pool is the play order everyone follows.
           </p>
+          <p>
+            For a later round, set <strong>Teams per pool</strong> and click <strong>Fill from results</strong> once every
+            pool of the round before has its results. Teams that had a bye go in first, then the teams that advanced by
+            place (every 1st, then every 2nd, and so on).
+          </p>
         </Step>
         <Step title="Add judges to each pool">
           <p>

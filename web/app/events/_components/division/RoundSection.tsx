@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   addTeamToRound,
   clearRound,
+  fillRoundFromResults,
   postRoundPlayOrderToDiscord,
   sendRoundForReviewOnDiscord,
   removeTeamFromRound,
@@ -13,7 +14,10 @@ import {
   setRoundLayout,
 } from '@/lib/event-creator-actions';
 import {
+  DEFAULT_FINALS_TEAMS,
   JUDGE_CATEGORIES,
+  MAX_TEAMS_PER_POOL,
+  MIN_TEAMS_PER_POOL,
   POOL_LETTERS,
   poolId,
   type PoolJudgeView,
@@ -64,6 +68,7 @@ export function RoundSection({
   publishedPoolKeys,
   playingPoolKey,
   discordReady,
+  previousRoundName,
 }: {
   divisionId: string;
   roundNumber: number;
@@ -82,6 +87,8 @@ export function RoundSection({
   playingPoolKey: string | null;
   // The event has a Discord channel, so the play order can be posted there.
   discordReady: boolean;
+  // The round played before this one (the closest earlier round with teams), if any.
+  previousRoundName: string | null;
 }) {
   const router = useRouter();
   const tr = useT();
@@ -89,6 +96,8 @@ export function RoundSection({
   // pool that has teams, and don't let the count drop below one.
   const minPoolCount = populatedPoolCount(teams);
   const [poolCount, setPoolCount] = useState(visiblePoolCount(config.poolCount, teams));
+  // Empty = not chosen (Finals then take DEFAULT_FINALS_TEAMS).
+  const [teamsPerPool, setTeamsPerPool] = useState(config.teamsPerPool ? String(config.teamsPerPool) : '');
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -124,8 +133,26 @@ export function RoundSection({
     });
   }
 
+  const teamsPerPoolValue = teamsPerPool.trim() === '' ? null : Number(teamsPerPool);
+
   function saveConfig() {
-    run(() => setRoundConfig(divisionId, roundNumber, poolCount));
+    run(() => setRoundConfig(divisionId, roundNumber, poolCount, teamsPerPoolValue));
+  }
+
+  function fill() {
+    if (teams.length > 0 && !confirm(tr.events.refillConfirm(roundName))) return;
+    startTransition(async () => {
+      // Make sure the pool count and teams per pool on screen are what get used.
+      const saved = await setRoundConfig(divisionId, roundNumber, poolCount, teamsPerPoolValue);
+      if (saved.error) return setMessage({ text: saved.error, error: true });
+      const result = await fillRoundFromResults(divisionId, roundNumber);
+      setMessage(
+        result.error
+          ? { text: result.error, error: true }
+          : { text: tr.events.filledFromResults(result.filled ?? 0, result.byes ?? 0, result.cut ?? 0), error: false }
+      );
+      if (!result.error) router.refresh();
+    });
   }
 
   function seed() {
@@ -243,6 +270,20 @@ export function RoundSection({
             ))}
           </select>
         </label>
+        {previousRoundName && (
+          <label className="flex flex-col gap-1">
+            {tr.events.teamsPerPool}
+            <input
+              type="number"
+              min={MIN_TEAMS_PER_POOL}
+              max={MAX_TEAMS_PER_POOL}
+              value={teamsPerPool}
+              placeholder={isFinals ? String(DEFAULT_FINALS_TEAMS) : undefined}
+              onChange={(e) => setTeamsPerPool(e.target.value)}
+              className="w-20 rounded border border-gray-300 px-2 py-1"
+            />
+          </label>
+        )}
         <button type="button" onClick={saveConfig} disabled={pending} className="rounded border border-gray-300 px-3 py-1 disabled:opacity-50">
           {tr.events.save}
         </button>
@@ -255,6 +296,17 @@ export function RoundSection({
         >
           {tr.events.seedFromRankings}
         </button>
+        {previousRoundName && (
+          <button
+            type="button"
+            onClick={fill}
+            disabled={pending || roundLocked}
+            title={roundLocked ? tr.events.roundLockedTip : tr.events.fillFromResultsTip(previousRoundName)}
+            className="rounded bg-black px-3 py-1 text-white disabled:opacity-50"
+          >
+            {tr.events.fillFromResults}
+          </button>
+        )}
         {teams.length > 0 && (
           <button
             type="button"

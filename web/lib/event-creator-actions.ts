@@ -15,13 +15,17 @@ import {
   POOL_LETTERS,
   poolId,
   getRoundConfig,
+  DEFAULT_FINALS_TEAMS,
+  MIN_TEAMS_PER_POOL,
+  MAX_TEAMS_PER_POOL,
   type JudgeCandidate,
   type PoolConfig,
   type PoolJudge,
   type RulesId,
 } from './event-creator';
 import { getJudgeCandidates, getTeams } from './event-creator-queries';
-import { seedRound } from './event-creator-seeding';
+import { pickAdvancers, seedRound, snakePools } from './event-creator-seeding';
+import { getRoundPlaces } from './round-standings';
 import { teamKey } from './event-creator-layout';
 import { applyRoundLayout, insertTeam } from './event-creator-layout-apply';
 import { describeChannel, getEventDiscord, parseChannelInput, postToEventThread, type ChannelInfo } from './discord';
@@ -161,7 +165,9 @@ async function updatePoolConfig(divisionId: string, mutate: (config: PoolConfig)
 export async function setRoundConfig(
   divisionId: string,
   roundNumber: number,
-  poolCount: number
+  poolCount: number,
+  // Left out: keep what's saved. null: clear it.
+  teamsPerPool?: number | null
 ): Promise<ActionState> {
   await guard();
   if (roundNumber < 1 || roundNumber > 4) return { error: 'Unknown round' };
@@ -169,9 +175,17 @@ export async function setRoundConfig(
     return { error: (await getT()).errors.poolCount(POOL_LETTERS.length) };
   }
   if (roundNumber === 1 && poolCount !== 1) return { error: (await getT()).errors.finalsOnePool };
+  if (
+    teamsPerPool != null &&
+    (!Number.isInteger(teamsPerPool) || teamsPerPool < MIN_TEAMS_PER_POOL || teamsPerPool > MAX_TEAMS_PER_POOL)
+  ) {
+    return { error: (await getT()).errors.teamsPerPool(MIN_TEAMS_PER_POOL, MAX_TEAMS_PER_POOL) };
+  }
 
   await updatePoolConfig(divisionId, (config) => {
-    config.rounds![String(roundNumber)] = { poolCount };
+    const key = String(roundNumber);
+    const kept = teamsPerPool === undefined ? config.rounds![key]?.teamsPerPool : (teamsPerPool ?? undefined);
+    config.rounds![key] = kept === undefined ? { poolCount } : { poolCount, teamsPerPool: kept };
   });
   return { error: null };
 }
@@ -433,6 +447,72 @@ export async function seedRoundFromRankings(
   }
 
   return { error: null, seeded: seeding.pools.reduce((n, p) => n + p.length, 0), byes: seeding.byes.length };
+}
+
+// Fills a round's pools from the results of the round played before it (the
+// closest higher round number with teams): teams that sat that round out
+// (byes) go in first, then its teams by place across every pool, up to pools x
+// teams per pool, seeded into the pools as Seed from rankings does.
+export async function fillRoundFromResults(
+  divisionId: string,
+  roundNumber: number
+): Promise<ActionState & { filled?: number; byes?: number; cut?: number }> {
+  await guard();
+  if (roundNumber < 1 || roundNumber > 4) return { error: 'Unknown round' };
+  if (await isRoundLocked(divisionId, roundNumber)) return { error: await poolLockedError() };
+  const t = await getT();
+
+  const division = await pool.query<{ event_id: string; division_name: string; rules_id: RulesId; pool_config: PoolConfig }>(
+    'SELECT event_id, division_name, rules_id, pool_config FROM divisions WHERE id = $1',
+    [divisionId]
+  );
+  if (!division.rows[0]) return { error: 'Division not found' };
+  const { event_id, division_name, rules_id, pool_config } = division.rows[0];
+
+  const { poolCount, teamsPerPool: saved } = getRoundConfig(pool_config ?? {}, roundNumber);
+  const teamsPerPool = saved ?? (roundNumber === 1 ? DEFAULT_FINALS_TEAMS : undefined);
+  if (!teamsPerPool) return { error: t.errors.teamsPerPoolFirst };
+
+  const all = await getTeams(divisionId, division_name);
+  const earlierRounds = [...new Set(all.map((x) => x.round_number).filter((n) => n > roundNumber))].sort((a, b) => a - b);
+  const previous = earlierRounds[0];
+  if (previous === undefined) return { error: t.errors.noPreviousRound };
+
+  const { placed, unfinished } = await getRoundPlaces(event_id, divisionId, division_name, rules_id, previous, all);
+  if (unfinished.length > 0) return { error: t.errors.previousRoundUnfinished(t.common.roundName(previous), unfinished.join(', ')) };
+
+  // Byes: team list teams that played in no earlier round (top seeds that sat them out).
+  const keyOf = (players: { id: string }[]) => teamKey(players.map((p) => p.id));
+  const played = new Set(all.filter((x) => x.round_number > roundNumber).map((x) => keyOf(x.players)));
+  const roster = all.filter((x) => x.round_number === ROSTER_ROUND);
+  const byes = roster.filter((x) => !played.has(keyOf(x.players)));
+
+  const { entrants, byes: byeCount, cut } = pickAdvancers({
+    byes: byes.map((x) => ({ id: x.id, points: x.points })),
+    results: placed.map((p) => ({ id: p.team.id, place: p.place, total: p.total, points: p.team.points })),
+    capacity: poolCount * teamsPerPool,
+  });
+  const pools = snakePools(entrants, poolCount);
+
+  const playersById = new Map([...roster, ...placed.map((p) => p.team)].map((x) => [x.id, x.players.map((p) => p.id)]));
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM teams WHERE division_id = $1 AND round_number = $2', [divisionId, roundNumber]);
+    for (let i = 0; i < pools.length; i++) {
+      for (const id of pools[i]) {
+        await insertTeam(client, divisionId, roundNumber, poolId(POOL_LETTERS[i]), playersById.get(id) ?? []);
+      }
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    return { error: err instanceof Error ? err.message : 'Failed to fill the round' };
+  } finally {
+    client.release();
+  }
+
+  return { error: null, filled: entrants.length, byes: byeCount, cut };
 }
 
 export async function clearRound(divisionId: string, roundNumber: number): Promise<ActionState> {

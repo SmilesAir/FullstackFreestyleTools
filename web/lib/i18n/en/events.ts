@@ -134,6 +134,12 @@ export const events = {
   pools: 'Pools',
   save: 'Save',
   seedFromRankings: 'Seed from rankings',
+  teamsPerPool: 'Teams per pool',
+  fillFromResults: 'Fill from results',
+  fillFromResultsTip: (round: string) => `Fill the pools with the teams that advance from ${round}, plus any byes.`,
+  refillConfirm: (round: string) => `Fill ${round} from results? This replaces the teams currently in this round.`,
+  filledFromResults: (n: number, byes: number, cut: number) =>
+    `Filled ${n} team(s)${byes ? `, ${byes} with a bye` : ''}; ${cut} team(s) didn't advance.`,
   clearRoundConfirm: (round: string) => `Clear all teams from ${round}?`,
   lockedByHeadJudge: '🔒 Locked by the Head Judge',
   postPlayOrder: 'Post Play Order/Judges to Discord',

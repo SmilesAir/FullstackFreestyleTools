@@ -114,7 +114,12 @@ export async function DivisionView({
 
         <section className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">{t.events.rounds}</h2>
-          {[...ROUNDS].reverse().map((round) => (
+          {[...ROUNDS].reverse().map((round) => {
+            // The round played before: the closest higher round number with teams.
+            const previous = ROUNDS.filter((r) => r.number > round.number && roundKeys[r.number].length > 0)
+              .map((r) => r.number)
+              .sort((a, b) => a - b)[0];
+            return (
             <RoundSection
               key={round.number}
               divisionId={divisionId}
@@ -129,8 +134,10 @@ export async function DivisionView({
               publishedPoolKeys={publishedPoolKeys}
               playingPoolKey={playingPoolKey}
               discordReady={discordReady}
+              previousRoundName={previous === undefined ? null : t.common.roundName(previous)}
             />
-          ))}
+            );
+          })}
         </section>
       </div>
 

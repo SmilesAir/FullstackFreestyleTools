@@ -138,6 +138,12 @@ export function HeadJudgeGuideEs() {
             moverlos dentro de un grupo o entre grupos. El orden dentro de un grupo es el orden de juego que todos
             siguen.
           </p>
+          <p>
+            Para una ronda posterior, indica <strong>Equipos por grupo</strong> y haz clic en{' '}
+            <strong>Llenar según resultados</strong> cuando todos los grupos de la ronda anterior tengan sus resultados.
+            Primero entran los equipos que pasaron directo y luego los que avanzaron, por puesto (todos los 1.º, luego
+            todos los 2.º, etc.).
+          </p>
         </Step>
         <Step title="Agrega jueces a cada grupo">
           <p>

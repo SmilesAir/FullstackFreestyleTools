@@ -80,7 +80,13 @@ export type JudgeCandidate = JudgeStats & {
 export function formatJudgeCount(stats: JudgeStats, categories: readonly string[]): string {
   return [stats.eventCount, ...categories.map((c) => stats.counts[c] ?? 0)].join('-');
 }
-export type RoundConfig = { poolCount: number };
+// teamsPerPool: how many teams Fill from results puts in each pool (unset = not chosen yet).
+export type RoundConfig = { poolCount: number; teamsPerPool?: number };
+
+// Finals take 8 teams unless the round says otherwise.
+export const DEFAULT_FINALS_TEAMS = 8;
+export const MIN_TEAMS_PER_POOL = 2;
+export const MAX_TEAMS_PER_POOL = 20;
 export type PoolConfig = { rounds?: Record<string, RoundConfig> };
 
 export function defaultRoundConfig(roundNumber: number): RoundConfig {

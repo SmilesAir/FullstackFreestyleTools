@@ -44,6 +44,7 @@ Adding teams
 Rounds, pools and play order
 - Each division has rounds (for example Preliminaries, Quarterfinals, Semifinals, Finals). In a round, choose how many Pools (the Finals has one) and Save.
 - Seed from rankings fills the round's pools from the current rankings. Teams can also be dragged from the Teams list into a pool, and dragged within or between pools to change the play order. clear round empties the round.
+- For a later round, set Teams per pool and click Fill from results once every pool of the round before has its results: teams that had a bye (sat the earlier round out) go in first, then that round's teams by place across all pools (every 1st, then every 2nd, ...; equal places by total, then ranking points), up to pools × teams per pool. Finals default to 8 teams.
 - The order of teams in a pool is the play order the Head Judge, the judges, Event Music and the Announcer all follow.
 - Post Play Order/Judges to Discord posts the round to the event's Discord thread (when a channel is set).
 - Send for Review DMs the division's directors and the event's committee on Discord, saying which division and round is ready, with a link to Pool Review. Only people whose account has a linked Discord get it; the message after sending names anyone who couldn't be reached.
