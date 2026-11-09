@@ -122,7 +122,7 @@ export function MethodCard({ method: m, price, note }: { method: PaymentMethod; 
       const link = venmoLink(m, due?.amount ?? null, note);
       body = (
         <div className="flex flex-wrap items-start gap-4">
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className="flex min-w-0 grow basis-64 flex-col gap-2">
             <CopyRow label={tr.payTo} value={`@${m.username}`} />
             {amountRow}
             <CopyRow label={tr.note} value={note} />
