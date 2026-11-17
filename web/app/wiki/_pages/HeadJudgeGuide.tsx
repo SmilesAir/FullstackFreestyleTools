@@ -270,7 +270,9 @@ export function HeadJudgeGuide() {
           <Shot name="judge-home" lang="en" alt="A phone showing the event's judge buttons, each with a name and category" />
           <p>
             For a Simple Ranking pool, judges press the event&apos;s <strong>Judge</strong> button instead and rank the
-            teams with the up and down arrows; <strong>Submit</strong> unlocks once every team has a rank.
+            teams with the up and down arrows; <strong>Submit</strong> unlocks once every team has a rank. They rank
+            the playing pool, so choose it on the Play tab first. The Play tab&apos;s Judges section shows the link
+            and a QR code to open it.
           </p>
         </Step>
         <Step title="Enter the judge PIN">

@@ -88,6 +88,8 @@ export const headJudge = {
   runningCantSwitch: 'A routine is running. Cancel it to switch teams.',
   nowPlaying: 'Now playing',
   noJudgesForPool: 'No judges set for this pool.',
+  simpleRankingJudgesHelp: 'Simple Ranking: judges open this link on their phones and rank the teams. No seats or PIN.',
+  simpleRankingLocalhost: 'This address only works on this laptop. Phones use the address under the database status at the top.',
   finished: 'Finished',
   resultsHeading: 'Results',
 

@@ -121,7 +121,8 @@ If a judge's button is missing from the landing page, check in this order
 - When running offline, the change was made on the main website but the laptop hasn't pulled it down yet (or the other way round): check which database the screen is using in the database pill.
 
 ## Simple Ranking divisions
-- No assigned judges: anyone can rank the playing pool from the Judge button on the main landing page while the event is playing.
+- No assigned judges: anyone can rank the playing pool from the event's Judge button on the main landing page (signed in or not) while the event is playing. Only the pool chosen as playing on the Head Judge's Play tab can be ranked, so make a Simple Ranking pool the playing pool first.
+- On the Play tab, a Simple Ranking pool's Judges section shows the judge link with a QR code and Copy, for judges' phones.
 - Each judge puts the teams in order from best to worst with the up and down arrows; Submit unlocks once every team has a rank. Sending again replaces that browser's ranking.
 - Best team gets 1 point, the next 2, and so on. Fewest points wins; a tie goes to the team that plays later ("won on seed").
 - The results table (Head Judge's Results tab) has a row per team. Team: its name and play order. 1st, 2nd, 3rd...: how many judges ranked the team in that place. Total: its points (fewest is best). Place: its final place, marked "(tie, won on seed)" when a tie was broken by play order. Above the table: how many judges sent a ranking, and Clear rankings.

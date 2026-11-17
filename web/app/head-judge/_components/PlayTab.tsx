@@ -15,6 +15,7 @@ import {
   type PollMode,
 } from "@/lib/poll-intervals";
 import { PoolResults } from "./PoolResults";
+import { SimpleRankingJudgeLink } from "./SimpleRankingJudgeLink";
 import { StartAdjustDialog } from "./StartAdjustDialog";
 import { useRoutineNow } from "./useTimecallCallouts";
 import type { SaveStatus } from "./usePlayState";
@@ -446,7 +447,9 @@ export function PlayTab({
 
         <section className="flex flex-col gap-2">
           <h3 className="text-lg font-semibold">{t.headJudge.judgesHeading}</h3>
-          {judgesSorted.length === 0 ? (
+          {!pool.usesJudges ? (
+            <SimpleRankingJudgeLink eventId={eventId} />
+          ) : judgesSorted.length === 0 ? (
             <p className="text-sm text-gray-500">
               {t.headJudge.noJudgesForPool}
             </p>

@@ -126,7 +126,7 @@ export async function getJudgingEvents(): Promise<JudgingEvent[]> {
 // Events that are turned on and have a Simple Ranking division (whether or not
 // its pool is the one playing right now — the judge screen itself says when
 // there's nothing to rank).
-async function getSimpleRankingEventIds(): Promise<{ event_id: string; event_name: string }[]> {
+export async function getSimpleRankingEventIds(): Promise<{ event_id: string; event_name: string }[]> {
   const result = await pool.query<{ event_id: string; event_name: string }>(
     `SELECT DISTINCT e.id AS event_id, e.event_name
      FROM events e JOIN divisions d ON d.event_id = e.id

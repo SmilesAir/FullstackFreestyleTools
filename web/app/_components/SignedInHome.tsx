@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ActivityEntryCard } from '@/app/activity/_components/ActivityEntryCard';
 import { MyTeamsTable } from '@/app/activity/_components/MyTeamsTable';
 import { getActiveEvents } from '@/lib/active-events-queries';
+import { getSimpleRankingEventIds } from '@/lib/judging-queries';
 import { getActiveEventActivity, getActivityDetails } from '@/lib/player-activity-queries';
 import { getProfileData } from '@/lib/profile-queries';
 import { getMyTeams } from '@/lib/team-timecalls';
@@ -12,7 +13,13 @@ import { PoolGrid } from './PoolGrid';
 // The home page's signed-in sections: events running now with all their pools,
 // then the signed-in player's own pools in those events.
 export async function SignedInHome({ userId }: { userId: string }) {
-  const [events, profile] = await Promise.all([getActiveEvents(), getProfileData(userId)]);
+  const [events, profile, simpleRankingEvents] = await Promise.all([
+    getActiveEvents(),
+    getProfileData(userId),
+    getSimpleRankingEventIds(),
+  ]);
+  // Events whose Simple Ranking judge screen is open (turned on, with a Simple Ranking division).
+  const simpleRanking = new Set(simpleRankingEvents.map((e) => e.event_id));
   const player = profile?.player ?? null;
   const [entries, myTeams] = player
     ? await Promise.all([getActiveEventActivity(player.id), getMyTeams(player.id)])
@@ -52,6 +59,16 @@ export async function SignedInHome({ userId }: { userId: string }) {
                 <p className="text-sm text-gray-500">{formatDayRange(locale, event.startDate, event.endDate)}</p>
               </div>
               <PoolGrid divisions={event.divisions} />
+              {simpleRanking.has(event.eventId) && (
+                // Anonymous: anyone with the link can rank, no assigned seat.
+                <Link
+                  href={`/judge/simple-ranking/${event.eventId}`}
+                  className="flex min-h-16 flex-col items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-center hover:bg-gray-50 sm:w-1/2"
+                >
+                  <span className="text-lg font-semibold">{t.home.judge}</span>
+                  <span className="text-sm text-gray-500">{t.home.simpleRanking}</span>
+                </Link>
+              )}
             </div>
           ))
         )}

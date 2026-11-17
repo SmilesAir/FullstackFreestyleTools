@@ -280,7 +280,8 @@ export function HeadJudgeGuideEs() {
           <p>
             En un grupo de Simple Ranking, los jueces presionan el botón <strong>Juzgar</strong> del evento y ordenan
             los equipos con las flechas hacia arriba y abajo; <strong>Enviar</strong> se activa cuando todos los
-            equipos tienen un puesto.
+            equipos tienen un puesto. Ordenan el grupo en juego, así que elígelo primero en la pestaña Juego. La
+            sección Jueces de la pestaña Juego muestra el enlace y un código QR para abrirlo.
           </p>
         </Step>
         <Step title="Ingresa el PIN de jueces">

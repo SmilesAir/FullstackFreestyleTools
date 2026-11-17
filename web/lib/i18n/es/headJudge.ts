@@ -85,6 +85,8 @@ export const headJudge: Dictionary['headJudge'] = {
   runningCantSwitch: 'Hay una rutina en curso. Cancélala para cambiar de equipo.',
   nowPlaying: 'Jugando ahora',
   noJudgesForPool: 'Este grupo no tiene jueces asignados.',
+  simpleRankingJudgesHelp: 'Ranking simple: los jueces abren este enlace en su teléfono y ordenan a los equipos. Sin puestos ni PIN.',
+  simpleRankingLocalhost: 'Esta dirección solo funciona en esta laptop. Los teléfonos usan la dirección que aparece en el estado de la base de datos, arriba.',
   finished: 'Terminó',
   resultsHeading: 'Resultados',
 
