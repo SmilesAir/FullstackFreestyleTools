@@ -7,6 +7,10 @@ import type { NextConfig } from "next";
 // way), plus its own files; anything this app has no page for goes there too. This app's
 // home page is then at /new (lib/site.ts). Unset (laptops, dev, and after the cutover),
 // `/` is this app's home page.
+//
+// The old system is also at /old everywhere: a copy of its page, patched to run there, in
+// public/old (scripts/fetch-legacy-site.mjs). public/old/bundle.js is served as a file; /old
+// and every address under it (its own routes, like /old/admin) get its one page.
 const legacyOrigin = process.env.LEGACY_SITE_ORIGIN?.trim().replace(/\/+$/, "");
 const LEGACY_FILES = ["/", "/index.html", "/bundle.js", "/bundle.js.LICENSE.txt"];
 
@@ -39,10 +43,14 @@ const nextConfig: NextConfig = {
   },
 
   async rewrites() {
-    if (!legacyOrigin) return [];
+    const oldSite = [
+      { source: "/old", destination: "/old/index.html" },
+      { source: "/old/:path*", destination: "/old/index.html" },
+    ];
+    if (!legacyOrigin) return { beforeFiles: [], afterFiles: oldSite, fallback: [] };
     return {
       beforeFiles: LEGACY_FILES.map((path) => ({ source: path, destination: `${legacyOrigin}${path}` })),
-      afterFiles: [],
+      afterFiles: oldSite,
       fallback: [{ source: "/:path*", destination: `${legacyOrigin}/:path*` }],
     };
   },

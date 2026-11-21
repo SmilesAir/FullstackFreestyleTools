@@ -378,8 +378,11 @@ While the old FPA Judging System is still in use, both live on freestylejudge.co
 | `/` (with or without `?…`), `/index.html`, `/bundle.js`, `/bundle.js.LICENSE.txt` | Old system |
 | Anything the app has no page or file for | Old system (its S3 bucket answers any path with the app) |
 | `/new` (this app's home page), `/r/…`, `/judge/…`, `/events`, `/head-judge`, `/login`, `/api/…`, … | This app |
+| `/old` and anything under it (`/old/admin`, `/old?startup=…`, …) | Old system, from this app's copy in `web/public/old` |
 
 The old app keeps everything on `/` and reads its `?startup=…&eventKey=…` parameters from the browser's address, so every old link and permalink keeps working. It calls its own APIs at their AWS addresses, not through freestylejudge.com; none of its API paths (`/getEventData`, `/updateJudgeData`, …) collide with this app's.
+
+**The old system at `/old`** (everywhere, with or without `LEGACY_SITE_ORIGIN`): the old app's page (`index.html` and its one `bundle.js`) is copied into `web/public/old`. It's patched to run at `/old`: its router gets a `/old` basename, and its permalinks and "new Admin Wizard" link point under `/old`. It still calls its own APIs on AWS, so it's the same live system. This is for the cutover, when `/` becomes this app. `node scripts/fetch-legacy-site.mjs` (in `web/`) downloads the copy again and patches it. It stops without writing anything if a patch no longer matches exactly once. Rerun it only if the old app is ever redeployed.
 
 **How it's switched on**: `LEGACY_SITE_ORIGIN=https://dgtjhs1oj3tvk.cloudfront.net` in Vercel's Production environment (`web/next.config.ts` adds the pass-through only when it's set). Laptops and dev leave it unset, so `/` is this app's home page there. Links back to this app's home page use `/new` (`web/lib/site.ts`), which works either way.
 
