@@ -3,7 +3,7 @@ import { pool } from '../db';
 import { getRoundConfig, poolId, ROUNDS, type PoolConfig } from '../event-creator';
 import { teamKey } from '../event-creator-layout';
 import { isPoolLocked } from '../pool-locks';
-import type { CanonicalEvent, CanonicalPoolLayout, CanonicalPoolResult } from './mapping';
+import type { BridgePlayerRow, CanonicalEvent, CanonicalPoolLayout, CanonicalPoolResult } from './mapping';
 
 const roundNumberByName = new Map<string, number>(ROUNDS.map((r) => [r.name, r.number]));
 export const roundNameByNumber = (n: number) => ROUNDS.find((r) => r.number === n)?.name ?? `Round ${n}`;
@@ -200,4 +200,14 @@ export async function postgresPoolResultToCanonical(
 export async function getBridgeEnabledEventIds(): Promise<string[]> {
   const result = await pool.query<{ id: string }>('SELECT id FROM events WHERE bridge_enabled');
   return result.rows.map((r) => r.id);
+}
+
+// Every player, hidden ones too (hiding is never carried to the old app, which has no such
+// flag - a hidden player simply stays in its list), for pushPlayersToDynamo.
+export async function getAllPlayersForBridge(): Promise<BridgePlayerRow[]> {
+  const result = await pool.query<BridgePlayerRow>(
+    `SELECT id::text, first_name, last_name, alias_id::text, gender, country, fpa_website_id, membership, created_at, last_active
+     FROM players`
+  );
+  return result.rows;
 }

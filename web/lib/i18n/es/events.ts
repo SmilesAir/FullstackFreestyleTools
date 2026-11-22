@@ -27,6 +27,17 @@ export const events: Dictionary['events'] = {
   judgesListed: 'Los jueces aparecen en la página principal',
   judgesNotListed: 'Los jueces no aparecen en la página principal',
 
+  // Judges list
+  judgesList: (n) => `Jueces adicionales (${n})`,
+  judgesListHelp: 'Personas adicionales que se ofrecen en Asignar jueces, además de los jugadores de los equipos del evento. También se pueden agregar jugadores.',
+  noJudgesListed: 'Todavía no hay jueces adicionales.',
+  addJudgePlaceholder: 'Agregar un juez…',
+  judgesPastePlaceholder: 'Jane Doe\nSmith, John\nAnn Lee, Bob Jones',
+  addJudges: 'Agregar jueces',
+  addingJudges: 'Agregando…',
+  addedJudges: (n, skipped) =>
+    `Se agregaron ${n} juez(es)${skipped ? `; se omitieron ${skipped} sin jugador elegido` : ''}.`,
+  noJudgeNamesFound: 'No se encontraron nombres.',
   committeeHelp: 'Las personas que revisan los grupos y resultados de este evento.',
   noCommittee: 'Todavía no hay miembros del comité.',
   addCommittee: 'Agregar un miembro del comité…',

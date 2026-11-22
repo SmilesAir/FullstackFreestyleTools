@@ -125,3 +125,80 @@ export function applyCanonicalToDynamoPool(
     teamData,
   };
 }
+
+// A player row as Postgres holds it (see postgres-reader.ts's getAllPlayersForBridge).
+export type BridgePlayerRow = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  alias_id: string | null;
+  gender: string | null;
+  country: string | null;
+  fpa_website_id: string | null;
+  membership: number | null;
+  created_at: Date;
+  last_active: Date;
+};
+
+// The fields compared between the two sides, normalised so the old app's own spellings of
+// "nothing" ('' or a missing attribute) and its number-typed fpaWebsiteId (set by its
+// assignFpaWebsiteId) count as equal to Postgres's null and text. Timestamps are left out:
+// the old app's modifyPlayer rewrites both on every edit.
+const blank = (v: unknown): string | null => (v === undefined || v === null || v === '' ? null : String(v));
+function comparablePlayer(p: {
+  firstName: unknown;
+  lastName: unknown;
+  gender: unknown;
+  country: unknown;
+  membership: unknown;
+  fpaWebsiteId: unknown;
+  aliasKey: unknown;
+}) {
+  return {
+    firstName: blank(p.firstName) ?? '',
+    lastName: blank(p.lastName) ?? '',
+    // Same rule the original import used (backend/lib/insertPlayers.js normalizeGender): the
+    // old data also holds '-' and lowercase 'm', which mean the same as null and 'M'.
+    gender: ['M', 'F', 'X'].includes(String(p.gender ?? '').toUpperCase()) ? String(p.gender).toUpperCase() : null,
+    country: blank(p.country),
+    membership: Number(p.membership ?? 0) || 0,
+    fpaWebsiteId: blank(p.fpaWebsiteId),
+    aliasKey: blank(p.aliasKey),
+  };
+}
+
+const rowAsDynamoFields = (row: BridgePlayerRow) => ({
+  firstName: row.first_name,
+  lastName: row.last_name,
+  gender: row.gender ?? '',
+  country: row.country ?? '',
+  membership: row.membership ?? 0,
+  fpaWebsiteId: row.fpa_website_id ?? '',
+  aliasKey: row.alias_id,
+});
+
+// True when the old app's copy is missing or disagrees with Postgres on any compared field.
+export function playerDiffers(row: BridgePlayerRow, existing: Record<string, unknown> | undefined): boolean {
+  if (!existing) return true;
+  return (
+    JSON.stringify(comparablePlayer(rowAsDynamoFields(row))) !==
+    JSON.stringify(comparablePlayer(existing as Parameters<typeof comparablePlayer>[0]))
+  );
+}
+
+// The item to put: the existing one (so attributes this app doesn't know about pass through)
+// with Postgres's values on top. aliasKey is dropped rather than stored as null, as the old
+// app's assignAlias does when it clears one. createdAt keeps the old app's value if it has one.
+export function postgresPlayerToDynamo(row: BridgePlayerRow, existing: Record<string, unknown> | undefined): Record<string, unknown> & { key: string } {
+  const { aliasKey, ...fields } = rowAsDynamoFields(row);
+  const item: Record<string, unknown> & { key: string } = {
+    ...existing,
+    ...fields,
+    key: row.id,
+    createdAt: typeof existing?.createdAt === 'number' ? existing.createdAt : row.created_at.getTime(),
+    lastActive: row.last_active.getTime(),
+  };
+  if (aliasKey) item.aliasKey = aliasKey;
+  else delete item.aliasKey;
+  return item;
+}

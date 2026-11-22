@@ -153,8 +153,8 @@ export async function getPoolJudges(divisionId: string): Promise<PoolJudgeRow[]>
 }
 
 // Everyone who could judge `poolLetter` of a round, strongest open ranking
-// first. Only players in the event (on a team in any of its divisions) are
-// offered. Players competing in that pool, or already judging it, are left out;
+// first. Only players in the event (on a team in any of its divisions) and the
+// people on the event's judges list are offered. Players competing in that pool, or already judging it, are left out;
 // players competing in another pool of the round are included and tagged.
 // Aliases are skipped (the primary player stands for them).
 export async function getJudgeCandidates(
@@ -204,14 +204,23 @@ export async function getJudgeCandidates(
      LEFT JOIN this_event e ON e.player_id = p.id
      LEFT JOIN competing c ON c.player_id = p.id
      WHERE p.alias_id IS NULL
-       AND EXISTS (
-         SELECT 1
-         FROM teams et
-         JOIN divisions ed ON ed.id = et.division_id
-         JOIN team_players etp ON etp.team_id = et.id
-         JOIN players ep ON ep.id = etp.player_id
-         WHERE COALESCE(ep.alias_id, ep.id) = p.id
-           AND ed.event_id = (SELECT event_id FROM divisions WHERE id = $1)
+       AND (
+         EXISTS (
+           SELECT 1
+           FROM teams et
+           JOIN divisions ed ON ed.id = et.division_id
+           JOIN team_players etp ON etp.team_id = et.id
+           JOIN players ep ON ep.id = etp.player_id
+           WHERE COALESCE(ep.alias_id, ep.id) = p.id
+             AND ed.event_id = (SELECT event_id FROM divisions WHERE id = $1)
+         )
+         OR EXISTS (
+           SELECT 1
+           FROM events ev
+           JOIN players jp ON jp.id = ANY(ev.judge_player_ids)
+           WHERE ev.id = (SELECT event_id FROM divisions WHERE id = $1)
+             AND COALESCE(jp.alias_id, jp.id) = p.id
+         )
        )
        AND COALESCE(c.here, false) = false
        AND NOT EXISTS (
@@ -299,6 +308,24 @@ export async function getEventCommittee(eventId: string): Promise<{ error: strin
   } catch (err) {
     if ((err as { code?: string }).code === '42703') {
       return { error: "This database doesn't have the committee yet: run the new lines of backend/schema.sql on it.", members: [] };
+    }
+    throw err;
+  }
+  const players = await getPlayerRefs(ids);
+  return { error: null, members: ids.map((pid) => players.get(pid)).filter((p): p is PlayerRef => !!p) };
+}
+
+// The event's judges list: extra people offered in Set Judges.
+export async function getEventJudges(eventId: string): Promise<{ error: string | null; members: PlayerRef[] }> {
+  let ids: string[];
+  try {
+    const result = await pool.query<{ judge_player_ids: string[] }>('SELECT judge_player_ids FROM events WHERE id = $1', [
+      eventId,
+    ]);
+    ids = result.rows[0]?.judge_player_ids ?? [];
+  } catch (err) {
+    if ((err as { code?: string }).code === '42703') {
+      return { error: "This database doesn't have the judges list yet: run the new lines of backend/schema.sql on it.", members: [] };
     }
     throw err;
   }

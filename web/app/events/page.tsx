@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getEvent, getEventCommittee, getEventPlayers, listDivisions, listEvents } from '@/lib/event-creator-queries';
+import { getEvent, getEventCommittee, getEventJudges, getEventPlayers, listDivisions, listEvents } from '@/lib/event-creator-queries';
 import { DIVISION_NAMES } from '@/lib/event-creator';
 import { NewEventForm } from './_components/NewEventForm';
 import { NewDivisionForm } from './_components/NewDivisionForm';
@@ -9,6 +9,7 @@ import { RegistrationTeamsForm } from './_components/RegistrationTeamsForm';
 import { Collapsible } from './_components/Collapsible';
 import { EventDiscordSettings } from './_components/EventDiscordSettings';
 import { EventCommitteeSettings } from './_components/EventCommitteeSettings';
+import { EventJudgesSettings } from './_components/EventJudgesSettings';
 import { getEventDiscordStatus } from '@/lib/discord';
 import { Tabs, type Tab } from '../_components/Tabs';
 import { DivisionView } from './_components/division/DivisionView';
@@ -23,13 +24,14 @@ export default async function EventsPage({
   const t = await getT();
 
   // Independent queries run together (each DB round trip is ~100ms).
-  const [events, selected, unsortedDivisions, players, discord, committee] = await Promise.all([
+  const [events, selected, unsortedDivisions, players, discord, committee, judges] = await Promise.all([
     listEvents(),
     eventParam ? getEvent(eventParam) : null,
     eventParam ? listDivisions(eventParam) : [],
     eventParam ? getEventPlayers(eventParam) : [],
     eventParam ? getEventDiscordStatus(eventParam) : null,
     eventParam ? getEventCommittee(eventParam) : null,
+    eventParam ? getEventJudges(eventParam) : null,
   ]);
   const divisions = selected
     ? unsortedDivisions.sort(
@@ -99,6 +101,16 @@ export default async function EventsPage({
                 ))}
               </ul>
             )}
+          </Collapsible>
+
+          <Collapsible title={t.events.judgesList(judges!.members.length)} variant="card" defaultOpen={false}>
+            <EventJudgesSettings
+              // Remounts after a save's refresh, so the list starts from what was stored.
+              key={judges!.members.map((m) => m.id).join()}
+              eventId={selected.id}
+              members={judges!.members}
+              error={judges!.error}
+            />
           </Collapsible>
         </section>
       )}

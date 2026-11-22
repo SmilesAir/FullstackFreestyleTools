@@ -19,6 +19,7 @@ export const admin: Dictionary['admin'] = {
   toPostgres: (n) => `${n} cambio(s) aplicados en Postgres`,
   toDynamo: (n) => `${n} cambio(s) aplicados en Dynamo`,
   conflictsFlagged: (n) => `${n} conflicto(s) nuevos marcados`,
+  playersToDynamo: (n) => `${n} jugador(es) enviados a la app anterior`,
   openConflicts: 'Conflictos abiertos',
   noneNow: 'Ninguno por ahora.',
   acceptDynamo: 'Aceptar Dynamo (izquierda)',

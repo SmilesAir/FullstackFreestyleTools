@@ -17,6 +17,7 @@ export function TeamsReview({
   update,
   resolve,
   onError,
+  hideTeamLabel = false,
 }: {
   teams: Slot[][];
   // Applies a change to these teams (the parent owns the state).
@@ -24,6 +25,8 @@ export function TeamsReview({
   // Picks a player for a written name everywhere that name is still unresolved.
   resolve: (input: string, patch: Partial<Slot>) => void;
   onError: (message: string | null) => void;
+  // Each "team" is one person (a list of judges), so no "Team N" heading.
+  hideTeamLabel?: boolean;
 }) {
   const tr = useT();
   function updateSlot(t: number, s: number, patch: Partial<Slot>) {
@@ -44,7 +47,7 @@ export function TeamsReview({
     <>
       {teams.map((team, t) => (
         <div key={t} className="flex flex-col gap-2 rounded bg-gray-50 p-2">
-          <div className="text-xs text-gray-500">{tr.events.team(t + 1)}</div>
+          {!hideTeamLabel && <div className="text-xs text-gray-500">{tr.events.team(t + 1)}</div>}
           {team.map((slot, s) => (
             <div key={s} className="flex flex-col gap-1 border-l-2 border-gray-300 pl-2">
               <div className="flex flex-wrap items-center gap-2 text-sm">

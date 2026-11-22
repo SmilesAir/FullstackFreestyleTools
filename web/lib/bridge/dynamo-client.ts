@@ -23,6 +23,12 @@ export const EVENT_SUMMARY_INFO_TABLE_NAME = 'event-summary-service-production-i
 // event-summary-service's isEventDataDirty.
 export const EVENT_RESULTS_TABLE_NAME = 'event-results-service-production-eventResultsTable';
 export const EVENT_RESULTS_INFO_TABLE_NAME = 'event-results-service-production-infoTable';
+// The old app's player list: player-name-service (source: SmilesAir/PlayerNameService
+// aws/source/main.js). Same caching pattern again - getAllPlayers serves an S3 copy until
+// the info table's 'info' item has isPlayerDataDirty set. Players only go one way, from
+// here to there (see pushPlayersToDynamo).
+export const PLAYER_TABLE_NAME = 'player-name-service-production-playerTable';
+export const PLAYER_INFO_TABLE_NAME = 'player-name-service-production-infoTable';
 
 const globalForDynamo = globalThis as unknown as { dynamoDoc?: DynamoDBDocumentClient };
 

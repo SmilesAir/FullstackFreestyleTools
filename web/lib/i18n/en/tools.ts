@@ -77,6 +77,9 @@ export const tools = {
     label: 'Judging Trainer',
     description:
       'Practice Fpa2027 judging on a test pool of 8 teams: play every judge and the head judge, then see how the scores and places are worked out. Everything stays in your browser.',
+    // The link preview (Discord, etc.) for a shared /judging-trainer link.
+    shareTitle: 'FPA Judging Trainer',
+    shareDescription: 'Explanation and practice of the FPA 2027 judging system.',
   },
   wiki: {
     label: 'Wiki',

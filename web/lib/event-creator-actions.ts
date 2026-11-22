@@ -151,6 +151,16 @@ export async function setEventCommittee(eventId: string, playerIds: string[]): P
   return result.rowCount === 0 ? { error: 'Unknown event' } : { error: null };
 }
 
+// Replaces the event's judges list: extra people offered in Set Judges, besides
+// the players on its teams.
+export async function setEventJudges(eventId: string, playerIds: string[]): Promise<ActionState> {
+  await guard();
+  if (!UUID.test(eventId)) return { error: 'Unknown event' };
+  if (!playerIds.every((id) => UUID.test(id))) return { error: 'Unknown player' };
+  const result = await pool.query('UPDATE events SET judge_player_ids = $2 WHERE id = $1', [eventId, [...new Set(playerIds)]]);
+  return result.rowCount === 0 ? { error: 'Unknown event' } : { error: null };
+}
+
 
 async function updatePoolConfig(divisionId: string, mutate: (config: PoolConfig) => void) {
   const row = await pool.query<{ pool_config: PoolConfig }>('SELECT pool_config FROM divisions WHERE id = $1', [

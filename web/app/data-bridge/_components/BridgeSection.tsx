@@ -72,6 +72,7 @@ export function BridgeSection({ initialConflicts }: { initialConflicts: BridgeCo
             <li>{t.admin.toPostgres(summary.applied.toPostgres)}</li>
             <li>{t.admin.toDynamo(summary.applied.toDynamo)}</li>
             <li>{t.admin.conflictsFlagged(summary.conflicts)}</li>
+            <li>{t.admin.playersToDynamo(summary.playersToDynamo)}</li>
           </ul>
           {summary.errors.length > 0 && (
             <div className="mt-2 rounded border border-red-300 bg-red-50 p-2 text-red-800">

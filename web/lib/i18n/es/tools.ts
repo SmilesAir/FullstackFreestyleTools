@@ -79,6 +79,8 @@ export const tools: Dictionary['tools'] = {
     label: 'Entrenador de jueceo',
     description:
       'Practica el jueceo Fpa2027 con un grupo de prueba de 8 equipos: haz de cada juez y del juez principal, y luego mira cómo se calculan los puntajes y puestos. Todo queda en tu navegador.',
+    shareTitle: 'Entrenador de jueceo FPA',
+    shareDescription: 'Explicación y práctica del sistema de jueceo FPA 2027.',
   },
   wiki: {
     label: 'Wiki',

@@ -29,6 +29,17 @@ export const events = {
   judgesListed: 'Judges are listed on the landing page',
   judgesNotListed: 'Judges are not listed on the landing page',
 
+  // Judges list
+  judgesList: (n: number) => `Additional Judges (${n})`,
+  judgesListHelp: "Extra people offered in Set Judges, besides the players on the event's teams. Players can be added too.",
+  noJudgesListed: 'No extra judges yet.',
+  addJudgePlaceholder: 'Add a judge…',
+  judgesPastePlaceholder: 'Jane Doe\nSmith, John\nAnn Lee, Bob Jones',
+  addJudges: 'Add judges',
+  addingJudges: 'Adding…',
+  addedJudges: (n: number, skipped: number) =>
+    `Added ${n} judge(s)${skipped ? `; skipped ${skipped} without a player picked` : ''}.`,
+  noJudgeNamesFound: 'No names found.',
   // Committee
   committeeHelp: "The people who review this event's pools and results.",
   noCommittee: 'No committee members yet.',

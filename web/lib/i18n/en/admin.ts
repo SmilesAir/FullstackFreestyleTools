@@ -19,6 +19,7 @@ export const admin = {
   toPostgres: (n: number) => `${n} change(s) applied to Postgres`,
   toDynamo: (n: number) => `${n} change(s) applied to Dynamo`,
   conflictsFlagged: (n: number) => `${n} new conflict(s) flagged`,
+  playersToDynamo: (n: number) => `${n} player(s) sent to the old app`,
   openConflicts: 'Open conflicts',
   noneNow: 'None right now.',
   acceptDynamo: 'Accept Dynamo (left)',

@@ -404,7 +404,7 @@ Everything needed to move the project to a new owner, and to retire the old AWS 
 | Anthropic API key | Claude in the Event Creator and Results Parser | Yes |
 | AWS Route 53 Domains | Registration of `freestylejudge.com` | Moves to the new owner's registrar |
 | AWS Route 53 hosted zone | DNS for `freestylejudge.com` | Replaced by the new DNS host |
-| AWS DynamoDB `freestyle-judge-production-dataTable` | The old system's live data, kept in step with Postgres by the bridge (`web/lib/bridge/`) | Only until the old system is retired |
+| AWS DynamoDB `freestyle-judge-production-dataTable`, plus `player-name-service-production-playerTable` and its `infoTable` | The old system's live data, kept in step with Postgres by the bridge (`web/lib/bridge/`); players go one way, from Postgres to the old app | Only until the old system is retired |
 | Everything else in AWS (us-west-2) | The old FPA Judging System and its services | Retired with it |
 
 **Where the secrets live**

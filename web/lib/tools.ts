@@ -40,9 +40,15 @@ export const ALWAYS_AVAILABLE_TOOLS: ToolInfo[] = [
   { key: 'wiki', href: '/wiki' },
 ];
 
+const ALL_TOOLS = [...FLAGGED_TOOLS, ...ADMIN_ONLY_TOOLS, ...ALWAYS_AVAILABLE_TOOLS];
+
+export function isToolKey(key: string): key is ToolKey {
+  return ALL_TOOLS.some((x) => x.key === key);
+}
+
 // The browser tab title for a tool's pages: its name in the Control Panel.
 export function toolTitle(t: Dictionary, href: string): string {
-  const tool = [...FLAGGED_TOOLS, ...ADMIN_ONLY_TOOLS, ...ALWAYS_AVAILABLE_TOOLS].find((x) => x.href === href);
+  const tool = ALL_TOOLS.find((x) => x.href === href);
   if (!tool) throw new Error(`No tool at ${href}`);
   return t.tools[tool.key].label;
 }

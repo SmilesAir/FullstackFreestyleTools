@@ -16,5 +16,9 @@ export const home = {
   noAccessTitle: 'No access',
   noAccessBody: "You don't have permission to use this tool. Ask an admin to grant you access.",
   noToolsYet: "You don't have access to any tools yet. Ask an admin to grant you access.",
+  filterTools: 'Filter tools',
+  noToolsMatch: 'No tools match that filter.',
+  starTool: 'Star (show first)',
+  unstarTool: 'Unstar',
   noLinkedPlayerWarning: '⚠ No player linked: link your player so results, rankings and Discord tags find you.',
 };

@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { signOut } from '@/auth';
 import { getCurrentUserAccess } from '@/lib/authz';
@@ -9,6 +8,7 @@ import { getPoolReviewScope, hasPoolReviewAccess } from '@/lib/pool-review-queri
 import { FLAGGED_TOOLS, ADMIN_ONLY_TOOLS, ALWAYS_AVAILABLE_TOOLS } from '@/lib/tools';
 import { getT } from '@/lib/i18n/server';
 import { LanguageSwitch } from '@/app/_components/LanguageSwitch';
+import { ToolGrid } from './_components/ToolGrid';
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getT()).common.controlPanel };
@@ -29,8 +29,20 @@ export default async function ControlPanelPage() {
   ];
 
   // The Profile card calls out an account with no player linked yet.
-  const linked = await pool.query<{ player_id: string | null }>('SELECT player_id FROM users WHERE id = $1', [access.userId]);
-  const noLinkedPlayer = !linked.rows[0]?.player_id;
+  // Starred tools come first; a database without the column yet just has none.
+  let user: { player_id: string | null; starred_tools?: string[] } | undefined;
+  try {
+    const r = await pool.query<{ player_id: string | null; starred_tools: string[] }>(
+      'SELECT player_id, starred_tools FROM users WHERE id = $1',
+      [access.userId]
+    );
+    user = r.rows[0];
+  } catch {
+    const r = await pool.query<{ player_id: string | null }>('SELECT player_id FROM users WHERE id = $1', [access.userId]);
+    user = r.rows[0];
+  }
+  const noLinkedPlayer = !user?.player_id;
+  const starred = user?.starred_tools ?? [];
   const t = await getT();
 
   return (
@@ -52,29 +64,13 @@ export default async function ControlPanelPage() {
         </div>
       </div>
 
-      {tools.length === 0 && (
+      {tools.length === 0 ? (
         <p className="text-sm text-gray-500">
           {t.home.noToolsYet}
         </p>
+      ) : (
+        <ToolGrid tools={tools} noLinkedPlayer={noLinkedPlayer} starred={starred} />
       )}
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {tools.map((tool) => (
-          <Link
-            key={tool.href}
-            href={tool.href}
-            className="rounded border border-gray-300 p-4 hover:bg-gray-50"
-          >
-            <div className="font-medium text-blue-600">{t.tools[tool.key].label}</div>
-            <p className="mt-1 text-sm text-gray-600">{t.tools[tool.key].description}</p>
-            {tool.href === '/profile' && noLinkedPlayer && (
-              <p className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                {t.home.noLinkedPlayerWarning}
-              </p>
-            )}
-          </Link>
-        ))}
-      </div>
     </main>
   );
 }

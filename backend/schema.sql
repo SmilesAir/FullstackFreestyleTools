@@ -359,6 +359,9 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_username text;
 -- with the language switch. Signed-out devices keep theirs in the `lang` cookie instead.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS language text NOT NULL DEFAULT 'en';
 
+-- The Control Panel tools this account starred (tool keys from web/lib/tools.ts), shown first.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS starred_tools text[] NOT NULL DEFAULT '{}';
+
 -- Each Google/Discord sign-in connected to an account, by the provider's permanent
 -- account id (not its email, which can differ between providers or change). A sign-in
 -- found here opens its account; otherwise the account with the same email does (and
@@ -552,6 +555,10 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS bridge_enabled boolean NOT NULL DEFA
 -- The event's committee: the people who review its pools and results. Set in the
 -- Event Creator's Events tab; one list for the whole event (directors are per division).
 ALTER TABLE events ADD COLUMN IF NOT EXISTS committee_player_ids uuid[] NOT NULL DEFAULT '{}';
+
+-- Extra people the Set Judges panel offers for the event, besides the players on
+-- its teams (people who judge but don't compete). Set in the Event Creator's Events tab.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS judge_player_ids uuid[] NOT NULL DEFAULT '{}';
 
 -- The bridge's own memory of what it last agreed between the two sides, per
 -- synced "thing" (an event's roster/division setup, or one round's pool

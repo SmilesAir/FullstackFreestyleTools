@@ -18,6 +18,10 @@ export const home: Dictionary['home'] = {
   noAccessTitle: 'Sin acceso',
   noAccessBody: 'No tienes permiso para usar esta herramienta. Pídele acceso a un administrador.',
   noToolsYet: 'Todavía no tienes acceso a ninguna herramienta. Pídele acceso a un administrador.',
+  filterTools: 'Filtrar herramientas',
+  noToolsMatch: 'Ninguna herramienta coincide con ese filtro.',
+  starTool: 'Destacar (mostrar primero)',
+  unstarTool: 'Quitar de destacados',
   noLinkedPlayerWarning:
     '⚠ Sin jugador vinculado: vincula tu jugador para que los resultados, rankings y etiquetas de Discord te encuentren.',
 };

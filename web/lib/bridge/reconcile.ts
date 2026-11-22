@@ -23,6 +23,7 @@ import {
   pushEventSummaryToDynamo,
   pushEventToDynamo,
   pushPoolLayoutToDynamo,
+  pushPlayersToDynamo,
   pushPoolResultToDynamo,
 } from './dynamo-writer';
 
@@ -31,6 +32,8 @@ export type ReconcileSummary = {
   eventsChecked: number;
   applied: { toDynamo: number; toPostgres: number };
   conflicts: number;
+  // Players sent to the old app's player table (one way; see pushPlayersToDynamo).
+  playersToDynamo: number;
   errors: string[];
 };
 
@@ -88,7 +91,22 @@ async function recordConflict(entityType: string, entityKey: string, field: stri
 }
 
 export async function reconcile({ dryRun }: { dryRun: boolean }): Promise<ReconcileSummary> {
-  const summary: ReconcileSummary = { dryRun, eventsChecked: 0, applied: { toDynamo: 0, toPostgres: 0 }, conflicts: 0, errors: [] };
+  const summary: ReconcileSummary = {
+    dryRun,
+    eventsChecked: 0,
+    applied: { toDynamo: 0, toPostgres: 0 },
+    conflicts: 0,
+    playersToDynamo: 0,
+    errors: [],
+  };
+  // Players first, so the old app already knows any player a pushed roster names.
+  try {
+    const players = await pushPlayersToDynamo(dryRun);
+    summary.playersToDynamo = players.pushed;
+    summary.errors.push(...players.errors.map((e) => `players: ${e}`));
+  } catch (err) {
+    summary.errors.push(`players: ${err instanceof Error ? err.message : String(err)}`);
+  }
   const eventIds = await getBridgeEnabledEventIds();
   for (const eventId of eventIds) {
     summary.eventsChecked++;

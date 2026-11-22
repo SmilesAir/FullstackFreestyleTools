@@ -8,8 +8,11 @@ import {
   EVENT_RESULTS_TABLE_NAME,
   EVENT_SUMMARY_INFO_TABLE_NAME,
   EVENT_SUMMARY_TABLE_NAME,
+  PLAYER_INFO_TABLE_NAME,
+  PLAYER_TABLE_NAME,
 } from './dynamo-client';
-import { applyCanonicalToDynamoPool, dynamoPoolKey } from './mapping';
+import { applyCanonicalToDynamoPool, dynamoPoolKey, playerDiffers, postgresPlayerToDynamo } from './mapping';
+import { getAllPlayersForBridge } from './postgres-reader';
 import type { CanonicalEvent, CanonicalPoolLayout, CanonicalPoolResult } from './mapping';
 import { teamKey } from '../event-creator-layout';
 
@@ -153,4 +156,39 @@ export async function pushPoolResultToDynamo(
     return found ? { ...t, teamScore: found.score } : t;
   });
   await dynamoPutItem({ ...existing, key, teamData });
+}
+
+// One-way player sync: every Postgres player missing from the old app's player table, or
+// differing from it on a compared field (see playerDiffers), is put there. Nothing is ever
+// deleted, and an edit made in the old app is overwritten by Postgres's value on the next
+// run - Postgres is the source of truth for players. One scan per run (~3k small items).
+export async function pushPlayersToDynamo(dryRun: boolean): Promise<{ pushed: number; errors: string[] }> {
+  const existingItems = await dynamoScanAll(PLAYER_TABLE_NAME);
+  const byKey = new Map(existingItems.map((i) => [String(i.key), i]));
+  const rows = await getAllPlayersForBridge();
+
+  let pushed = 0;
+  const errors: string[] = [];
+  for (const row of rows) {
+    const existing = byKey.get(row.id);
+    if (!playerDiffers(row, existing)) continue;
+    if (dryRun) {
+      pushed++;
+      continue;
+    }
+    try {
+      await dynamoPutItem(postgresPlayerToDynamo(row, existing), PLAYER_TABLE_NAME);
+      pushed++;
+    } catch (err) {
+      errors.push(`player ${row.id}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  if (!dryRun && pushed > 0) await markPlayerDataDirty();
+  return { pushed, errors };
+}
+
+// Same cache-invalidation story as markEventSummaryDirty, player-name-service's field name.
+export async function markPlayerDataDirty(): Promise<void> {
+  await dynamoPutItem({ key: 'info', isPlayerDataDirty: true }, PLAYER_INFO_TABLE_NAME);
 }

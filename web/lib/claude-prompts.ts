@@ -9,7 +9,7 @@ import { FPA2027_GUIDE } from './judging-trainer-guide';
 
 export const CLAUDE_MODEL = 'claude-opus-5';
 
-export type ClaudePromptId = 'roster-division' | 'roster-event' | 'results' | 'support-chat' | 'judging-trainer';
+export type ClaudePromptId = 'roster-division' | 'roster-event' | 'judge-names' | 'results' | 'support-chat' | 'judging-trainer';
 
 export type ClaudePrompt = {
   id: ClaudePromptId;
@@ -43,6 +43,16 @@ Rules:
 - Copy each name exactly as written, keeping accents and punctuation (only trim whitespace). Never invent, complete, translate or correct names.
 - If a line looks like a team but you cannot tell how to split it, put that line verbatim in "unparsed" instead of guessing. Put lines that are clearly not roster data (titles, notes) there too.
 - A team may have one or more players; do not pad or drop players. A player who is in several divisions appears in each of them.`;
+
+const JUDGE_NAMES_SYSTEM = `You extract people's names from a list of judges for a freestyle-frisbee tournament, pasted in many formats: one name per line, names separated by commas, semicolons or tabs, numbered or bulleted lists, or tables copied from spreadsheets or web pages.
+
+Return every person's name once, in the order given.
+
+Rules:
+- Copy each name exactly as written, keeping accents and punctuation (only trim whitespace). Never invent, complete, translate or correct names.
+- "Last, First" ordering is one person: return it as "First Last".
+- Do not return headings, numbers, countries, roles, divisions, points or other non-name text as names.
+- If a line looks like names but you cannot tell how to split it, put that line verbatim in "unparsed" instead of guessing. Put lines that are clearly not names (titles, notes) there too.`;
 
 const RESULTS_SYSTEM = `You extract freestyle-frisbee tournament results from text that people paste in many formats: tables copied from spreadsheets or web pages, lists like "1. Jane Doe / John Smith", "1st Jane Doe & John Smith", results split into Finals, Semifinals, Quarterfinals and Preliminaries or Pool A / Pool B, and results for several divisions at once.
 
@@ -121,6 +131,16 @@ export const CLAUDE_PROMPTS: readonly ClaudePrompt[] = [
     maxTokens: 16000,
     outputSummary: "A list of divisions (by the heading in the text), each with its teams and their players' names, plus any lines it could not place.",
     system: ROSTER_EVENT_SYSTEM,
+  },
+  {
+    id: 'judge-names',
+    name: 'Additional judges list',
+    usedIn: 'Event Creator: Events tab, the selected event, Additional Judges',
+    model: CLAUDE_MODEL,
+    effort: 'low',
+    maxTokens: 8000,
+    outputSummary: "A list of people's names as written, plus any lines it could not place.",
+    system: JUDGE_NAMES_SYSTEM,
   },
   {
     id: 'results',

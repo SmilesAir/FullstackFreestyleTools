@@ -74,6 +74,60 @@ export async function parseRosterText(text: string): Promise<ParseResult> {
   return { error: null, teams, unparsed: parsed.unparsed.map((l) => l.trim()).filter(Boolean), counts };
 }
 
+// ---- A list of judges (the Event Creator's event section) -----------------------------
+
+export type JudgeNamesParseResult = { error: string } | { error: null; names: ParsedSlot[]; unparsed: string[] };
+
+const JudgeNamesSchema = z.object({ names: z.array(z.string()), unparsed: z.array(z.string()) });
+
+export async function parseJudgeNamesText(text: string): Promise<JudgeNamesParseResult> {
+  const access = await requirePermission('event_creator');
+  const prompt = promptById('judge-names');
+
+  const trimmed = text.trim();
+  if (!trimmed) return { error: 'Paste some text first' };
+  if (trimmed.length > 30000) return { error: 'That is too much text to parse at once — try splitting it up.' };
+
+  const apiKey = await getSetting('anthropic_api_key');
+  if (!apiKey) return { error: "The Anthropic API key isn't set yet. Ask an admin to add it in Settings." };
+
+  const client = new Anthropic({ apiKey });
+  let parsed: z.infer<typeof JudgeNamesSchema> | null;
+  try {
+    const response = await client.messages.parse({
+      model: prompt.model,
+      max_tokens: prompt.maxTokens,
+      system: prompt.system,
+      messages: [{ role: 'user', content: trimmed }],
+      output_config: { effort: prompt.effort, format: zodOutputFormat(JudgeNamesSchema) },
+    });
+    await recordClaudeUsage({ feature: prompt.id, model: prompt.model, usage: response.usage, stopReason: response.stop_reason, userId: access.userId });
+    if (response.stop_reason === 'refusal') return { error: 'Claude declined to parse that text.' };
+    if (response.stop_reason === 'max_tokens') return { error: 'That list is too large to parse in one go — try splitting it up.' };
+    parsed = response.parsed_output;
+  } catch (err) {
+    if (err instanceof Anthropic.AuthenticationError) return { error: 'The saved Anthropic API key was rejected. Ask an admin to update it in Settings.' };
+    if (err instanceof Anthropic.RateLimitError) return { error: 'Anthropic is rate limiting requests right now. Try again shortly.' };
+    if (isOutOfCredit(err)) return { error: (await getT()).supportChat.outOfCredit };
+    if (err instanceof Anthropic.APIError) return { error: `Anthropic API error (${err.status}). Try again shortly.` };
+    console.error('Judges parser: Claude request failed', err);
+    return { error: 'Failed to parse the names.' };
+  }
+  if (!parsed) return { error: "Couldn't read Claude's response. Try again." };
+
+  // The same name written twice is one person.
+  const seen = new Set<string>();
+  const names = parsed.names
+    .map((n) => n.trim())
+    .filter((n) => n && !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase()));
+  const matches = await matchAll(names);
+  return {
+    error: null,
+    names: names.map((n) => matches.get(n)).filter((m): m is ParsedSlot => !!m),
+    unparsed: parsed.unparsed.map((l) => l.trim()).filter(Boolean),
+  };
+}
+
 // ---- Several divisions at once (the Event Creator's event section) ---------------------
 
 export type EventParseResult =
