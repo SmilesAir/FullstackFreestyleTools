@@ -369,32 +369,23 @@ Nothing on Neon is touched by any of this. Unsent local changes are lost if you 
 
 **If a phone can't reach the laptop:** allow the app through Windows Firewall for the hotspot network (it may be classed Public); make sure the hotspot has client/AP isolation off; use the address shown in the pill (the `.local` name is a backup for when the IP changes). If the page loads on the phone but never updates and nothing can be pressed, the server is `next dev` blocking other devices: `web/next.config.ts` already allows local network addresses (restart the server after changing it), and `npm run start:local` (after `npm run build`) has no such check.
 
-# Sharing freestylejudge.com with the old system
+# The old system at freestylejudge.com/old
 
-While the old FPA Judging System is still in use, both live on freestylejudge.com. The app (on Vercel) answers the domain and passes the old system's requests through to its CloudFront distribution, unchanged on AWS.
+freestylejudge.com is this app (on Vercel). The old FPA Judging System is still reachable at `/old`, so its events, results and admin tools keep working until it's retired.
 
 | Address | Served by |
 |---|---|
-| `/` (with or without `?…`), `/index.html`, `/bundle.js`, `/bundle.js.LICENSE.txt` | Old system |
-| Anything the app has no page or file for | Old system (its S3 bucket answers any path with the app) |
-| `/new` (this app's home page), `/r/…`, `/judge/…`, `/events`, `/head-judge`, `/login`, `/api/…`, … | This app |
+| `/`, `/r/…`, `/judge/…`, `/events`, `/head-judge`, `/login`, `/api/…`, … | This app |
 | `/old` and anything under it (`/old/admin`, `/old?startup=…`, …) | Old system, from this app's copy in `web/public/old` |
+| `/?startup=…`, `/?x=…`, `/?eventKey=…` (old links and permalinks) | Redirected to `/old` with the same query |
+| `/admin`, `/quick`, `/creator`, `/viewer` (the old app's own pages) | Redirected to `/old/admin` etc. |
+| `/new` (this app's home page until the switch) | Redirected to `/` |
 
-The old app keeps everything on `/` and reads its `?startup=…&eventKey=…` parameters from the browser's address, so every old link and permalink keeps working. It calls its own APIs at their AWS addresses, not through freestylejudge.com; none of its API paths (`/getEventData`, `/updateJudgeData`, …) collide with this app's.
+The redirects are in `web/next.config.ts`. The old app's page (`index.html` and its one `bundle.js`) is copied into `web/public/old`, patched to run at `/old`: its router gets a `/old` basename, and its permalinks and "new Admin Wizard" link point under `/old`. It still calls its own APIs at their AWS addresses, so it's the same live system. `node scripts/fetch-legacy-site.mjs` (in `web/`) downloads the copy again and patches it. It stops without writing anything if a patch no longer matches exactly once. Rerun it only if the old app is ever redeployed.
 
-**The old system at `/old`** (everywhere, with or without `LEGACY_SITE_ORIGIN`): the old app's page (`index.html` and its one `bundle.js`) is copied into `web/public/old`. It's patched to run at `/old`: its router gets a `/old` basename, and its permalinks and "new Admin Wizard" link point under `/old`. It still calls its own APIs on AWS, so it's the same live system. This is for the cutover, when `/` becomes this app. `node scripts/fetch-legacy-site.mjs` (in `web/`) downloads the copy again and patches it. It stops without writing anything if a patch no longer matches exactly once. Rerun it only if the old app is ever redeployed.
+**History**: until November 2026 the old system kept `/`. Vercel passed its requests through to its CloudFront distribution (`https://dgtjhs1oj3tvk.cloudfront.net`, set as `LEGACY_SITE_ORIGIN`), and this app's home page was at `/new`. DNS (Route 53) points the domain at Vercel: the apex A record is Vercel's address and `www` is a CNAME to `cname.vercel-dns.com`. `AUTH_URL=https://freestylejudge.com` is set, and the Google and Discord OAuth clients have `https://freestylejudge.com/api/auth/callback/…` redirect URLs. The DNS rollback, if it's ever needed: put back the four alias records (A and AAAA for `freestylejudge.com` and `www.freestylejudge.com`) pointing at `d5rsjgoyn07f8.cloudfront.net`. (That target is the `completejudging` distribution, but CloudFront routes by name, so it reaches the old site's own distribution `E2ZYDVHUHB7W9Z`.)
 
-**How it's switched on**: `LEGACY_SITE_ORIGIN=https://dgtjhs1oj3tvk.cloudfront.net` in Vercel's Production environment (`web/next.config.ts` adds the pass-through only when it's set). Laptops and dev leave it unset, so `/` is this app's home page there. Links back to this app's home page use `/new` (`web/lib/site.ts`), which works either way.
-
-**Putting it live** (one time):
-
-1. Vercel project → Domains: add `freestylejudge.com` and `www.freestylejudge.com` (www redirecting to the apex). Environment Variables (Production): `LEGACY_SITE_ORIGIN` as above and `AUTH_URL=https://freestylejudge.com`. Redeploy.
-2. Add `https://freestylejudge.com/api/auth/callback/google` (Google Cloud Console, the OAuth client) and `https://freestylejudge.com/api/auth/callback/discord` (Discord Developer Portal → OAuth2) as redirect URLs.
-3. Test on the project's `*.vercel.app` address: the old system at `/` (event directory, a results permalink, its admin login), then `/new`, and Google and Discord sign-in.
-4. At a quiet time (never during an event), change Route 53 (hosted zone `freestylejudge.com`) to the values Vercel's Domains screen shows: apex A record to Vercel's address (usually `76.76.21.21`) and delete the apex AAAA; `www` a CNAME to `cname.vercel-dns.com`. Leave the `acm-validations.aws` CNAMEs. For a few minutes some visitors may still reach AWS or see a certificate warning while Vercel issues its certificate.
-   - **Rollback**: put back the four alias records (A and AAAA for `freestylejudge.com` and `www.freestylejudge.com`) pointing at `d5rsjgoyn07f8.cloudfront.net`. (That target is the `completejudging` distribution, but CloudFront routes by name, so it reaches the old site's own distribution `E2ZYDVHUHB7W9Z`.)
-
-**Cutover** (when the old system is retired): remove `LEGACY_SITE_ORIGIN` and redeploy. `/` becomes this app's home page and `/new` still works. Decide first what old `/?…` links should do (for example keep the old app reachable on `old.freestylejudge.com` with a CloudFront alias and certificate, or let them land on the home page), then follow *Handing off the project*, Phase 2.
+**Retiring the old system**: delete `web/public/old`, `web/scripts/fetch-legacy-site.mjs` and the `/old` redirects and rewrites in `web/next.config.ts`, then follow *Handing off the project*, Phase 2.
 
 # Handing off the project
 

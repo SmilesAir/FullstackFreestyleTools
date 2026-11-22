@@ -10,8 +10,8 @@ export function HeadJudgeGuide() {
       intro={
         <p>
           How to run an event with these tools, from getting access to sharing the results. The site is{' '}
-          <a href="https://freestylejudge.com/new" className={link}>
-            freestylejudge.com/new
+          <a href="https://freestylejudge.com" className={link}>
+            freestylejudge.com
           </a>
           . If the venue&apos;s internet is weak, also read{' '}
           <Link href="/wiki/local-server" className={link}>
@@ -37,8 +37,8 @@ export function HeadJudgeGuide() {
         <Step title="Create an account">
           <p>
             Go to{' '}
-            <a href="https://freestylejudge.com/new" className={link}>
-              freestylejudge.com/new
+            <a href="https://freestylejudge.com" className={link}>
+              freestylejudge.com
             </a>
             , click <strong>Log in</strong> and sign in with Discord. Signing in the first time makes your account.
           </p>
@@ -256,7 +256,7 @@ export function HeadJudgeGuide() {
       </Section>
 
       <Section id="judges" title="Step 4: Set up the judges">
-        <Step title="On each judge device, go to freestylejudge.com/new">
+        <Step title="On each judge device, go to freestylejudge.com">
           <p>
             <strong>Do not sign in on these devices.</strong> The judge buttons only show when signed out (or use a
             private window).

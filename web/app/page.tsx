@@ -1,7 +1,7 @@
 import { HomePage } from './_components/HomePage';
 
-// On the hosted site `/` is the old FPA Judging System while it is still in use (see
-// next.config.ts); everywhere else (laptops at events, dev) it is the app's home page.
+// The app's home page. Old FPA Judging System links to `/?…` are redirected to /old before
+// they get here (next.config.ts).
 export default function Home() {
   return <HomePage />;
 }

@@ -11,8 +11,8 @@ export function HeadJudgeGuideEs() {
         <p>
           Cómo organizar un evento con estas herramientas, desde conseguir acceso hasta compartir los resultados. El
           sitio es{' '}
-          <a href="https://freestylejudge.com/new" className={link}>
-            freestylejudge.com/new
+          <a href="https://freestylejudge.com" className={link}>
+            freestylejudge.com
           </a>
           . Si el internet de la sede es débil, lee también{' '}
           <Link href="/wiki/local-server" className={link}>
@@ -38,8 +38,8 @@ export function HeadJudgeGuideEs() {
         <Step title="Crea una cuenta">
           <p>
             Ve a{' '}
-            <a href="https://freestylejudge.com/new" className={link}>
-              freestylejudge.com/new
+            <a href="https://freestylejudge.com" className={link}>
+              freestylejudge.com
             </a>
             , haz clic en <strong>Iniciar sesión</strong> y entra con Discord. La primera vez que entras se crea tu
             cuenta.
@@ -265,7 +265,7 @@ export function HeadJudgeGuideEs() {
       </Section>
 
       <Section id="judges" title="Paso 4: Preparar a los jueces">
-        <Step title="En cada dispositivo de juez, ve a freestylejudge.com/new">
+        <Step title="En cada dispositivo de juez, ve a freestylejudge.com">
           <p>
             <strong>No inicies sesión en estos dispositivos.</strong> Los botones de los jueces solo aparecen sin
             sesión iniciada (o usa una ventana privada).
